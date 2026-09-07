@@ -15,6 +15,29 @@ body {
   box-shadow: 0 8px 30px rgba(30,27,23,0.12);
 }
 
+.switch-app {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.switch-app button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid rgba(30,27,23,0.14);
+  background: #FFFFFF;
+  color: #79705F;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.switch-app button.actif {
+  background: #1E1B17;
+  color: #FFFFFF;
+  border-color: #1E1B17;
+}
+
 .logo {
   position: relative;
   width: 100px;
@@ -55,7 +78,9 @@ h3 {
   text-transform: uppercase;
 }
 
-.liste-metiers {
+.liste-metiers,
+.liste-produits,
+.liste-courses {
   list-style: none;
   max-width: 400px;
   margin: 0 auto;
@@ -93,4 +118,98 @@ h3 {
   justify-content: center;
   font-size: 18px;
   flex-shrink: 0;
+}
+
+.liste-produits li,
+.liste-courses li {
+  background: #FFFFFF;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(30,27,23,0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.liste-courses li {
+  cursor: pointer;
+}
+
+.liste-produits .prix,
+.liste-courses .prix {
+  color: #79705F;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.souligne {
+  font-weight: 400;
+  color: #79705F;
+}
+
+.liste-produits button {
+  background: #FF6A13;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.retour {
+  text-align: center;
+  color: #79705F;
+  cursor: pointer;
+  margin-top: 30px;
+}
+
+.total-panier {
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+  margin-top: 20px;
+}
+
+.statut-badge {
+  display: inline-block;
+  background: rgba(255,106,19,0.12);
+  color: #FF6A13;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+.valider {
+  background: #FF6A13;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.valider:disabled {
+  background: #C9C2B4;
+  cursor: not-allowed;
+}
+
+.barre-panier {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1E1B17;
+  color: #FFFFFF;
+  text-align: center;
+  padding: 16px;
+  font-weight: 600;
+  cursor: pointer;
 }
