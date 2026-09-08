@@ -52,6 +52,7 @@ function App() {
   const [sousSectionActive, setSousSectionActive] = useState(null)
   const [panier, setPanier] = useState([])
   const [recapCommande, setRecapCommande] = useState('')
+  const [envoiEnCours, setEnvoiEnCours] = useState(false)
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -103,11 +104,29 @@ function App() {
     setPanier(panier.filter((_, i) => i !== index))
   }
 
-  function validerCommande() {
+  async function validerCommande() {
     if (panier.length === 0) {
       alert('Votre panier est vide.')
       return
     }
+
+    setEnvoiEnCours(true)
+
+    const listeProduits = panier.map((produit) => produit.nom).join(', ')
+
+    const { error } = await supabase.from('commandes').insert({
+      produits: listeProduits,
+      total: total
+    })
+
+    setEnvoiEnCours(false)
+
+    if (error) {
+      console.error("Erreur d'enregistrement de la commande :", error)
+      alert("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
+      return
+    }
+
     setRecapCommande(panier.length + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
     setPanier([])
     setVue('commande')
@@ -214,7 +233,9 @@ function App() {
                 ))}
               </ul>
               <p className="total-panier">Total : {total.toFixed(2)} €</p>
-              <button className="valider" onClick={validerCommande}>Valider la commande</button>
+              <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
+                {envoiEnCours ? 'Envoi en cours...' : 'Valider la commande'}
+              </button>
             </>
           )}
 
