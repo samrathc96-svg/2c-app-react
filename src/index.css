@@ -228,3 +228,20 @@ h3 {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 14px;
 }
+
+.barre-compte {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.barre-compte button {
+  background: none;
+  border: 1px solid #79705F;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  cursor: pointer;
+}
