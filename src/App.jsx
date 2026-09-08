@@ -39,12 +39,6 @@ function grouperProduits(lignes) {
 
 const livreurCourant = { nom: 'Léa R.', vehicule: 'Scooter' }
 
-const COURSES_INITIALES = [
-  { client: 'Chantier Dupont', adresse: '12 rue des Tilleuls', prix: 6.90, statut: 'À livrer' },
-  { client: 'Chantier Martin', adresse: '8 impasse des Forges', prix: 5.40, statut: 'À livrer' },
-  { client: 'Chantier Leroy', adresse: '5 rue de la Gare', prix: 8.20, statut: 'À livrer' }
-]
-
 const STATUTS = ['À livrer', 'En cours', 'Livrée']
 
 function App() {
@@ -59,7 +53,8 @@ function App() {
   const [panier, setPanier] = useState([])
   const [recapCommande, setRecapCommande] = useState('')
 
-  const [courses, setCourses] = useState(COURSES_INITIALES)
+  const [courses, setCourses] = useState([])
+  const [chargementCourses, setChargementCourses] = useState(true)
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
 
   const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
@@ -75,6 +70,19 @@ function App() {
       setChargement(false)
     }
     chargerProduits()
+  }, [])
+
+  useEffect(() => {
+    async function chargerCourses() {
+      const { data, error } = await supabase.from('courses').select('*')
+      if (error) {
+        console.error('Erreur de chargement des courses :', error)
+      } else {
+        setCourses(data)
+      }
+      setChargementCourses(false)
+    }
+    chargerCourses()
   }, [])
 
   function ouvrirMetier(metier) {
@@ -111,15 +119,25 @@ function App() {
     setSousSectionActive(null)
   }
 
-  function avancerStatut(index) {
-    setCourses(courses.map((course, i) => {
-      if (i !== index) return course
-      const indexStatut = STATUTS.indexOf(course.statut)
-      if (indexStatut < STATUTS.length - 1) {
-        return { ...course, statut: STATUTS[indexStatut + 1] }
-      }
-      return course
-    }))
+  async function avancerStatut(index) {
+    const course = courses[index]
+    const indexStatut = STATUTS.indexOf(course.statut)
+    if (indexStatut >= STATUTS.length - 1) {
+      return
+    }
+    const nouveauStatut = STATUTS[indexStatut + 1]
+
+    const { error } = await supabase
+      .from('courses')
+      .update({ statut: nouveauStatut })
+      .eq('id', course.id)
+
+    if (error) {
+      console.error('Erreur de mise a jour du statut :', error)
+      return
+    }
+
+    setCourses(courses.map((c, i) => (i === index ? { ...c, statut: nouveauStatut } : c)))
   }
 
   return (
@@ -219,13 +237,15 @@ function App() {
 
       {appActive === 'livreur' && (
         <>
-          {courseSelectionnee === null && (
+          {chargementCourses && <p className="slogan">Chargement des courses...</p>}
+
+          {!chargementCourses && courseSelectionnee === null && (
             <>
               <h3>Mes courses</h3>
               <p className="slogan">{livreurCourant.nom} — {livreurCourant.vehicule}</p>
               <ul className="liste-courses">
                 {courses.map((course, index) => (
-                  <li key={index} onClick={() => setCourseSelectionnee(index)}>
+                  <li key={course.id} onClick={() => setCourseSelectionnee(index)}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
                     <span className="prix">{course.prix.toFixed(2)} €</span>
                   </li>
@@ -234,7 +254,7 @@ function App() {
             </>
           )}
 
-          {courseSelectionnee !== null && (
+          {!chargementCourses && courseSelectionnee !== null && (
             <>
               <p className="retour" onClick={() => setCourseSelectionnee(null)}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
