@@ -13,6 +13,7 @@ body {
   padding: 30px 20px;
   border-radius: 16px;
   box-shadow: 0 8px 30px rgba(30,27,23,0.12);
+  position: relative;
 }
 
 .switch-app {
@@ -63,6 +64,16 @@ body {
   left: 0;
 }
 
+.separateur-un {
+  width: 55px;
+  height: 3px;
+  background-color: #FF6A13;
+  border-radius: 2px;
+  margin: 14px auto;
+  position: relative;
+  left: -10px;
+}
+
 .slogan {
   color: #79705F;
   font-size: 18px;
@@ -76,6 +87,10 @@ h3 {
   font-size: 26px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+}
+
+.titre-accueil {
+  font-size: 16px;
 }
 
 .liste-metiers,
@@ -360,4 +375,15 @@ h3 {
   background-color: #FF6A13;
   color: white;
   border-color: #FF6A13;
+}
+
+.barre-recherche {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid #79705F;
+  border-radius: 20px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  margin-bottom: 14px;
 }

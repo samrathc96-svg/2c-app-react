@@ -14,6 +14,10 @@ const iconsParMetier = {
   'Chauffage & Climatisation': 'fan'
 }
 
+function retirerAccents(texte) {
+  return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 function grouperProduits(lignes) {
   const parMetier = {}
 
@@ -59,6 +63,7 @@ function App() {
 
   const [metiers, setMetiers] = useState([])
   const [chargement, setChargement] = useState(true)
+  const [recherche, setRecherche] = useState('')
 
   const [vue, setVue] = useState('accueil')
   const [metierActif, setMetierActif] = useState(null)
@@ -74,6 +79,10 @@ function App() {
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
 
   const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
+
+  const metiersFiltres = metiers.filter((metier) =>
+    retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
+  )
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -278,7 +287,7 @@ function App() {
 
   return (
     <div className="app">
-            <div className="barre-compte-haut">
+      <div className="barre-compte-haut">
         <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
           {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
         </button>
@@ -291,6 +300,7 @@ function App() {
         <span className="lettre">C</span>
         <span className="chiffre">2</span>
       </div>
+      <div className="separateur-un"></div>
       <p className="slogan">Du rayon au chantier, en un clic.</p>
 
       {afficherAuth && (
@@ -371,9 +381,16 @@ function App() {
 
           {!chargement && vue === 'accueil' && (
             <>
-              <h3>Corps de métier</h3>
+              <h3 className="titre-accueil">Corps de métier</h3>
+              <input
+                type="text"
+                className="barre-recherche"
+                placeholder="Rechercher un métier..."
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+              />
               <ul className="liste-metiers">
-                {metiers.map((metier) => (
+                {metiersFiltres.map((metier) => (
                   <li key={metier.nom} onClick={() => ouvrirMetier(metier)}>
                     <span className="icon"><i className={`bi bi-${metier.icone}`}></i></span>
                     <span>{metier.nom}</span>
