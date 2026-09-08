@@ -1,62 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './supabaseClient'
 import './App.css'
 
-const metiers = [
-  { nom: 'Maçonnerie & Gros œuvre', icone: 'bricks', sousSections: [
-    { nom: 'Chevilles & vis béton', produits: [{ nom: 'Chevilles béton x50 + vis (Ø6mm)', prix: 8.90 }, { nom: 'Boîte vis à béton x100', prix: 6.50 }] },
-    { nom: 'Fil à plomb & cordeau', produits: [{ nom: 'Fil à plomb 200g', prix: 5.20 }, { nom: 'Cordeau traceur 30m', prix: 4.80 }] },
-    { nom: 'Joints de dilatation', produits: [{ nom: 'Joint de dilatation PVC 2m', prix: 3.90 }, { nom: 'Bande compressible 5m', prix: 7.40 }] },
-    { nom: 'Équipement de protection', produits: [{ nom: 'Gants de chantier (paire)', prix: 4.50 }, { nom: 'Lunettes de protection', prix: 3.20 }] }
-  ]},
-  { nom: 'Plâtrerie & Cloisons', icone: 'layers', sousSections: [
-    { nom: 'Vis autoforeuses placo', produits: [{ nom: 'Vis autoforeuses placo x100 (35mm)', prix: 6.90 }, { nom: 'Vis autoforeuses placo x100 (45mm)', prix: 7.50 }] },
-    { nom: 'Bandes à joint', produits: [{ nom: 'Bande à joint papier 75m', prix: 5.90 }, { nom: 'Bande armée fibre 90m', prix: 8.20 }] },
-    { nom: "Cornières d'angle", produits: [{ nom: "Cornière d'angle alu 2,5m", prix: 4.10 }, { nom: "Cornière d'angle PVC 2,5m", prix: 3.40 }] },
-    { nom: 'Adhésif toilé', produits: [{ nom: 'Adhésif toilé 50mm x25m', prix: 6.30 }] }
-  ]},
-  { nom: 'Peinture & Finitions', icone: 'brush', sousSections: [
-    { nom: 'Pinceaux & rouleaux', produits: [{ nom: 'Rouleau laqueur 18cm', prix: 7.90 }, { nom: 'Set 3 pinceaux plats', prix: 9.50 }] },
-    { nom: 'Bâches de protection', produits: [{ nom: 'Bâche de protection 4x5m', prix: 6.40 }] },
-    { nom: 'Ruban de masquage', produits: [{ nom: 'Ruban de masquage 38mm x50m', prix: 3.60 }] },
-    { nom: 'Mastics & spatules', produits: [{ nom: 'Mastic acrylique blanc 300ml', prix: 4.90 }, { nom: 'Spatule inox 10cm', prix: 5.30 }] }
-  ]},
-  { nom: 'Plomberie & Sanitaire', icone: 'droplet', sousSections: [
-    { nom: 'Raccords', produits: [{ nom: 'Raccord laiton 15x21', prix: 3.80 }, { nom: 'Coude PVC Ø40', prix: 2.90 }] },
-    { nom: 'Joints silicone & fibre', produits: [{ nom: 'Joint silicone sanitaire 280ml', prix: 6.10 }, { nom: 'Joints fibre plats (x10)', prix: 2.40 }] },
-    { nom: 'Colliers de serrage', produits: [{ nom: 'Colliers de serrage inox (x10)', prix: 4.70 }] },
-    { nom: 'Téflon & mastic sanitaire', produits: [{ nom: 'Ruban téflon x3', prix: 2.60 }, { nom: 'Mastic sanitaire blanc', prix: 5.80 }] }
-  ]},
-  { nom: 'Électricité', icone: 'lightning-charge', sousSections: [
-    { nom: 'Dominos & gaines ICTA', produits: [{ nom: 'Dominos électriques (x12)', prix: 2.90 }, { nom: 'Gaine ICTA Ø16 (5m)', prix: 4.50 }] },
-    { nom: 'Câbles courts', produits: [{ nom: 'Câble électrique 3G1,5 (5m)', prix: 6.80 }] },
-    { nom: 'Prises & interrupteurs', produits: [{ nom: 'Prise 2P+T saillie', prix: 5.40 }, { nom: 'Interrupteur va-et-vient', prix: 6.20 }] },
-    { nom: 'Scotch isolant', produits: [{ nom: 'Scotch isolant (x5 couleurs)', prix: 3.90 }] }
-  ]},
-  { nom: 'Menuiserie & Serrurerie', icone: 'wrench', sousSections: [
-    { nom: 'Vis à bois & chevilles', produits: [{ nom: 'Vis à bois x200 (4x40)', prix: 8.10 }, { nom: 'Chevilles nylon x100', prix: 4.30 }] },
-    { nom: 'Charnières & poignées', produits: [{ nom: 'Charnières invisibles (x2)', prix: 6.90 }, { nom: 'Poignée de porte inox', prix: 9.80 }] },
-    { nom: 'Colle bois', produits: [{ nom: 'Colle à bois 250g', prix: 4.60 }] },
-    { nom: 'Mèches & lames', produits: [{ nom: 'Set mèches à bois (x10)', prix: 11.90 }, { nom: 'Lame scie sauteuse bois (x5)', prix: 7.20 }] }
-  ]},
-  { nom: 'Carrelage & Revêtements', icone: 'grid-3x3', sousSections: [
-    { nom: 'Colle carrelage', produits: [{ nom: 'Colle carrelage sac 5kg', prix: 9.90 }] },
-    { nom: 'Croisillons', produits: [{ nom: 'Croisillons 2mm (x250)', prix: 3.50 }] },
-    { nom: 'Joints', produits: [{ nom: 'Joint de carrelage 1kg (gris)', prix: 6.70 }] },
-    { nom: 'Mastic silicone', produits: [{ nom: 'Mastic silicone sanitaire', prix: 5.80 }] }
-  ]},
-  { nom: 'Couverture & Étanchéité', icone: 'house', sousSections: [
-    { nom: 'Pointes & crochets de tuile', produits: [{ nom: 'Crochets de tuile (x50)', prix: 7.40 }, { nom: 'Pointes torsadées (x100)', prix: 4.90 }] },
-    { nom: 'Mastic bitumineux', produits: [{ nom: 'Mastic bitumineux 310ml', prix: 6.50 }] },
-    { nom: 'Membrane petit format', produits: [{ nom: 'Membrane EPDM 1x2m', prix: 14.90 }] },
-    { nom: 'Vis toiture', produits: [{ nom: 'Vis toiture auto-perceuses (x50)', prix: 9.20 }] }
-  ]},
-  { nom: 'Chauffage & Climatisation', icone: 'fan', sousSections: [
-    { nom: 'Colliers & raccords', produits: [{ nom: 'Colliers de fixation gaine (x10)', prix: 5.10 }] },
-    { nom: 'Joints', produits: [{ nom: 'Joints VMC (x10)', prix: 3.30 }] },
-    { nom: 'Filtres', produits: [{ nom: 'Filtre VMC standard', prix: 8.90 }] },
-    { nom: 'Gaines flexibles courtes', produits: [{ nom: 'Gaine flexible Ø125 (1m)', prix: 6.40 }] }
-  ]}
-]
+const iconsParMetier = {
+  'Maçonnerie & Gros œuvre': 'bricks',
+  'Plâtrerie & Cloisons': 'layers',
+  'Peinture & Finitions': 'brush',
+  'Plomberie & Sanitaire': 'droplet',
+  'Électricité': 'lightning-charge',
+  'Menuiserie & Serrurerie': 'wrench',
+  'Carrelage & Revêtements': 'grid-3x3',
+  'Couverture & Étanchéité': 'house',
+  'Chauffage & Climatisation': 'fan'
+}
+
+function grouperProduits(lignes) {
+  const parMetier = {}
+
+  lignes.forEach((ligne) => {
+    if (!parMetier[ligne.metier]) {
+      parMetier[ligne.metier] = {}
+    }
+    if (!parMetier[ligne.metier][ligne.sous_section]) {
+      parMetier[ligne.metier][ligne.sous_section] = []
+    }
+    parMetier[ligne.metier][ligne.sous_section].push({ nom: ligne.nom, prix: ligne.prix })
+  })
+
+  return Object.keys(parMetier).map((nomMetier) => ({
+    nom: nomMetier,
+    icone: iconsParMetier[nomMetier] || 'question-circle',
+    sousSections: Object.keys(parMetier[nomMetier]).map((nomSousSection) => ({
+      nom: nomSousSection,
+      produits: parMetier[nomMetier][nomSousSection]
+    }))
+  }))
+}
 
 const livreurCourant = { nom: 'Léa R.', vehicule: 'Scooter' }
 
@@ -71,6 +50,9 @@ const STATUTS = ['À livrer', 'En cours', 'Livrée']
 function App() {
   const [appActive, setAppActive] = useState('client')
 
+  const [metiers, setMetiers] = useState([])
+  const [chargement, setChargement] = useState(true)
+
   const [vue, setVue] = useState('accueil')
   const [metierActif, setMetierActif] = useState(null)
   const [sousSectionActive, setSousSectionActive] = useState(null)
@@ -81,6 +63,19 @@ function App() {
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
 
   const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
+
+  useEffect(() => {
+    async function chargerProduits() {
+      const { data, error } = await supabase.from('produits').select('*')
+      if (error) {
+        console.error('Erreur de chargement :', error)
+      } else {
+        setMetiers(grouperProduits(data))
+      }
+      setChargement(false)
+    }
+    chargerProduits()
+  }, [])
 
   function ouvrirMetier(metier) {
     setMetierActif(metier)
@@ -142,7 +137,9 @@ function App() {
 
       {appActive === 'client' && (
         <>
-          {vue === 'accueil' && (
+          {chargement && <p className="slogan">Chargement des produits...</p>}
+
+          {!chargement && vue === 'accueil' && (
             <>
               <h3>Corps de métier</h3>
               <ul className="liste-metiers">
