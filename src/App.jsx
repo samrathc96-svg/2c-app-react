@@ -53,6 +53,8 @@ function App() {
   const [panier, setPanier] = useState([])
   const [recapCommande, setRecapCommande] = useState('')
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
+  const [nomClient, setNomClient] = useState('')
+  const [adresseClient, setAdresseClient] = useState('')
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -109,26 +111,51 @@ function App() {
       alert('Votre panier est vide.')
       return
     }
+    if (nomClient.trim() === '' || adresseClient.trim() === '') {
+      alert("Merci de renseigner le nom du client et l'adresse de livraison.")
+      return
+    }
 
     setEnvoiEnCours(true)
 
     const listeProduits = panier.map((produit) => produit.nom).join(', ')
 
-    const { error } = await supabase.from('commandes').insert({
+    const { error: erreurCommande } = await supabase.from('commandes').insert({
       produits: listeProduits,
       total: total
     })
 
-    setEnvoiEnCours(false)
-
-    if (error) {
-      console.error("Erreur d'enregistrement de la commande :", error)
+    if (erreurCommande) {
+      console.error("Erreur d'enregistrement de la commande :", erreurCommande)
+      setEnvoiEnCours(false)
       alert("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
       return
     }
 
+    const { data: nouvelleCourse, error: erreurCourse } = await supabase
+      .from('courses')
+      .insert({
+        client: nomClient,
+        adresse: adresseClient,
+        produits: listeProduits,
+        statut: 'À livrer',
+        prix: total
+      })
+      .select()
+      .single()
+
+    setEnvoiEnCours(false)
+
+    if (erreurCourse) {
+      console.error('Erreur de creation de la course :', erreurCourse)
+    } else {
+      setCourses([...courses, nouvelleCourse])
+    }
+
     setRecapCommande(panier.length + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
     setPanier([])
+    setNomClient('')
+    setAdresseClient('')
     setVue('commande')
   }
 
@@ -232,6 +259,20 @@ function App() {
                   </li>
                 ))}
               </ul>
+              <div className="champ-livraison">
+                <input
+                  type="text"
+                  placeholder="Nom du client"
+                  value={nomClient}
+                  onChange={(e) => setNomClient(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Adresse de livraison"
+                  value={adresseClient}
+                  onChange={(e) => setAdresseClient(e.target.value)}
+                />
+              </div>
               <p className="total-panier">Total : {total.toFixed(2)} €</p>
               <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
                 {envoiEnCours ? 'Envoi en cours...' : 'Valider la commande'}

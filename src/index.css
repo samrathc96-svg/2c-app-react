@@ -213,3 +213,18 @@ h3 {
   font-weight: 600;
   cursor: pointer;
 }
+
+.champ-livraison {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.champ-livraison input {
+  padding: 10px 12px;
+  border: 1px solid #79705F;
+  border-radius: 8px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+}
