@@ -173,10 +173,11 @@ h3 {
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 13px;
   color: var(--couleur-muted);
   margin-top: 20px;
+  margin-bottom: 4px;
 }
 
 .fil-ariane span {
@@ -199,12 +200,13 @@ h3 {
 }
 
 .separateur-fil {
-  color: var(--couleur-bordure);
+  color: var(--couleur-accent) !important;
   cursor: default !important;
+  font-weight: 700;
 }
 
 .separateur-fil:hover {
-  color: var(--couleur-bordure) !important;
+  color: var(--couleur-accent) !important;
 }
 
 .liste-metiers,

@@ -78,6 +78,9 @@ function App() {
   const [chargementCourses, setChargementCourses] = useState(true)
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
 
+  const [mesCommandes, setMesCommandes] = useState([])
+  const [chargementCommandes, setChargementCommandes] = useState(true)
+
   const [notification, setNotification] = useState(null)
 
   const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
@@ -158,6 +161,29 @@ function App() {
     chargerCourses()
   }, [])
 
+  useEffect(() => {
+    async function chargerCommandes() {
+      if (!session) {
+        setMesCommandes([])
+        setChargementCommandes(false)
+        return
+      }
+      const { data, error } = await supabase
+        .from('commandes')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Erreur de chargement des commandes :', error)
+      } else {
+        setMesCommandes(data)
+      }
+      setChargementCommandes(false)
+    }
+    chargerCommandes()
+  }, [session])
+
   async function connexion() {
     setErreurConnexion('')
     const { error } = await supabase.auth.signInWithPassword({
@@ -231,16 +257,25 @@ function App() {
 
     const listeProduits = panier.map((produit) => produit.nom).join(', ')
 
-    const { error: erreurCommande } = await supabase.from('commandes').insert({
-      produits: listeProduits,
-      total: total
-    })
+    const { data: nouvelleCommande, error: erreurCommande } = await supabase
+      .from('commandes')
+      .insert({
+        produits: listeProduits,
+        total: total,
+        user_id: session ? session.user.id : null
+      })
+      .select()
+      .single()
 
     if (erreurCommande) {
       console.error("Erreur d'enregistrement de la commande :", erreurCommande)
       setEnvoiEnCours(false)
       afficherNotification("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
       return
+    }
+
+    if (session && nouvelleCommande) {
+      setMesCommandes([nouvelleCommande, ...mesCommandes])
     }
 
     const { data: nouvelleCourse, error: erreurCourse } = await supabase
@@ -390,6 +425,11 @@ function App() {
                     Voir le catalogue
                   </button>
                 )}
+                {espace !== 'mesCommandes' && (
+                  <button className="valider" onClick={() => { setEspace('mesCommandes'); setAfficherAuth(false) }}>
+                    Voir mes commandes
+                  </button>
+                )}
                 <button className="valider" onClick={deconnexion}>Se déconnecter</button>
               </div>
             )}
@@ -518,6 +558,46 @@ function App() {
             <div className="barre-panier" onClick={() => setVue('panier')}>
               Panier : {panier.length} article(s) — {total.toFixed(2)} €
             </div>
+          )}
+        </>
+      )}
+
+      {espace === 'mesCommandes' && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Mes commandes</h3>
+
+          {chargementCommandes && (
+            <div className="skeleton-liste">
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+            </div>
+          )}
+
+          {!chargementCommandes && mesCommandes.length === 0 && (
+            <p className="aucun-resultat">Vous n'avez pas encore passé de commande.</p>
+          )}
+
+          {!chargementCommandes && mesCommandes.length > 0 && (
+            <ul className="liste-produits">
+              {mesCommandes.map((commande) => (
+                <li key={commande.id}>
+                  <span>
+                    {commande.produits}
+                    <br />
+                    <span className="souligne">
+                      {new Date(commande.created_at).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </span>
+                  <span className="prix">{commande.total.toFixed(2)} €</span>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}
