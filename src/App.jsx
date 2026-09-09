@@ -90,6 +90,9 @@ function App() {
     retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
   )
 
+  const coursesActives = courses.filter((course) => course.statut !== 'Livrée')
+  const coursesLivrees = courses.filter((course) => course.statut === 'Livrée')
+
   useEffect(() => {
     if (!notification) return
     const minuteur = setTimeout(() => setNotification(null), 3500)
@@ -160,6 +163,29 @@ function App() {
       setChargementCourses(false)
     }
     chargerCourses()
+  }, [])
+
+  useEffect(() => {
+    const canal = supabase
+      .channel('courses-en-direct')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setCourses((precedentes) =>
+            precedentes.some((c) => c.id === payload.new.id) ? precedentes : [...precedentes, payload.new]
+          )
+        } else if (payload.eventType === 'UPDATE') {
+          setCourses((precedentes) =>
+            precedentes.map((c) => (c.id === payload.new.id ? payload.new : c))
+          )
+        } else if (payload.eventType === 'DELETE') {
+          setCourses((precedentes) => precedentes.filter((c) => c.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(canal)
+    }
   }, [])
 
   useEffect(() => {
@@ -654,13 +680,30 @@ function App() {
               <h3>Mes courses</h3>
               <p className="slogan">{livreurCourant.nom} — {livreurCourant.vehicule}</p>
               <ul className="liste-courses">
-                {courses.map((course, index) => (
-                  <li key={course.id} onClick={() => setCourseSelectionnee(index)}>
+                {coursesActives.map((course) => (
+                  <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
                     <span className="prix">{course.prix.toFixed(2)} €</span>
                   </li>
                 ))}
               </ul>
+              {coursesActives.length === 0 && (
+                <p className="aucun-resultat">Aucune course en attente.</p>
+              )}
+
+              {coursesLivrees.length > 0 && (
+                <>
+                  <h3>Livrées</h3>
+                  <ul className="liste-courses">
+                    {coursesLivrees.map((course) => (
+                      <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
+                        <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
+                        <span className="prix">{course.prix.toFixed(2)} €</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
 
