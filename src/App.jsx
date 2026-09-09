@@ -80,6 +80,7 @@ function App() {
 
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
+  const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
 
   const [notification, setNotification] = useState(null)
 
@@ -243,6 +244,11 @@ function App() {
     setPanier(panier.filter((_, i) => i !== index))
   }
 
+  function statutCommande(commandeId) {
+    const course = courses.find((c) => c.commande_id === commandeId)
+    return course ? course.statut : 'À livrer'
+  }
+
   async function validerCommande() {
     if (panier.length === 0) {
       afficherNotification('Votre panier est vide.')
@@ -285,7 +291,8 @@ function App() {
         adresse: adresseClient,
         produits: listeProduits,
         statut: 'À livrer',
-        prix: total
+        prix: total,
+        commande_id: nouvelleCommande.id
       })
       .select()
       .single()
@@ -426,7 +433,7 @@ function App() {
                   </button>
                 )}
                 {espace !== 'mesCommandes' && (
-                  <button className="valider" onClick={() => { setEspace('mesCommandes'); setAfficherAuth(false) }}>
+                  <button className="valider" onClick={() => { setEspace('mesCommandes'); setCommandeSelectionnee(null); setAfficherAuth(false) }}>
                     Voir mes commandes
                   </button>
                 )}
@@ -564,8 +571,7 @@ function App() {
 
       {espace === 'mesCommandes' && (
         <>
-          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
-          <h3>Mes commandes</h3>
+          <p className="retour" onClick={() => { setEspace('catalogue'); setCommandeSelectionnee(null) }}>← Retour au catalogue</p>
 
           {chargementCommandes && (
             <div className="skeleton-liste">
@@ -575,29 +581,58 @@ function App() {
           )}
 
           {!chargementCommandes && mesCommandes.length === 0 && (
-            <p className="aucun-resultat">Vous n'avez pas encore passé de commande.</p>
+            <>
+              <h3>Mes commandes</h3>
+              <p className="aucun-resultat">Vous n'avez pas encore passé de commande.</p>
+            </>
           )}
 
-          {!chargementCommandes && mesCommandes.length > 0 && (
-            <ul className="liste-produits">
-              {mesCommandes.map((commande) => (
-                <li key={commande.id}>
-                  <span>
-                    {commande.produits}
-                    <br />
-                    <span className="souligne">
-                      {new Date(commande.created_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+          {!chargementCommandes && mesCommandes.length > 0 && commandeSelectionnee === null && (
+            <>
+              <h3>Mes commandes</h3>
+              <ul className="liste-produits">
+                {mesCommandes.map((commande, index) => (
+                  <li key={commande.id} onClick={() => setCommandeSelectionnee(index)}>
+                    <span>
+                      {commande.produits}
+                      <br />
+                      <span className="souligne">
+                        {new Date(commande.created_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'long',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })} — {statutCommande(commande.id)}
+                      </span>
                     </span>
-                  </span>
-                  <span className="prix">{commande.total.toFixed(2)} €</span>
-                </li>
-              ))}
-            </ul>
+                    <span className="prix">{commande.total.toFixed(2)} €</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {!chargementCommandes && commandeSelectionnee !== null && (
+            <>
+              <p className="retour" onClick={() => setCommandeSelectionnee(null)}>← Retour</p>
+              <h3>Détail de la commande</h3>
+              <p className="slogan">{mesCommandes[commandeSelectionnee].produits}</p>
+              <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} €</p>
+
+              <div className="stepper-statut">
+                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 0 ? 'complete' : ''}`}></div>
+                <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
+                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
+                <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
+                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
+
+                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' ? 'actuelle' : ''}`}>À livrer</div>
+                <div></div>
+                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'En cours' ? 'actuelle' : ''}`}>En cours</div>
+                <div></div>
+                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
+              </div>
+            </>
           )}
         </>
       )}
