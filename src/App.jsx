@@ -169,7 +169,6 @@ function App() {
     const canal = supabase
       .channel('courses-en-direct')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
-        console.log('DEBUG evenement realtime recu', payload)
         if (payload.eventType === 'INSERT') {
           setCourses((precedentes) =>
             precedentes.some((c) => c.id === payload.new.id) ? precedentes : [...precedentes, payload.new]
@@ -182,9 +181,7 @@ function App() {
           setCourses((precedentes) => precedentes.filter((c) => c.id !== payload.old.id))
         }
       })
-      .subscribe((statut) => {
-        console.log('DEBUG statut abonnement realtime', statut)
-      })
+      .subscribe()
 
     return () => {
       supabase.removeChannel(canal)
