@@ -246,12 +246,6 @@ function App() {
 
   function statutCommande(commandeId) {
     const course = courses.find((c) => c.commande_id === commandeId)
-    console.log('DEBUG statutCommande', {
-      commandeId,
-      commandeIdType: typeof commandeId,
-      toutesLesCourses: courses.map((c) => ({ id: c.id, commande_id: c.commande_id, type: typeof c.commande_id, statut: c.statut })),
-      courseTrouvee: course
-    })
     return course ? course.statut : 'À livrer'
   }
 
