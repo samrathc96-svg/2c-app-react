@@ -78,11 +78,23 @@ function App() {
   const [chargementCourses, setChargementCourses] = useState(true)
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
 
+  const [notification, setNotification] = useState(null)
+
   const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
 
   const metiersFiltres = metiers.filter((metier) =>
     retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
   )
+
+  useEffect(() => {
+    if (!notification) return
+    const minuteur = setTimeout(() => setNotification(null), 3500)
+    return () => clearTimeout(minuteur)
+  }, [notification])
+
+  function afficherNotification(message, type = 'erreur') {
+    setNotification({ message, type })
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -207,11 +219,11 @@ function App() {
 
   async function validerCommande() {
     if (panier.length === 0) {
-      alert('Votre panier est vide.')
+      afficherNotification('Votre panier est vide.')
       return
     }
     if (nomClient.trim() === '' || adresseClient.trim() === '') {
-      alert("Merci de renseigner le nom du client et l'adresse de livraison.")
+      afficherNotification("Merci de renseigner le nom du client et l'adresse de livraison.")
       return
     }
 
@@ -227,7 +239,7 @@ function App() {
     if (erreurCommande) {
       console.error("Erreur d'enregistrement de la commande :", erreurCommande)
       setEnvoiEnCours(false)
-      alert("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
+      afficherNotification("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
       return
     }
 
@@ -287,6 +299,12 @@ function App() {
 
   return (
     <div className="app">
+      {notification && (
+        <div className={`notification notification-${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
       <div className="barre-compte-haut">
         <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
           {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
@@ -308,7 +326,11 @@ function App() {
           <div className="panneau-auth" onClick={(e) => e.stopPropagation()}>
             <button className="fermer-auth" onClick={() => setAfficherAuth(false)}>✕</button>
 
-            {chargementAuth && <p className="slogan">Chargement...</p>}
+            {chargementAuth && (
+              <div className="skeleton-liste">
+                <div className="skeleton-ligne skeleton-courte"></div>
+              </div>
+            )}
 
             {!chargementAuth && !session && (
               <div className="cartes-auth">
@@ -377,7 +399,14 @@ function App() {
 
       {espace === 'catalogue' && (
         <>
-          {chargement && <p className="slogan">Chargement des produits...</p>}
+          {chargement && (
+            <div className="skeleton-liste">
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+            </div>
+          )}
 
           {!chargement && vue === 'accueil' && (
             <>
@@ -397,12 +426,19 @@ function App() {
                   </li>
                 ))}
               </ul>
+              {metiersFiltres.length === 0 && (
+                <p className="aucun-resultat">Aucun métier trouvé pour cette recherche.</p>
+              )}
             </>
           )}
 
           {vue === 'metier' && (
             <>
-              <p className="retour" onClick={retourAccueil}>← Retour</p>
+              <div className="fil-ariane">
+                <span onClick={retourAccueil}>Accueil</span>
+                <span className="separateur-fil">›</span>
+                <span className="actif">{metierActif.nom}</span>
+              </div>
               <h3>{metierActif.nom}</h3>
               <ul className="liste-metiers">
                 {metierActif.sousSections.map((sousSection) => (
@@ -416,7 +452,13 @@ function App() {
 
           {vue === 'sousSection' && (
             <>
-              <p className="retour" onClick={() => setVue('metier')}>← Retour</p>
+              <div className="fil-ariane">
+                <span onClick={retourAccueil}>Accueil</span>
+                <span className="separateur-fil">›</span>
+                <span onClick={() => setVue('metier')}>{metierActif.nom}</span>
+                <span className="separateur-fil">›</span>
+                <span className="actif">{sousSectionActive.nom}</span>
+              </div>
               <h3>{sousSectionActive.nom}</h3>
               <ul className="liste-produits">
                 {sousSectionActive.produits.map((produit) => (
@@ -484,7 +526,13 @@ function App() {
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
 
-          {chargementCourses && <p className="slogan">Chargement des courses...</p>}
+          {chargementCourses && (
+            <div className="skeleton-liste">
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+            </div>
+          )}
 
           {!chargementCourses && courseSelectionnee === null && (
             <>
@@ -507,7 +555,21 @@ function App() {
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
               <p className="total-panier">{courses[courseSelectionnee].prix.toFixed(2)} €</p>
-              <p className="statut-badge">{courses[courseSelectionnee].statut}</p>
+
+              <div className="stepper-statut">
+                <div className={`point-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 0 ? 'complete' : ''}`}></div>
+                <div className={`ligne-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 1 ? 'complete' : ''}`}></div>
+                <div className={`point-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 1 ? 'complete' : ''}`}></div>
+                <div className={`ligne-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 2 ? 'complete' : ''}`}></div>
+                <div className={`point-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 2 ? 'complete' : ''}`}></div>
+
+                <div className={`label-statut ${courses[courseSelectionnee].statut === 'À livrer' ? 'actuelle' : ''}`}>À livrer</div>
+                <div></div>
+                <div className={`label-statut ${courses[courseSelectionnee].statut === 'En cours' ? 'actuelle' : ''}`}>En cours</div>
+                <div></div>
+                <div className={`label-statut ${courses[courseSelectionnee].statut === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
+              </div>
+
               <button
                 className="valider"
                 disabled={courses[courseSelectionnee].statut === 'Livrée'}
