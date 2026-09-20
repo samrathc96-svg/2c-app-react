@@ -81,6 +81,7 @@ function App() {
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
+  const [confirmationAnnulation, setConfirmationAnnulation] = useState(false)
 
   const [notification, setNotification] = useState(null)
 
@@ -91,7 +92,7 @@ function App() {
     retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
   )
 
-  const coursesActives = courses.filter((course) => course.statut !== 'Livrée')
+  const coursesActives = courses.filter((course) => course.statut !== 'Livrée' && course.statut !== 'Annulée')
   const coursesLivrees = courses.filter((course) => course.statut === 'Livrée')
 
   useEffect(() => {
@@ -99,6 +100,10 @@ function App() {
     const minuteur = setTimeout(() => setNotification(null), 3500)
     return () => clearTimeout(minuteur)
   }, [notification])
+
+  useEffect(() => {
+    setConfirmationAnnulation(false)
+  }, [commandeSelectionnee])
 
   function afficherNotification(message, type = 'erreur') {
     setNotification({ message, type })
@@ -388,6 +393,26 @@ function App() {
     setCourses(courses.map((c, i) => (i === index ? { ...c, statut: nouveauStatut } : c)))
   }
 
+  async function annulerCommande(commandeId) {
+    const course = courses.find((c) => c.commande_id === commandeId)
+    if (!course) return
+
+    const { error } = await supabase
+      .from('courses')
+      .update({ statut: 'Annulée' })
+      .eq('id', course.id)
+
+    if (error) {
+      console.error("Erreur d'annulation :", error)
+      afficherNotification("L'annulation a échoué, réessaie.")
+      return
+    }
+
+    setCourses(courses.map((c) => (c.id === course.id ? { ...c, statut: 'Annulée' } : c)))
+    setConfirmationAnnulation(false)
+    afficherNotification('Commande annulée.', 'info')
+  }
+
   return (
     <div className="app">
       {notification && (
@@ -672,19 +697,51 @@ function App() {
               <p className="slogan">{mesCommandes[commandeSelectionnee].produits}</p>
               <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} €</p>
 
-              <div className="stepper-statut">
-                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 0 ? 'complete' : ''}`}></div>
-                <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
-                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
-                <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
-                <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
+              {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Annulée' ? (
+                <p className="aucun-resultat">Cette commande a été annulée.</p>
+              ) : (
+                <>
+                  <div className="stepper-statut">
+                    <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 0 ? 'complete' : ''}`}></div>
+                    <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
+                    <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 1 ? 'complete' : ''}`}></div>
+                    <div className={`ligne-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
+                    <div className={`point-statut ${STATUTS.indexOf(statutCommande(mesCommandes[commandeSelectionnee].id)) >= 2 ? 'complete' : ''}`}></div>
 
-                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' ? 'actuelle' : ''}`}>À livrer</div>
-                <div></div>
-                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'En cours' ? 'actuelle' : ''}`}>En cours</div>
-                <div></div>
-                <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
-              </div>
+                    <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' ? 'actuelle' : ''}`}>À livrer</div>
+                    <div></div>
+                    <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'En cours' ? 'actuelle' : ''}`}>En cours</div>
+                    <div></div>
+                    <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
+                  </div>
+
+                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' && (
+                    confirmationAnnulation ? (
+                      <div className="confirmation-annulation">
+                        <p className="aucun-resultat">Confirmer l'annulation de cette commande ?</p>
+                        <div className="boutons-confirmation">
+                          <button
+                            className="annuler-secondaire"
+                            onClick={() => setConfirmationAnnulation(false)}
+                          >
+                            Non, garder
+                          </button>
+                          <button
+                            className="valider"
+                            onClick={() => annulerCommande(mesCommandes[commandeSelectionnee].id)}
+                          >
+                            Oui, annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="bouton-annuler" onClick={() => setConfirmationAnnulation(true)}>
+                        Annuler la commande
+                      </button>
+                    )
+                  )}
+                </>
+              )}
             </>
           )}
         </>

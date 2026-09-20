@@ -453,6 +453,60 @@ h3 {
   cursor: not-allowed;
 }
 
+.bouton-annuler {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 11px 16px;
+  background: none;
+  border: 1px solid rgba(179, 38, 30, 0.35);
+  color: #b3261e;
+  border-radius: var(--rayon-m);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.bouton-annuler:hover {
+  background: #fdecea;
+  border-color: #b3261e;
+}
+
+.confirmation-annulation {
+  margin-top: 20px;
+}
+
+.boutons-confirmation {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.boutons-confirmation button {
+  flex: 1;
+  margin-top: 0;
+}
+
+.boutons-confirmation .annuler-secondaire {
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  color: var(--couleur-muted);
+  border-radius: var(--rayon-m);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.boutons-confirmation .annuler-secondaire:hover {
+  border-color: var(--couleur-encre);
+  color: var(--couleur-encre);
+}
+
 .barre-panier {
   position: fixed;
   bottom: 0;
