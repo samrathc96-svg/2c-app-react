@@ -84,7 +84,8 @@ function App() {
 
   const [notification, setNotification] = useState(null)
 
-  const total = panier.reduce((somme, produit) => somme + produit.prix, 0)
+  const total = panier.reduce((somme, produit) => somme + produit.prix * produit.quantite, 0)
+  const nombreArticles = panier.reduce((somme, produit) => somme + produit.quantite, 0)
 
   const metiersFiltres = metiers.filter((metier) =>
     retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
@@ -263,11 +264,31 @@ function App() {
   }
 
   function ajouterAuPanier(produit) {
-    setPanier([...panier, produit])
+    setPanier((precedent) => {
+      const indexExistant = precedent.findIndex((item) => item.nom === produit.nom)
+      if (indexExistant !== -1) {
+        return precedent.map((item, i) =>
+          i === indexExistant ? { ...item, quantite: item.quantite + 1 } : item
+        )
+      }
+      return [...precedent, { nom: produit.nom, prix: produit.prix, quantite: 1 }]
+    })
   }
 
-  function retirerDuPanier(index) {
-    setPanier(panier.filter((_, i) => i !== index))
+  function augmenterQuantite(index) {
+    setPanier((precedent) =>
+      precedent.map((item, i) => (i === index ? { ...item, quantite: item.quantite + 1 } : item))
+    )
+  }
+
+  function diminuerQuantite(index) {
+    setPanier((precedent) => {
+      const item = precedent[index]
+      if (item.quantite <= 1) {
+        return precedent.filter((_, i) => i !== index)
+      }
+      return precedent.map((it, i) => (i === index ? { ...it, quantite: it.quantite - 1 } : it))
+    })
   }
 
   function statutCommande(commandeId) {
@@ -287,7 +308,9 @@ function App() {
 
     setEnvoiEnCours(true)
 
-    const listeProduits = panier.map((produit) => produit.nom).join(', ')
+    const listeProduits = panier
+      .map((produit) => (produit.quantite > 1 ? `${produit.nom} x${produit.quantite}` : produit.nom))
+      .join(', ')
 
     const { data: nouvelleCommande, error: erreurCommande } = await supabase
       .from('commandes')
@@ -331,7 +354,7 @@ function App() {
       setCourses([...courses, nouvelleCourse])
     }
 
-    setRecapCommande(panier.length + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
+    setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
     setPanier([])
     setNomClient('')
     setAdresseClient('')
@@ -553,7 +576,11 @@ function App() {
                 {panier.map((produit, index) => (
                   <li key={index}>
                     <span>{produit.nom} — {produit.prix.toFixed(2)} €</span>
-                    <button onClick={() => retirerDuPanier(index)}>Retirer</button>
+                    <div className="quantite-controle">
+                      <button onClick={() => diminuerQuantite(index)}>−</button>
+                      <span>{produit.quantite}</span>
+                      <button onClick={() => augmenterQuantite(index)}>+</button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -589,7 +616,7 @@ function App() {
 
           {vue !== 'panier' && vue !== 'commande' && (
             <div className="barre-panier" onClick={() => setVue('panier')}>
-              Panier : {panier.length} article(s) — {total.toFixed(2)} €
+              Panier : {nombreArticles} article(s) — {total.toFixed(2)} €
             </div>
           )}
         </>

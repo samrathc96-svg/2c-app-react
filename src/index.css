@@ -322,6 +322,42 @@ h3 {
   transform: translateY(-1px);
 }
 
+.liste-produits .quantite-controle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.liste-produits .quantite-controle button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.liste-produits .quantite-controle button:hover {
+  background: var(--couleur-blanc);
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+  transform: none;
+}
+
+.liste-produits .quantite-controle span {
+  min-width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
 .retour {
   text-align: center;
   color: var(--couleur-muted);
