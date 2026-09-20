@@ -14,6 +14,14 @@ const iconsParMetier = {
   'Chauffage & Climatisation': 'fan'
 }
 
+const iconsParSousSection = {
+  'Visserie & Fixation': 'tools',
+  'Équerres & Profilés': 'bounding-box',
+  'Colliers & Agrafes': 'link-45deg',
+  'Silicone & Adhésifs': 'droplet-half',
+  'Isolation compacte': 'layers'
+}
+
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -66,7 +74,6 @@ function App() {
   const [recherche, setRecherche] = useState('')
 
   const [vue, setVue] = useState('accueil')
-  const [metierActif, setMetierActif] = useState(null)
   const [sousSectionActive, setSousSectionActive] = useState(null)
   const [panier, setPanier] = useState([])
   const [recapCommande, setRecapCommande] = useState('')
@@ -88,8 +95,9 @@ function App() {
   const total = panier.reduce((somme, produit) => somme + produit.prix * produit.quantite, 0)
   const nombreArticles = panier.reduce((somme, produit) => somme + produit.quantite, 0)
 
-  const metiersFiltres = metiers.filter((metier) =>
-    retirerAccents(metier.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
+  const sousSectionsDisponibles = metiers.length > 0 ? metiers[0].sousSections : []
+  const sousSectionsFiltrees = sousSectionsDisponibles.filter((sousSection) =>
+    retirerAccents(sousSection.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
   )
 
   const coursesActives = courses.filter((course) => course.statut !== 'Livrée' && course.statut !== 'Annulée')
@@ -258,11 +266,6 @@ function App() {
     setAfficherAuth(false)
   }
 
-  function ouvrirMetier(metier) {
-    setMetierActif(metier)
-    setVue('metier')
-  }
-
   function ouvrirSousSection(sousSection) {
     setSousSectionActive(sousSection)
     setVue('sousSection')
@@ -368,7 +371,6 @@ function App() {
 
   function retourAccueil() {
     setVue('accueil')
-    setMetierActif(null)
     setSousSectionActive(null)
   }
 
@@ -531,43 +533,25 @@ function App() {
 
           {!chargement && vue === 'accueil' && (
             <>
-              <h3 className="titre-accueil">Corps de métier</h3>
+              <h3 className="titre-accueil">Nos catégories</h3>
               <input
                 type="text"
                 className="barre-recherche"
-                placeholder="Rechercher un métier..."
+                placeholder="Rechercher une catégorie..."
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
               />
-              <ul className="liste-metiers">
-                {metiersFiltres.map((metier) => (
-                  <li key={metier.nom} onClick={() => ouvrirMetier(metier)}>
-                    <span className="icon"><i className={`bi bi-${metier.icone}`}></i></span>
-                    <span>{metier.nom}</span>
-                  </li>
-                ))}
-              </ul>
-              {metiersFiltres.length === 0 && (
-                <p className="aucun-resultat">Aucun métier trouvé pour cette recherche.</p>
-              )}
-            </>
-          )}
-
-          {vue === 'metier' && (
-            <>
-              <div className="fil-ariane">
-                <span onClick={retourAccueil}>Accueil</span>
-                <span className="separateur-fil">›</span>
-                <span className="actif">{metierActif.nom}</span>
-              </div>
-              <h3>{metierActif.nom}</h3>
-              <ul className="liste-metiers">
-                {metierActif.sousSections.map((sousSection) => (
-                  <li key={sousSection.nom} onClick={() => ouvrirSousSection(sousSection)}>
+              <div className="grille-categories">
+                {sousSectionsFiltrees.map((sousSection) => (
+                  <div key={sousSection.nom} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
+                    <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
                     <span>{sousSection.nom}</span>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
+              {sousSectionsFiltrees.length === 0 && (
+                <p className="aucun-resultat">Aucune catégorie trouvée pour cette recherche.</p>
+              )}
             </>
           )}
 
@@ -575,8 +559,6 @@ function App() {
             <>
               <div className="fil-ariane">
                 <span onClick={retourAccueil}>Accueil</span>
-                <span className="separateur-fil">›</span>
-                <span onClick={() => setVue('metier')}>{metierActif.nom}</span>
                 <span className="separateur-fil">›</span>
                 <span className="actif">{sousSectionActive.nom}</span>
               </div>
