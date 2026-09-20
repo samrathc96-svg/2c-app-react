@@ -317,17 +317,15 @@ function App() {
       .map((produit) => (produit.quantite > 1 ? `${produit.nom} x${produit.quantite}` : produit.nom))
       .join(', ')
 
-    const nouvelleCommande = {
-      id: crypto.randomUUID(),
-      produits: listeProduits,
-      total: total,
-      user_id: session ? session.user.id : null,
-      created_at: new Date().toISOString()
-    }
-
-    const { error: erreurCommande } = await supabase
+    const { data: nouvelleCommande, error: erreurCommande } = await supabase
       .from('commandes')
-      .insert(nouvelleCommande)
+      .insert({
+        produits: listeProduits,
+        total: total,
+        user_id: session ? session.user.id : null
+      })
+      .select()
+      .single()
 
     if (erreurCommande) {
       console.error("Erreur d'enregistrement de la commande :", erreurCommande)
@@ -336,23 +334,22 @@ function App() {
       return
     }
 
-    if (session) {
+    if (session && nouvelleCommande) {
       setMesCommandes([nouvelleCommande, ...mesCommandes])
     }
 
-    const nouvelleCourse = {
-      id: crypto.randomUUID(),
-      client: nomClient,
-      adresse: adresseClient,
-      produits: listeProduits,
-      statut: 'À livrer',
-      prix: total,
-      commande_id: nouvelleCommande.id
-    }
-
-    const { error: erreurCourse } = await supabase
+    const { data: nouvelleCourse, error: erreurCourse } = await supabase
       .from('courses')
-      .insert(nouvelleCourse)
+      .insert({
+        client: nomClient,
+        adresse: adresseClient,
+        produits: listeProduits,
+        statut: 'À livrer',
+        prix: total,
+        commande_id: nouvelleCommande.id
+      })
+      .select()
+      .single()
 
     setEnvoiEnCours(false)
 
