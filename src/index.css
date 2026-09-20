@@ -426,6 +426,7 @@ h3 {
   color: var(--couleur-blanc);
   text-align: center;
   padding: 16px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.15);
@@ -705,4 +706,71 @@ h3 {
 @keyframes chargement-scintillement {
   0% { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
+}
+
+/* ===== Adaptation mobile ===== */
+@media (max-width: 480px) {
+  body {
+    padding: 22px 12px 90px;
+  }
+
+  .app {
+    padding: 30px 16px 22px;
+    border-radius: var(--rayon-l);
+  }
+
+  .barre-compte-haut {
+    top: 12px;
+    right: 12px;
+  }
+
+  .lien-compte {
+    display: none;
+  }
+
+  .icone-compte {
+    font-size: 26px;
+    padding: 6px;
+  }
+
+  .liste-metiers,
+  .liste-produits,
+  .liste-courses,
+  .skeleton-liste {
+    max-width: 100%;
+  }
+
+  .liste-metiers li,
+  .liste-produits li,
+  .liste-courses li {
+    padding: 14px;
+  }
+
+  .liste-produits li {
+    flex-wrap: wrap;
+  }
+
+  .liste-produits button {
+    margin-left: auto;
+  }
+
+  .panneau-auth {
+    max-width: 300px;
+  }
+
+  .notification {
+    top: 54px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 360px) {
+  .logo span {
+    font-size: 68px;
+  }
+
+  .logo {
+    width: 90px;
+    height: 90px;
+  }
 }
