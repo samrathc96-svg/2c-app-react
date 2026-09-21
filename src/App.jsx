@@ -76,6 +76,7 @@ function App() {
   const [nomUtilisateur, setNomUtilisateur] = useState('')
   const [livreurs, setLivreurs] = useState([])
   const [filtreAdmin, setFiltreAdmin] = useState('toutes')
+  const [rechercheAdmin, setRechercheAdmin] = useState('')
 
   const [metiers, setMetiers] = useState([])
   const [chargement, setChargement] = useState(true)
@@ -88,6 +89,7 @@ function App() {
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
   const [nomClient, setNomClient] = useState('')
   const [adresseClient, setAdresseClient] = useState('')
+  const [telephoneClient, setTelephoneClient] = useState('')
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -103,6 +105,7 @@ function App() {
   const [nomSuiviInvite, setNomSuiviInvite] = useState('')
   const [erreurSuivi, setErreurSuivi] = useState('')
   const [chargementSuivi, setChargementSuivi] = useState(false)
+  const [commandesRecentesLocales, setCommandesRecentesLocales] = useState([])
 
   const [notification, setNotification] = useState(null)
 
@@ -121,7 +124,13 @@ function App() {
   const coursesMoi = session ? coursesActives.filter((course) => course.livreur_id === session.user.id) : []
   const coursesLivreesMoi = session ? coursesLivrees.filter((course) => course.livreur_id === session.user.id) : []
 
-  const coursesFiltreesAdmin = filtreAdmin === 'toutes' ? courses : courses.filter((course) => course.statut === filtreAdmin)
+  const coursesFiltreesStatut = filtreAdmin === 'toutes' ? courses : courses.filter((course) => course.statut === filtreAdmin)
+  const coursesFiltreesAdmin = rechercheAdmin.trim() === ''
+    ? coursesFiltreesStatut
+    : coursesFiltreesStatut.filter((course) => {
+        const cible = retirerAccents(`${course.client} ${course.adresse} ${course.produits} ${course.telephone || ''}`.toLowerCase())
+        return cible.includes(retirerAccents(rechercheAdmin.toLowerCase()))
+      })
   const statsAdmin = {
     total: courses.length,
     actives: coursesActives.length,
@@ -148,6 +157,36 @@ function App() {
 
   function afficherNotification(message, type = 'erreur') {
     setNotification({ message, type })
+  }
+
+  useEffect(() => {
+    try {
+      const brut = window.localStorage.getItem('commandesRecentes2C')
+      if (brut) setCommandesRecentesLocales(JSON.parse(brut))
+    } catch (e) {
+      // stockage indisponible (navigation privée, etc.) - on ignore silencieusement
+    }
+  }, [])
+
+  function sauvegarderCommandeLocale(commande) {
+    try {
+      const brut = window.localStorage.getItem('commandesRecentes2C')
+      const liste = brut ? JSON.parse(brut) : []
+      const nouvelle = [
+        {
+          id: commande.id,
+          numero_suivi: commande.numero_suivi,
+          nom_client: commande.nom_client,
+          produits: commande.produits,
+          total: commande.total
+        },
+        ...liste.filter((c) => c.id !== commande.id)
+      ].slice(0, 10)
+      window.localStorage.setItem('commandesRecentes2C', JSON.stringify(nouvelle))
+      setCommandesRecentesLocales(nouvelle)
+    } catch (e) {
+      // stockage indisponible - on ignore silencieusement
+    }
   }
 
   useEffect(() => {
@@ -354,8 +393,8 @@ function App() {
       afficherNotification('Votre panier est vide.')
       return
     }
-    if (nomClient.trim() === '' || adresseClient.trim() === '') {
-      afficherNotification("Merci de renseigner le nom du client et l'adresse de livraison.")
+    if (nomClient.trim() === '' || adresseClient.trim() === '' || telephoneClient.trim() === '') {
+      afficherNotification("Merci de renseigner le nom, l'adresse de livraison et un numéro de téléphone.")
       return
     }
 
@@ -366,19 +405,20 @@ function App() {
       .join(', ')
 
     const { data: nouvelleCommande, error: erreurCommande } = await supabase
-      .from('commandes')
-      .insert({
-        produits: listeProduits,
-        total: total,
-        user_id: session ? session.user.id : null,
-        nom_client: nomClient
+      .rpc('creer_commande', {
+        p_produits: listeProduits,
+        p_total: total,
+        p_nom_client: nomClient,
+        p_adresse: adresseClient,
+        p_telephone: telephoneClient,
+        p_user_id: session ? session.user.id : null
       })
-      .select()
       .single()
+
+    setEnvoiEnCours(false)
 
     if (erreurCommande) {
       console.error("Erreur d'enregistrement de la commande :", erreurCommande)
-      setEnvoiEnCours(false)
       afficherNotification("Une erreur est survenue, la commande n'a pas pu être enregistrée.")
       return
     }
@@ -387,32 +427,13 @@ function App() {
       setMesCommandes([nouvelleCommande, ...mesCommandes])
     }
     setCommandeInvite(nouvelleCommande)
-
-    const { data: nouvelleCourse, error: erreurCourse } = await supabase
-      .from('courses')
-      .insert({
-        client: nomClient,
-        adresse: adresseClient,
-        produits: listeProduits,
-        statut: 'À livrer',
-        prix: total,
-        commande_id: nouvelleCommande.id
-      })
-      .select()
-      .single()
-
-    setEnvoiEnCours(false)
-
-    if (erreurCourse) {
-      console.error('Erreur de creation de la course :', erreurCourse)
-    } else {
-      setCourses([...courses, nouvelleCourse])
-    }
+    sauvegarderCommandeLocale(nouvelleCommande)
 
     setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
     setPanier([])
     setNomClient('')
     setAdresseClient('')
+    setTelephoneClient('')
     setVue('commande')
   }
 
@@ -442,14 +463,19 @@ function App() {
     setCourses(courses.map((c, i) => (i === index ? { ...c, statut: nouveauStatut } : c)))
   }
 
-  async function annulerCommande(commandeId) {
-    const course = courses.find((c) => c.commande_id === commandeId)
+  async function annulerCommande(commande) {
+    const course = courses.find((c) => c.commande_id === commande.id)
     if (!course) return
 
-    const { error } = await supabase
-      .from('courses')
-      .update({ statut: 'Annulée' })
-      .eq('id', course.id)
+    const estProprietaireConnecte = session && commande.user_id === session.user.id
+
+    const { error } = estProprietaireConnecte
+      ? await supabase.from('courses').update({ statut: 'Annulée' }).eq('id', course.id)
+      : await supabase.rpc('annuler_commande_invite', {
+          p_commande_id: commande.id,
+          p_numero: commande.numero_suivi,
+          p_nom: commande.nom_client
+        })
 
     if (error) {
       console.error("Erreur d'annulation :", error)
@@ -457,7 +483,9 @@ function App() {
       return
     }
 
-    setCourses(courses.map((c) => (c.id === course.id ? { ...c, statut: 'Annulée' } : c)))
+    setCourses((precedentes) =>
+      precedentes.map((c) => (c.id === course.id ? { ...c, statut: 'Annulée' } : c))
+    )
     setConfirmationAnnulation(false)
     afficherNotification('Commande annulée.', 'info')
   }
@@ -515,6 +543,23 @@ function App() {
     }
 
     setCourses(courses.map((c, i) => (i === index ? { ...c, livreur_id: session.user.id } : c)))
+  }
+
+  async function libererCourse(index) {
+    const course = courses[index]
+    const { error } = await supabase
+      .from('courses')
+      .update({ livreur_id: null })
+      .eq('id', course.id)
+
+    if (error) {
+      console.error('Erreur de liberation :', error)
+      afficherNotification('Impossible de libérer cette course, réessaie.')
+      return
+    }
+
+    setCourses(courses.map((c, i) => (i === index ? { ...c, livreur_id: null } : c)))
+    afficherNotification('Course libérée.', 'info')
   }
 
   async function changerStatutAdmin(courseId, nouveauStatut) {
@@ -782,6 +827,12 @@ function App() {
                   value={adresseClient}
                   onChange={(e) => setAdresseClient(e.target.value)}
                 />
+                <input
+                  type="tel"
+                  placeholder="Téléphone (pour te joindre en cas de souci)"
+                  value={telephoneClient}
+                  onChange={(e) => setTelephoneClient(e.target.value)}
+                />
               </div>
               <p className="total-panier">Total : {total.toFixed(2)} €</p>
               <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
@@ -865,6 +916,9 @@ function App() {
               <p className="retour" onClick={() => setCommandeSelectionnee(null)}>← Retour</p>
               <h3>Détail de la commande</h3>
               <p className="slogan">{mesCommandes[commandeSelectionnee].produits}</p>
+              {mesCommandes[commandeSelectionnee].adresse && (
+                <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
+              )}
               <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} €</p>
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
@@ -901,7 +955,7 @@ function App() {
                           </button>
                           <button
                             className="valider"
-                            onClick={() => annulerCommande(mesCommandes[commandeSelectionnee].id)}
+                            onClick={() => annulerCommande(mesCommandes[commandeSelectionnee])}
                           >
                             Oui, annuler
                           </button>
@@ -924,6 +978,19 @@ function App() {
         <>
           <p className="retour" onClick={quitterSuivi}>← Retour au catalogue</p>
           <h3>Suivre ma commande</h3>
+
+          {!commandeInvite && commandesRecentesLocales.length > 0 && (
+            <>
+              <p className="aucun-resultat">Commandes passées récemment depuis cet appareil :</p>
+              <nav className="liste-menu">
+                {commandesRecentesLocales.map((c) => (
+                  <button key={c.id} onClick={() => setCommandeInvite(c)}>
+                    <i className="bi bi-clock-history"></i> {c.numero_suivi} — {c.total.toFixed(2)} €
+                  </button>
+                ))}
+              </nav>
+            </>
+          )}
 
           {!commandeInvite && (
             <>
@@ -955,6 +1022,9 @@ function App() {
             <>
               <p className="retour" onClick={nouvelleRechercheSuivi}>← Nouvelle recherche</p>
               <p className="slogan">{commandeInvite.produits}</p>
+              {commandeInvite.adresse && (
+                <p className="souligne">Livraison : {commandeInvite.adresse}</p>
+              )}
               <p className="total-panier">{commandeInvite.total.toFixed(2)} €</p>
 
               {statutCommande(commandeInvite.id) === 'Annulée' ? (
@@ -983,7 +1053,7 @@ function App() {
                           <button className="annuler-secondaire" onClick={() => setConfirmationAnnulation(false)}>
                             Non, garder
                           </button>
-                          <button className="valider" onClick={() => annulerCommande(commandeInvite.id)}>
+                          <button className="valider" onClick={() => annulerCommande(commandeInvite)}>
                             Oui, annuler
                           </button>
                         </div>
@@ -1139,6 +1209,13 @@ function App() {
               <p className="retour" onClick={() => setCourseSelectionnee(null)}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
+              {courses[courseSelectionnee].telephone && (
+                <p className="souligne">
+                  <a href={`tel:${courses[courseSelectionnee].telephone}`}>
+                    <i className="bi bi-telephone"></i> {courses[courseSelectionnee].telephone}
+                  </a>
+                </p>
+              )}
               <p className="total-panier">{courses[courseSelectionnee].prix.toFixed(2)} €</p>
 
               <div className="stepper-statut">
@@ -1170,6 +1247,13 @@ function App() {
                   {courses[courseSelectionnee].statut === 'Livrée' ? 'Course livrée' : 'Faire avancer le statut'}
                 </button>
               )}
+
+              {courses[courseSelectionnee].livreur_id === session.user.id &&
+                courses[courseSelectionnee].statut === 'À livrer' && (
+                  <button className="bouton-annuler" onClick={() => libererCourse(courseSelectionnee)}>
+                    Ce n'est pas moi, libérer cette course
+                  </button>
+                )}
             </>
           )}
         </>
@@ -1199,6 +1283,14 @@ function App() {
             </div>
           </div>
           <p className="total-panier">Chiffre d'affaires (hors annulées) : {statsAdmin.chiffreAffaires.toFixed(2)} €</p>
+
+          <input
+            type="text"
+            className="barre-recherche"
+            placeholder="Rechercher un client, une adresse, un produit..."
+            value={rechercheAdmin}
+            onChange={(e) => setRechercheAdmin(e.target.value)}
+          />
 
           <div className="filtres-admin">
             {['toutes', 'À livrer', 'En cours', 'Livrée', 'Annulée'].map((statut) => (
@@ -1235,7 +1327,10 @@ function App() {
                 <tbody>
                   {coursesFiltreesAdmin.map((course) => (
                     <tr key={course.id}>
-                      <td>{course.client}</td>
+                      <td>
+                        {course.client}
+                        {course.telephone && <><br /><span className="souligne">{course.telephone}</span></>}
+                      </td>
                       <td>{course.adresse} — {course.produits}</td>
                       <td>{course.prix.toFixed(2)} €</td>
                       <td>
