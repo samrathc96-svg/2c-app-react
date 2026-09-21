@@ -555,7 +555,7 @@ function App() {
         </div>
       )}
 
-      <div className="barre-compte-haut">
+      <div className="barre-menu-haut">
         <button
           className="icone-compte"
           title="Menu"
@@ -563,6 +563,9 @@ function App() {
         >
           <i className="bi bi-list"></i>
         </button>
+      </div>
+
+      <div className="barre-compte-haut">
         <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
           {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
         </button>
