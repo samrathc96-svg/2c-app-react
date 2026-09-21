@@ -40,7 +40,7 @@ function grouperProduits(lignes) {
     if (!parMetier[ligne.metier][ligne.sous_section]) {
       parMetier[ligne.metier][ligne.sous_section] = []
     }
-    parMetier[ligne.metier][ligne.sous_section].push({ nom: ligne.nom, prix: ligne.prix })
+    parMetier[ligne.metier][ligne.sous_section].push({ id: ligne.id, nom: ligne.nom, prix: ligne.prix })
   })
 
   return Object.keys(parMetier).map((nomMetier) => ({
@@ -67,6 +67,17 @@ function App() {
   const [motDePasseConnexion, setMotDePasseConnexion] = useState('')
   const [erreurConnexion, setErreurConnexion] = useState('')
 
+  const [afficherMotDePasseOublie, setAfficherMotDePasseOublie] = useState(false)
+  const [emailOubli, setEmailOubli] = useState('')
+  const [erreurOubli, setErreurOubli] = useState('')
+  const [messageOubli, setMessageOubli] = useState('')
+  const [envoiOubliEnCours, setEnvoiOubliEnCours] = useState(false)
+
+  const [modeReinitialisation, setModeReinitialisation] = useState(false)
+  const [nouveauMotDePasse, setNouveauMotDePasse] = useState('')
+  const [confirmationNouveauMotDePasse, setConfirmationNouveauMotDePasse] = useState('')
+  const [erreurReinitialisation, setErreurReinitialisation] = useState('')
+
   const [emailInscription, setEmailInscription] = useState('')
   const [motDePasseInscription, setMotDePasseInscription] = useState('')
   const [nomInscription, setNomInscription] = useState('')
@@ -79,8 +90,19 @@ function App() {
   const [rechercheAdmin, setRechercheAdmin] = useState('')
 
   const [metiers, setMetiers] = useState([])
+  const [produitsBruts, setProduitsBruts] = useState([])
   const [chargement, setChargement] = useState(true)
   const [recherche, setRecherche] = useState('')
+
+  const [nouveauSousSection, setNouveauSousSection] = useState('')
+  const [nouveauNomProduit, setNouveauNomProduit] = useState('')
+  const [nouveauPrixProduit, setNouveauPrixProduit] = useState('')
+  const [erreurProduit, setErreurProduit] = useState('')
+  const [rechercheProduitsAdmin, setRechercheProduitsAdmin] = useState('')
+  const [editionProduitId, setEditionProduitId] = useState(null)
+  const [editionSousSection, setEditionSousSection] = useState('')
+  const [editionNomProduit, setEditionNomProduit] = useState('')
+  const [editionPrixProduit, setEditionPrixProduit] = useState('')
 
   const [vue, setVue] = useState('accueil')
   const [sousSectionActive, setSousSectionActive] = useState(null)
@@ -112,10 +134,15 @@ function App() {
   const total = panier.reduce((somme, produit) => somme + produit.prix * produit.quantite, 0)
   const nombreArticles = panier.reduce((somme, produit) => somme + produit.quantite, 0)
 
-  const sousSectionsDisponibles = metiers.length > 0 ? metiers[0].sousSections : []
+  const sousSectionsDisponibles = metiers.flatMap((metier) => metier.sousSections)
   const sousSectionsFiltrees = sousSectionsDisponibles.filter((sousSection) =>
     retirerAccents(sousSection.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
   )
+
+  const produitsFiltresAdmin = produitsBruts.filter((produit) => {
+    const cible = retirerAccents(`${produit.nom} ${produit.sous_section}`.toLowerCase())
+    return cible.includes(retirerAccents(rechercheProduitsAdmin.toLowerCase()))
+  })
 
   const coursesActives = courses.filter((course) => course.statut !== 'Livrée' && course.statut !== 'Annulée')
   const coursesLivrees = courses.filter((course) => course.statut === 'Livrée')
@@ -137,12 +164,6 @@ function App() {
     livrees: coursesLivrees.length,
     annulees: courses.filter((course) => course.statut === 'Annulée').length,
     chiffreAffaires: courses.filter((course) => course.statut !== 'Annulée').reduce((somme, course) => somme + course.prix, 0)
-  }
-
-  function nomLivreur(livreurId) {
-    if (!livreurId) return 'Non assigné'
-    const livreur = livreurs.find((l) => l.id === livreurId)
-    return livreur ? (livreur.nom || 'Sans nom') : 'Non assigné'
   }
 
   useEffect(() => {
@@ -197,6 +218,10 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      if (_event === 'PASSWORD_RECOVERY') {
+        setModeReinitialisation(true)
+        setAfficherAuth(true)
+      }
       if (!session) {
         setRole(null)
         setChargementAuth(false)
@@ -204,6 +229,22 @@ function App() {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    async function gererLienRecuperation() {
+      const parametres = new URLSearchParams(window.location.search)
+      const code = parametres.get('code')
+      if (!code) return
+
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (!error) {
+        setModeReinitialisation(true)
+        setAfficherAuth(true)
+      }
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+    gererLienRecuperation()
   }, [])
 
   useEffect(() => {
@@ -218,23 +259,37 @@ function App() {
       if (!error && data) {
         setRole(data.role)
         setNomUtilisateur(data.nom || '')
-        setEspace(data.role === 'livreur' ? 'livreur' : data.role === 'admin' ? 'admin' : 'catalogue')
-        setAfficherAuth(false)
+        if (!modeReinitialisation) {
+          setEspace(data.role === 'livreur' ? 'livreur' : data.role === 'admin' ? 'admin' : 'catalogue')
+          setAfficherAuth(false)
+        }
       }
       setChargementAuth(false)
     }
     chargerRole()
-  }, [session])
+  }, [session, modeReinitialisation])
 
   useEffect(() => {
+    if (role !== 'admin') return
+
     async function chargerLivreurs() {
-      if (role !== 'admin') return
       const { data, error } = await supabase.from('profils').select('id, nom').eq('role', 'livreur')
       if (!error && data) {
         setLivreurs(data)
       }
     }
     chargerLivreurs()
+
+    const canal = supabase
+      .channel('profils-en-direct')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profils' }, () => {
+        chargerLivreurs()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(canal)
+    }
   }, [role])
 
   useEffect(() => {
@@ -243,6 +298,7 @@ function App() {
       if (error) {
         console.error('Erreur de chargement :', error)
       } else {
+        setProduitsBruts(data)
         setMetiers(grouperProduits(data))
       }
       setChargement(false)
@@ -287,6 +343,34 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const canal = supabase
+      .channel('produits-en-direct')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'produits' }, (payload) => {
+        setProduitsBruts((precedents) => {
+          let nouveaux
+          if (payload.eventType === 'INSERT') {
+            nouveaux = precedents.some((p) => p.id === payload.new.id)
+              ? precedents
+              : [...precedents, payload.new]
+          } else if (payload.eventType === 'UPDATE') {
+            nouveaux = precedents.map((p) => (p.id === payload.new.id ? payload.new : p))
+          } else if (payload.eventType === 'DELETE') {
+            nouveaux = precedents.filter((p) => p.id !== payload.old.id)
+          } else {
+            nouveaux = precedents
+          }
+          setMetiers(grouperProduits(nouveaux))
+          return nouveaux
+        })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(canal)
+    }
+  }, [])
+
+  useEffect(() => {
     async function chargerCommandes() {
       if (!session) {
         setMesCommandes([])
@@ -320,6 +404,52 @@ function App() {
     }
   }
 
+  async function demanderReinitialisation() {
+    setErreurOubli('')
+    setMessageOubli('')
+    if (emailOubli.trim() === '') {
+      setErreurOubli('Merci de renseigner ton email.')
+      return
+    }
+
+    setEnvoiOubliEnCours(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(emailOubli.trim(), {
+      redirectTo: window.location.origin
+    })
+    setEnvoiOubliEnCours(false)
+
+    if (error) {
+      setErreurOubli(error.message)
+      return
+    }
+    setMessageOubli('Si un compte existe avec cet email, un lien de réinitialisation vient de lui être envoyé.')
+  }
+
+  async function reinitialiserMotDePasse() {
+    setErreurReinitialisation('')
+    if (nouveauMotDePasse.length < 6) {
+      setErreurReinitialisation('Le mot de passe doit contenir au moins 6 caractères.')
+      return
+    }
+    if (nouveauMotDePasse !== confirmationNouveauMotDePasse) {
+      setErreurReinitialisation('Les deux mots de passe ne correspondent pas.')
+      return
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: nouveauMotDePasse })
+
+    if (error) {
+      setErreurReinitialisation(error.message)
+      return
+    }
+
+    setModeReinitialisation(false)
+    setNouveauMotDePasse('')
+    setConfirmationNouveauMotDePasse('')
+    setAfficherAuth(false)
+    afficherNotification('Mot de passe mis à jour.', 'info')
+  }
+
   async function inscription() {
     setErreurInscription('')
     const { data, error } = await supabase.auth.signUp({
@@ -346,6 +476,10 @@ function App() {
     setMotDePasseConnexion('')
     setEmailInscription('')
     setMotDePasseInscription('')
+    setAfficherMotDePasseOublie(false)
+    setEmailOubli('')
+    setMessageOubli('')
+    setErreurOubli('')
     setEspace('catalogue')
     setAfficherAuth(false)
   }
@@ -357,13 +491,13 @@ function App() {
 
   function ajouterAuPanier(produit) {
     setPanier((precedent) => {
-      const indexExistant = precedent.findIndex((item) => item.nom === produit.nom)
+      const indexExistant = precedent.findIndex((item) => item.id === produit.id)
       if (indexExistant !== -1) {
         return precedent.map((item, i) =>
           i === indexExistant ? { ...item, quantite: item.quantite + 1 } : item
         )
       }
-      return [...precedent, { nom: produit.nom, prix: produit.prix, quantite: 1 }]
+      return [...precedent, { id: produit.id, nom: produit.nom, prix: produit.prix, quantite: 1 }]
     })
   }
 
@@ -429,7 +563,7 @@ function App() {
     setCommandeInvite(nouvelleCommande)
     sauvegarderCommandeLocale(nouvelleCommande)
 
-    setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' €')
+    setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' CHF')
     setPanier([])
     setNomClient('')
     setAdresseClient('')
@@ -592,6 +726,108 @@ function App() {
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, livreur_id: livreurId || null } : c)))
   }
 
+  async function ajouterProduit() {
+    const prixNombre = parseFloat(nouveauPrixProduit.replace(',', '.'))
+
+    if (nouveauNomProduit.trim() === '' || nouveauSousSection.trim() === '' || nouveauPrixProduit.trim() === '') {
+      setErreurProduit('Merci de remplir la sous-section, le nom et le prix.')
+      return
+    }
+    if (isNaN(prixNombre) || prixNombre < 0) {
+      setErreurProduit('Le prix doit être un nombre positif.')
+      return
+    }
+
+    setErreurProduit('')
+
+    const { data, error } = await supabase
+      .from('produits')
+      .insert({
+        metier: 'Ventilation',
+        sous_section: nouveauSousSection.trim(),
+        nom: nouveauNomProduit.trim(),
+        prix: prixNombre
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Erreur d'ajout du produit :", error)
+      setErreurProduit("L'ajout a échoué, réessaie.")
+      return
+    }
+
+    const nouveauxProduits = [...produitsBruts, data]
+    setProduitsBruts(nouveauxProduits)
+    setMetiers(grouperProduits(nouveauxProduits))
+    setNouveauSousSection('')
+    setNouveauNomProduit('')
+    setNouveauPrixProduit('')
+    afficherNotification('Produit ajouté au catalogue.', 'info')
+  }
+
+  function commencerEditionProduit(produit) {
+    setEditionProduitId(produit.id)
+    setEditionSousSection(produit.sous_section)
+    setEditionNomProduit(produit.nom)
+    setEditionPrixProduit(String(produit.prix))
+  }
+
+  function annulerEditionProduit() {
+    setEditionProduitId(null)
+  }
+
+  async function enregistrerModificationProduit(id) {
+    const prixNombre = parseFloat(editionPrixProduit.replace(',', '.'))
+
+    if (editionNomProduit.trim() === '' || editionSousSection.trim() === '' || isNaN(prixNombre) || prixNombre < 0) {
+      afficherNotification('Champs invalides, vérifie le nom, la sous-section et le prix.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('produits')
+      .update({
+        sous_section: editionSousSection.trim(),
+        nom: editionNomProduit.trim(),
+        prix: prixNombre
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Erreur de modification du produit :', error)
+      afficherNotification('La modification a échoué, réessaie.')
+      return
+    }
+
+    const nouveauxProduits = produitsBruts.map((p) =>
+      p.id === id
+        ? { ...p, sous_section: editionSousSection.trim(), nom: editionNomProduit.trim(), prix: prixNombre }
+        : p
+    )
+    setProduitsBruts(nouveauxProduits)
+    setMetiers(grouperProduits(nouveauxProduits))
+    setEditionProduitId(null)
+    afficherNotification('Produit modifié.', 'info')
+  }
+
+  async function supprimerProduit(id) {
+    if (!window.confirm('Supprimer définitivement ce produit du catalogue ?')) return
+
+    const { error } = await supabase.from('produits').delete().eq('id', id)
+
+    if (error) {
+      console.error('Erreur de suppression du produit :', error)
+      afficherNotification('La suppression a échoué, réessaie.')
+      return
+    }
+
+    const nouveauxProduits = produitsBruts.filter((p) => p.id !== id)
+    setProduitsBruts(nouveauxProduits)
+    setMetiers(grouperProduits(nouveauxProduits))
+    afficherNotification('Produit supprimé.', 'info')
+  }
+
   return (
     <div className="app">
       {notification && (
@@ -639,6 +875,11 @@ function App() {
                   <i className="bi bi-shop"></i> Catalogue
                 </button>
               )}
+              {role === 'admin' && (
+                <button onClick={() => { setEspace('catalogueAdmin'); setAfficherMenu(false) }}>
+                  <i className="bi bi-box-seam"></i> Gérer le catalogue
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -656,30 +897,78 @@ function App() {
           <div className="panneau-auth" onClick={(e) => e.stopPropagation()}>
             <button className="fermer-auth" onClick={() => setAfficherAuth(false)}>✕</button>
 
-            {chargementAuth && (
+            {modeReinitialisation && (
+              <div className="carte-auth">
+                <h3>Nouveau mot de passe</h3>
+                <input
+                  type="password"
+                  placeholder="Nouveau mot de passe"
+                  value={nouveauMotDePasse}
+                  onChange={(e) => setNouveauMotDePasse(e.target.value)}
+                />
+                <input
+                  type="password"
+                  placeholder="Confirmer le mot de passe"
+                  value={confirmationNouveauMotDePasse}
+                  onChange={(e) => setConfirmationNouveauMotDePasse(e.target.value)}
+                />
+                {erreurReinitialisation && <p className="souligne">{erreurReinitialisation}</p>}
+                <button className="valider" onClick={reinitialiserMotDePasse}>Mettre à jour le mot de passe</button>
+              </div>
+            )}
+
+            {!modeReinitialisation && chargementAuth && (
               <div className="skeleton-liste">
                 <div className="skeleton-ligne skeleton-courte"></div>
               </div>
             )}
 
-            {!chargementAuth && !session && (
+            {!modeReinitialisation && !chargementAuth && !session && (
               <div className="cartes-auth">
                 <div className="carte-auth">
                   <h3>Connexion</h3>
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={emailConnexion}
-                    onChange={(e) => setEmailConnexion(e.target.value)}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Mot de passe"
-                    value={motDePasseConnexion}
-                    onChange={(e) => setMotDePasseConnexion(e.target.value)}
-                  />
-                  {erreurConnexion && <p className="souligne">{erreurConnexion}</p>}
-                  <button className="valider" onClick={connexion}>Se connecter</button>
+                  {!afficherMotDePasseOublie ? (
+                    <>
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={emailConnexion}
+                        onChange={(e) => setEmailConnexion(e.target.value)}
+                      />
+                      <input
+                        type="password"
+                        placeholder="Mot de passe"
+                        value={motDePasseConnexion}
+                        onChange={(e) => setMotDePasseConnexion(e.target.value)}
+                      />
+                      {erreurConnexion && <p className="souligne">{erreurConnexion}</p>}
+                      <button className="valider" onClick={connexion}>Se connecter</button>
+                      <p
+                        className="lien-carte"
+                        onClick={() => { setAfficherMotDePasseOublie(true); setErreurOubli(''); setMessageOubli('') }}
+                      >
+                        Mot de passe oublié ?
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="souligne">Entre ton email, on t'envoie un lien pour réinitialiser ton mot de passe.</p>
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={emailOubli}
+                        onChange={(e) => setEmailOubli(e.target.value)}
+                      />
+                      {erreurOubli && <p className="souligne">{erreurOubli}</p>}
+                      {messageOubli && <p className="souligne">{messageOubli}</p>}
+                      <button className="valider" disabled={envoiOubliEnCours} onClick={demanderReinitialisation}>
+                        {envoiOubliEnCours ? 'Envoi...' : 'Envoyer le lien'}
+                      </button>
+                      <p className="lien-carte" onClick={() => setAfficherMotDePasseOublie(false)}>
+                        ← Retour à la connexion
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <div className="carte-auth">
@@ -712,7 +1001,7 @@ function App() {
               </div>
             )}
 
-            {!chargementAuth && session && (
+            {!modeReinitialisation && !chargementAuth && session && (
               <div className="carte-auth">
                 <p className="slogan">{nomUtilisateur || session.user.email}</p>
                 <p className="slogan">Rôle : {role === 'livreur' ? 'Livreur' : role === 'admin' ? 'Admin' : 'Client'}</p>
@@ -765,8 +1054,8 @@ function App() {
                 onChange={(e) => setRecherche(e.target.value)}
               />
               <div className="grille-categories">
-                {sousSectionsFiltrees.map((sousSection) => (
-                  <div key={sousSection.nom} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
+                {sousSectionsFiltrees.map((sousSection, index) => (
+                  <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
                     <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
                     <span>{sousSection.nom}</span>
                   </div>
@@ -790,7 +1079,7 @@ function App() {
                 {sousSectionActive.produits.map((produit) => (
                   <li key={produit.nom}>
                     <span>{produit.nom}</span>
-                    <span className="prix">{produit.prix.toFixed(2)} €</span>
+                    <span className="prix">{produit.prix.toFixed(2)} CHF</span>
                     <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
                   </li>
                 ))}
@@ -805,7 +1094,7 @@ function App() {
               <ul className="liste-produits">
                 {panier.map((produit, index) => (
                   <li key={index}>
-                    <span>{produit.nom} — {produit.prix.toFixed(2)} €</span>
+                    <span>{produit.nom} — {produit.prix.toFixed(2)} CHF</span>
                     <div className="quantite-controle">
                       <button onClick={() => diminuerQuantite(index)}>−</button>
                       <span>{produit.quantite}</span>
@@ -834,7 +1123,7 @@ function App() {
                   onChange={(e) => setTelephoneClient(e.target.value)}
                 />
               </div>
-              <p className="total-panier">Total : {total.toFixed(2)} €</p>
+              <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
               <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
                 {envoiEnCours ? 'Envoi en cours...' : 'Valider la commande'}
               </button>
@@ -862,7 +1151,7 @@ function App() {
 
           {vue !== 'panier' && vue !== 'commande' && (
             <div className="barre-panier" onClick={() => setVue('panier')}>
-              Panier : {nombreArticles} article(s) — {total.toFixed(2)} €
+              Panier : {nombreArticles} article(s) — {total.toFixed(2)} CHF
             </div>
           )}
         </>
@@ -904,7 +1193,7 @@ function App() {
                         })} — {statutCommande(commande.id)}
                       </span>
                     </span>
-                    <span className="prix">{commande.total.toFixed(2)} €</span>
+                    <span className="prix">{commande.total.toFixed(2)} CHF</span>
                   </li>
                 ))}
               </ul>
@@ -919,7 +1208,7 @@ function App() {
               {mesCommandes[commandeSelectionnee].adresse && (
                 <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
               )}
-              <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} €</p>
+              <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} CHF</p>
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
               )}
@@ -985,7 +1274,7 @@ function App() {
               <nav className="liste-menu">
                 {commandesRecentesLocales.map((c) => (
                   <button key={c.id} onClick={() => setCommandeInvite(c)}>
-                    <i className="bi bi-clock-history"></i> {c.numero_suivi} — {c.total.toFixed(2)} €
+                    <i className="bi bi-clock-history"></i> {c.numero_suivi} — {c.total.toFixed(2)} CHF
                   </button>
                 ))}
               </nav>
@@ -1025,7 +1314,7 @@ function App() {
               {commandeInvite.adresse && (
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}
-              <p className="total-panier">{commandeInvite.total.toFixed(2)} €</p>
+              <p className="total-panier">{commandeInvite.total.toFixed(2)} CHF</p>
 
               {statutCommande(commandeInvite.id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
@@ -1167,7 +1456,7 @@ function App() {
                 {coursesDisponibles.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                    <span className="prix">{course.prix.toFixed(2)} €</span>
+                    <span className="prix">{course.prix.toFixed(2)} CHF</span>
                   </li>
                 ))}
               </ul>
@@ -1180,7 +1469,7 @@ function App() {
                 {coursesMoi.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                    <span className="prix">{course.prix.toFixed(2)} €</span>
+                    <span className="prix">{course.prix.toFixed(2)} CHF</span>
                   </li>
                 ))}
               </ul>
@@ -1195,7 +1484,7 @@ function App() {
                     {coursesLivreesMoi.map((course) => (
                       <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                         <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                        <span className="prix">{course.prix.toFixed(2)} €</span>
+                        <span className="prix">{course.prix.toFixed(2)} CHF</span>
                       </li>
                     ))}
                   </ul>
@@ -1216,7 +1505,7 @@ function App() {
                   </a>
                 </p>
               )}
-              <p className="total-panier">{courses[courseSelectionnee].prix.toFixed(2)} €</p>
+              <p className="total-panier">{courses[courseSelectionnee].prix.toFixed(2)} CHF</p>
 
               <div className="stepper-statut">
                 <div className={`point-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 0 ? 'complete' : ''}`}></div>
@@ -1264,6 +1553,10 @@ function App() {
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
           <h3>Tableau de bord</h3>
 
+          <button className="bouton-petit" onClick={() => setEspace('catalogueAdmin')}>
+            <i className="bi bi-box-seam"></i> Gérer le catalogue
+          </button>
+
           <div className="stats-admin">
             <div className="stat-carte">
               <span className="stat-valeur">{statsAdmin.total}</span>
@@ -1282,7 +1575,7 @@ function App() {
               <span className="stat-label">Annulées</span>
             </div>
           </div>
-          <p className="total-panier">Chiffre d'affaires (hors annulées) : {statsAdmin.chiffreAffaires.toFixed(2)} €</p>
+          <p className="total-panier">Chiffre d'affaires (hors annulées) : {statsAdmin.chiffreAffaires.toFixed(2)} CHF</p>
 
           <input
             type="text"
@@ -1332,7 +1625,7 @@ function App() {
                         {course.telephone && <><br /><span className="souligne">{course.telephone}</span></>}
                       </td>
                       <td>{course.adresse} — {course.produits}</td>
-                      <td>{course.prix.toFixed(2)} €</td>
+                      <td>{course.prix.toFixed(2)} CHF</td>
                       <td>
                         <select
                           value={course.statut}
@@ -1362,6 +1655,118 @@ function App() {
           )}
           {!chargementCourses && coursesFiltreesAdmin.length === 0 && (
             <p className="aucun-resultat">Aucune commande pour ce filtre.</p>
+          )}
+        </>
+      )}
+
+      {espace === 'catalogueAdmin' && role === 'admin' && (
+        <>
+          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <h3>Gérer le catalogue</h3>
+
+          <div className="carte-auth">
+            <h3>Ajouter un produit</h3>
+            <input
+              type="text"
+              placeholder="Sous-section (ex: Supportage)"
+              value={nouveauSousSection}
+              onChange={(e) => setNouveauSousSection(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Nom du produit"
+              value={nouveauNomProduit}
+              onChange={(e) => setNouveauNomProduit(e.target.value)}
+            />
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Prix (CHF)"
+              value={nouveauPrixProduit}
+              onChange={(e) => setNouveauPrixProduit(e.target.value)}
+            />
+            {erreurProduit && <p className="souligne">{erreurProduit}</p>}
+            <button className="valider" onClick={ajouterProduit}>Ajouter au catalogue</button>
+          </div>
+
+          <input
+            type="text"
+            className="barre-recherche"
+            placeholder="Rechercher un produit..."
+            value={rechercheProduitsAdmin}
+            onChange={(e) => setRechercheProduitsAdmin(e.target.value)}
+          />
+
+          {produitsFiltresAdmin.length > 0 && (
+            <div className="tableau-scroll">
+              <table className="tableau-admin">
+                <thead>
+                  <tr>
+                    <th>Sous-section</th>
+                    <th>Nom</th>
+                    <th>Prix</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {produitsFiltresAdmin.map((produit) => (
+                    <tr key={produit.id}>
+                      {editionProduitId === produit.id ? (
+                        <>
+                          <td>
+                            <input
+                              type="text"
+                              value={editionSousSection}
+                              onChange={(e) => setEditionSousSection(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={editionNomProduit}
+                              onChange={(e) => setEditionNomProduit(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editionPrixProduit}
+                              onChange={(e) => setEditionPrixProduit(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <button onClick={() => enregistrerModificationProduit(produit.id)} title="Enregistrer">
+                              <i className="bi bi-check-lg"></i>
+                            </button>
+                            <button onClick={annulerEditionProduit} title="Annuler">
+                              <i className="bi bi-x-lg"></i>
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{produit.sous_section}</td>
+                          <td>{produit.nom}</td>
+                          <td>{produit.prix.toFixed(2)} CHF</td>
+                          <td>
+                            <button onClick={() => commencerEditionProduit(produit)} title="Modifier">
+                              <i className="bi bi-pencil"></i>
+                            </button>
+                            <button onClick={() => supprimerProduit(produit.id)} title="Supprimer">
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {produitsFiltresAdmin.length === 0 && (
+            <p className="aucun-resultat">Aucun produit ne correspond à cette recherche.</p>
           )}
         </>
       )}

@@ -60,35 +60,6 @@ body {
   background: linear-gradient(90deg, var(--couleur-accent), #ffb787, var(--couleur-accent));
 }
 
-.switch-app {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-.switch-app button {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid var(--couleur-bordure);
-  background: var(--couleur-blanc);
-  color: var(--couleur-muted);
-  border-radius: var(--rayon-s);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition), border-color var(--transition);
-}
-
-.switch-app button:hover {
-  border-color: var(--couleur-accent);
-  color: var(--couleur-encre);
-}
-
-.switch-app button.actif {
-  background: var(--couleur-encre);
-  color: var(--couleur-blanc);
-  border-color: var(--couleur-encre);
-}
-
 .logo {
   position: relative;
   width: 100px;
@@ -476,52 +447,6 @@ h3 {
   border-color: var(--couleur-encre);
 }
 
-.liste-admin {
-  list-style: none;
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 0;
-}
-
-.liste-admin li {
-  background: var(--couleur-blanc);
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border-radius: var(--rayon-m);
-  box-shadow: var(--ombre-s);
-}
-
-.ligne-admin-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.ligne-admin-controles {
-  display: flex;
-  gap: 8px;
-}
-
-.ligne-admin-controles select {
-  flex: 1;
-  padding: 8px 10px;
-  border: 1px solid var(--couleur-bordure);
-  border-radius: var(--rayon-s);
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 12px;
-  background: var(--couleur-fond);
-  color: var(--couleur-encre);
-  cursor: pointer;
-  transition: border-color var(--transition);
-}
-
-.ligne-admin-controles select:focus {
-  outline: none;
-  border-color: var(--couleur-accent);
-}
-
 .tableau-scroll {
   overflow-x: auto;
   max-width: 400px;
@@ -586,6 +511,44 @@ h3 {
 .tableau-admin select:focus {
   outline: none;
   border-color: var(--couleur-accent);
+}
+
+.tableau-admin td input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  transition: border-color var(--transition);
+}
+
+.tableau-admin td input:focus {
+  outline: none;
+  border-color: var(--couleur-accent);
+}
+
+.tableau-admin td button {
+  background: none;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  padding: 6px 8px;
+  margin-right: 4px;
+  color: var(--couleur-muted);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.tableau-admin td button:last-child {
+  margin-right: 0;
+}
+
+.tableau-admin td button:hover {
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
 }
 
 .retour {
@@ -683,6 +646,31 @@ h3 {
   cursor: not-allowed;
 }
 
+.bouton-petit {
+  display: inline-block;
+  margin: 0 auto 18px;
+  padding: 8px 16px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  color: var(--couleur-encre);
+  border-radius: 16px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.bouton-petit i {
+  color: var(--couleur-accent);
+  margin-right: 4px;
+}
+
+.bouton-petit:hover {
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
 .bouton-annuler {
   display: block;
   width: 100%;
@@ -777,29 +765,6 @@ h3 {
   outline: none;
   border-color: var(--couleur-accent);
   box-shadow: 0 0 0 3px var(--couleur-accent-clair);
-}
-
-.barre-compte {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  font-size: 13px;
-}
-
-.barre-compte button {
-  background: none;
-  border: 1px solid var(--couleur-bordure);
-  border-radius: var(--rayon-s);
-  padding: 5px 12px;
-  font-family: 'IBM Plex Sans', sans-serif;
-  cursor: pointer;
-  transition: border-color var(--transition), color var(--transition);
-}
-
-.barre-compte button:hover {
-  border-color: var(--couleur-accent);
-  color: var(--couleur-accent);
 }
 
 .barre-compte-haut {
@@ -990,6 +955,19 @@ h3 {
   box-shadow: 0 0 0 3px var(--couleur-accent-clair);
 }
 
+.lien-carte {
+  text-align: center;
+  color: var(--couleur-muted);
+  cursor: pointer;
+  margin: 10px 0 0;
+  font-size: 12px;
+  transition: color var(--transition);
+}
+
+.lien-carte:hover {
+  color: var(--couleur-accent);
+}
+
 .choix-role {
   display: flex;
   gap: 8px;
@@ -1140,16 +1118,8 @@ h3 {
     font-size: 16px;
   }
 
-  .liste-admin {
-    max-width: 100%;
-  }
-
   .tableau-scroll {
     max-width: 100%;
-  }
-
-  .ligne-admin-controles {
-    flex-direction: column;
   }
 }
 
