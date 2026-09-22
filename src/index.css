@@ -1121,6 +1121,28 @@ h3 {
   .tableau-scroll {
     max-width: 100%;
   }
+
+  /* Empêche le zoom automatique sur iPhone quand on touche un champ
+     de saisie (Safari zoome si le texte fait moins de 16px). */
+  .barre-recherche,
+  .champ-livraison input,
+  .carte-auth input {
+    font-size: 16px;
+  }
+
+  /* Zones tactiles un peu plus grandes pour les boutons +/- du panier,
+     plus faciles à toucher précisément avec le pouce. */
+  .liste-produits .quantite-controle button {
+    width: 34px;
+    height: 34px;
+    font-size: 17px;
+  }
+
+  /* Un peu plus d'espace autour des liens du fil d'Ariane, pour
+     éviter de toucher le mauvais niveau par erreur. */
+  .fil-ariane span {
+    padding: 3px 2px;
+  }
 }
 
 @media (max-width: 360px) {

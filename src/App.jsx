@@ -83,6 +83,7 @@ function App() {
   const [nomInscription, setNomInscription] = useState('')
   const [roleChoisi, setRoleChoisi] = useState('client')
   const [erreurInscription, setErreurInscription] = useState('')
+  const [messageInscription, setMessageInscription] = useState('')
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
   const [livreurs, setLivreurs] = useState([])
@@ -394,6 +395,31 @@ function App() {
     chargerCommandes()
   }, [session])
 
+  function messageErreurAuth(error) {
+    const code = error?.code || ''
+    const message = error?.message || ''
+
+    if (code === 'user_already_exists' || message.includes('already registered')) {
+      return 'Cet email est déjà associé à un compte. Essaie de te connecter, ou utilise "Mot de passe oublié ?" si besoin.'
+    }
+    if (code === 'weak_password' || message.includes('Password')) {
+      return 'Le mot de passe est trop court ou trop simple (6 caractères minimum, évite les mots de passe trop courants).'
+    }
+    if (code === 'email_address_invalid' || message.toLowerCase().includes('invalid') && message.toLowerCase().includes('email')) {
+      return "Cette adresse email n'est pas valide."
+    }
+    if (code === 'invalid_credentials') {
+      return 'Email ou mot de passe incorrect.'
+    }
+    if (code === 'email_not_confirmed') {
+      return "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter."
+    }
+    if (code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit') {
+      return 'Trop de tentatives, réessaie dans quelques minutes.'
+    }
+    return 'Une erreur est survenue, réessaie.'
+  }
+
   async function connexion() {
     setErreurConnexion('')
     const { error } = await supabase.auth.signInWithPassword({
@@ -401,7 +427,7 @@ function App() {
       password: motDePasseConnexion
     })
     if (error) {
-      setErreurConnexion(error.message)
+      setErreurConnexion(messageErreurAuth(error))
     }
   }
 
@@ -420,7 +446,7 @@ function App() {
     setEnvoiOubliEnCours(false)
 
     if (error) {
-      setErreurOubli(error.message)
+      setErreurOubli(messageErreurAuth(error))
       return
     }
     setMessageOubli('Si un compte existe avec cet email, un lien de réinitialisation vient de lui être envoyé.')
@@ -453,21 +479,32 @@ function App() {
 
   async function inscription() {
     setErreurInscription('')
+    setMessageInscription('')
     const { data, error } = await supabase.auth.signUp({
       email: emailInscription,
-      password: motDePasseInscription
+      password: motDePasseInscription,
+      options: {
+        data: {
+          role: roleChoisi,
+          nom: nomInscription
+        }
+      }
     })
     if (error) {
-      setErreurInscription(error.message)
+      setErreurInscription(messageErreurAuth(error))
       return
     }
-    if (data.user) {
-      const { error: erreurProfil } = await supabase
-        .from('profils')
-        .insert({ id: data.user.id, role: roleChoisi, nom: nomInscription })
-      if (erreurProfil) {
-        setErreurInscription(erreurProfil.message)
-      }
+    // Le profil (table "profils") est maintenant créé automatiquement
+    // côté base de données par un déclencheur ("trigger"), dès que le
+    // compte est créé — plus besoin de l'insérer ici depuis le site.
+    if (!data.session) {
+      // Pas de session tout de suite : la confirmation par email est
+      // active, il faut prévenir le client plutôt que de le laisser
+      // sans aucun retour après avoir cliqué sur "S'inscrire".
+      setMessageInscription("Inscription bien reçue ! Vérifie ta boîte mail (et tes spams) et clique sur le lien de confirmation pour activer ton compte.")
+      setEmailInscription('')
+      setMotDePasseInscription('')
+      setNomInscription('')
     }
   }
 
@@ -477,6 +514,8 @@ function App() {
     setMotDePasseConnexion('')
     setEmailInscription('')
     setMotDePasseInscription('')
+    setErreurInscription('')
+    setMessageInscription('')
     setAfficherMotDePasseOublie(false)
     setEmailOubli('')
     setMessageOubli('')
@@ -1019,6 +1058,7 @@ function App() {
                     <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
                   </div>
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
+                  {messageInscription && <p className="souligne">{messageInscription}</p>}
                   <button className="valider" onClick={inscription}>S'inscrire</button>
                 </div>
               </div>
