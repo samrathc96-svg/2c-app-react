@@ -112,6 +112,7 @@ function App() {
   const [nomClient, setNomClient] = useState('')
   const [adresseClient, setAdresseClient] = useState('')
   const [telephoneClient, setTelephoneClient] = useState('')
+  const [emailClient, setEmailClient] = useState('')
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -527,8 +528,13 @@ function App() {
       afficherNotification('Votre panier est vide.')
       return
     }
-    if (nomClient.trim() === '' || adresseClient.trim() === '' || telephoneClient.trim() === '') {
-      afficherNotification("Merci de renseigner le nom, l'adresse de livraison et un numéro de téléphone.")
+    if (
+      nomClient.trim() === '' ||
+      adresseClient.trim() === '' ||
+      telephoneClient.trim() === '' ||
+      emailClient.trim() === ''
+    ) {
+      afficherNotification("Merci de renseigner le nom, l'adresse de livraison, le téléphone et l'email.")
       return
     }
 
@@ -545,6 +551,7 @@ function App() {
         p_nom_client: nomClient,
         p_adresse: adresseClient,
         p_telephone: telephoneClient,
+        p_email: emailClient,
         p_user_id: session ? session.user.id : null
       })
       .single()
@@ -563,11 +570,27 @@ function App() {
     setCommandeInvite(nouvelleCommande)
     sauvegarderCommandeLocale(nouvelleCommande)
 
+    supabase.functions
+      .invoke('envoyer-confirmation-commande', {
+        body: {
+          email: emailClient,
+          nomClient,
+          produits: listeProduits,
+          total,
+          numeroSuivi: nouvelleCommande.numero_suivi,
+          adresse: adresseClient
+        }
+      })
+      .catch((erreurEmail) => {
+        console.error("Erreur d'envoi de l'email de confirmation :", erreurEmail)
+      })
+
     setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' CHF')
     setPanier([])
     setNomClient('')
     setAdresseClient('')
     setTelephoneClient('')
+    setEmailClient('')
     setVue('commande')
   }
 
@@ -1122,6 +1145,12 @@ function App() {
                   value={telephoneClient}
                   onChange={(e) => setTelephoneClient(e.target.value)}
                 />
+                <input
+                  type="email"
+                  placeholder="Email (pour recevoir ta confirmation)"
+                  value={emailClient}
+                  onChange={(e) => setEmailClient(e.target.value)}
+                />
               </div>
               <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
               <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
@@ -1135,6 +1164,7 @@ function App() {
               <h3>Commande confirmée</h3>
               <p>{recapCommande}</p>
               <p className="slogan">Merci, votre commande a bien été enregistrée.</p>
+              <p className="souligne">Un email de confirmation vient de t'être envoyé.</p>
               {commandeInvite && commandeInvite.numero_suivi && (
                 <p className="slogan">
                   Numéro de suivi : <strong>{commandeInvite.numero_suivi}</strong>
