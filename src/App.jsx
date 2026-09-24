@@ -484,6 +484,7 @@ function App() {
       email: emailInscription,
       password: motDePasseInscription,
       options: {
+        emailRedirectTo: window.location.origin,
         data: {
           role: roleChoisi,
           nom: nomInscription
