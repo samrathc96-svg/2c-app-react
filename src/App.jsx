@@ -269,6 +269,8 @@ function App() {
           setEspace(data.role === 'livreur' ? 'livreur' : data.role === 'admin' ? 'admin' : 'catalogue')
           setAfficherAuth(false)
         }
+      } else if (error) {
+        console.error('Erreur de chargement du rôle :', error)
       }
       setChargementAuth(false)
     }
@@ -1304,7 +1306,12 @@ function App() {
             <>
               <p className="retour" onClick={() => setCommandeSelectionnee(null)}>← Retour</p>
               <h3>Détail de la commande</h3>
-              <p className="slogan">{mesCommandes[commandeSelectionnee].produits}</p>
+              <p className="souligne">Produits commandés :</p>
+              <ul className="liste-produits-commande">
+                {mesCommandes[commandeSelectionnee].produits.split(', ').map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
               {mesCommandes[commandeSelectionnee].adresse && (
                 <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
               )}
@@ -1410,7 +1417,12 @@ function App() {
           {commandeInvite && (
             <>
               <p className="retour" onClick={nouvelleRechercheSuivi}>← Nouvelle recherche</p>
-              <p className="slogan">{commandeInvite.produits}</p>
+              <p className="souligne">Produits commandés :</p>
+              <ul className="liste-produits-commande">
+                {commandeInvite.produits.split(', ').map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
               {commandeInvite.adresse && (
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}
@@ -1711,7 +1723,8 @@ function App() {
                 <thead>
                   <tr>
                     <th>Client</th>
-                    <th>Adresse — Produits</th>
+                    <th>Adresse</th>
+                    <th>Produits</th>
                     <th>Prix</th>
                     <th>Statut</th>
                     <th>Livreur</th>
@@ -1724,7 +1737,14 @@ function App() {
                         {course.client}
                         {course.telephone && <><br /><span className="souligne">{course.telephone}</span></>}
                       </td>
-                      <td>{course.adresse} — {course.produits}</td>
+                      <td>{course.adresse}</td>
+                      <td>
+                        <ul className="liste-produits-table">
+                          {course.produits.split(', ').map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      </td>
                       <td>{course.prix.toFixed(2)} CHF</td>
                       <td>
                         <select
