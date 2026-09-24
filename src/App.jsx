@@ -310,6 +310,16 @@ function App() {
 
   useEffect(() => {
     async function chargerCourses() {
+      // Sans compte, la base ne renvoie plus rien ici (voir la
+      // sécurité des courses) : on ne demande donc la liste que si
+      // quelqu'un est connecté. Un livreur/admin recevra toutes les
+      // courses, un client uniquement les siennes — c'est la base de
+      // données elle-même qui filtre, grâce aux règles de sécurité.
+      if (!session) {
+        setCourses([])
+        setChargementCourses(false)
+        return
+      }
       const { data, error } = await supabase.from('courses').select('*')
       if (error) {
         console.error('Erreur de chargement des courses :', error)
@@ -319,9 +329,13 @@ function App() {
       setChargementCourses(false)
     }
     chargerCourses()
-  }, [])
+  }, [session])
 
   useEffect(() => {
+    // Même logique pour le direct : inutile de s'abonner sans compte,
+    // la base ne laissera de toute façon rien passer.
+    if (!session) return
+
     const canal = supabase
       .channel('courses-en-direct')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
@@ -342,7 +356,7 @@ function App() {
     return () => {
       supabase.removeChannel(canal)
     }
-  }, [])
+  }, [session])
 
   useEffect(() => {
     const canal = supabase
@@ -687,17 +701,17 @@ function App() {
     afficherNotification('Commande annulée.', 'info')
   }
 
-  async function rechercherCommandeInvite() {
+  async function rechercherCommandeInvite(numero = numeroSuiviInvite, nom = nomSuiviInvite) {
     setErreurSuivi('')
-    if (numeroSuiviInvite.trim() === '' || nomSuiviInvite.trim() === '') {
+    if (numero.trim() === '' || nom.trim() === '') {
       setErreurSuivi('Merci de renseigner le numéro de commande et le nom du client.')
       return
     }
 
     setChargementSuivi(true)
     const { data, error } = await supabase.rpc('rechercher_commande', {
-      p_numero: numeroSuiviInvite.trim(),
-      p_nom: nomSuiviInvite.trim()
+      p_numero: numero.trim(),
+      p_nom: nom.trim()
     })
     setChargementSuivi(false)
 
@@ -712,6 +726,17 @@ function App() {
       return
     }
     setCommandeInvite(data[0])
+    // Sans compte, la table "courses" n'est plus accessible directement
+    // (sécurité) : le statut de livraison nous arrive donc via cette
+    // même recherche sécurisée, et on l'ajoute nous-mêmes à la liste
+    // locale des courses pour que l'affichage (stepper, annulation...)
+    // continue de fonctionner sans rien changer d'autre.
+    if (data[0].course_id) {
+      setCourses((precedentes) => {
+        const autres = precedentes.filter((c) => c.id !== data[0].course_id)
+        return [...autres, { id: data[0].course_id, commande_id: data[0].id, statut: data[0].statut }]
+      })
+    }
   }
 
   function nouvelleRechercheSuivi() {
@@ -1344,7 +1369,7 @@ function App() {
               <p className="aucun-resultat">Commandes passées récemment depuis cet appareil :</p>
               <nav className="liste-menu">
                 {commandesRecentesLocales.map((c) => (
-                  <button key={c.id} onClick={() => setCommandeInvite(c)}>
+                  <button key={c.id} onClick={() => rechercherCommandeInvite(c.numero_suivi, c.nom_client)}>
                     <i className="bi bi-clock-history"></i> {c.numero_suivi} — {c.total.toFixed(2)} CHF
                   </button>
                 ))}
@@ -1371,7 +1396,7 @@ function App() {
                   onChange={(e) => setNomSuiviInvite(e.target.value)}
                 />
                 {erreurSuivi && <p className="souligne">{erreurSuivi}</p>}
-                <button className="valider" disabled={chargementSuivi} onClick={rechercherCommandeInvite}>
+                <button className="valider" disabled={chargementSuivi} onClick={() => rechercherCommandeInvite()}>
                   {chargementSuivi ? 'Recherche...' : 'Rechercher'}
                 </button>
               </div>
