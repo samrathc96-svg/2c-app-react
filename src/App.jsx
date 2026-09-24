@@ -239,11 +239,15 @@ function App() {
       const code = parametres.get('code')
       if (!code) return
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      if (!error) {
-        setModeReinitialisation(true)
-        setAfficherAuth(true)
-      }
+      // On échange juste le code contre une session ici. On NE décide
+      // PAS nous-mêmes s'il s'agit d'une réinitialisation de mot de
+      // passe : ce lien a le même format (?code=...) que le lien de
+      // confirmation d'inscription, donc le confondre ouvrait le
+      // formulaire "nouveau mot de passe" même après une simple
+      // inscription. C'est l'écouteur PASSWORD_RECOVERY plus haut,
+      // qui ne se déclenche que sur le vrai événement Supabase de
+      // récupération, qui s'en charge correctement.
+      await supabase.auth.exchangeCodeForSession(code)
       window.history.replaceState({}, document.title, window.location.pathname)
     }
     gererLienRecuperation()
