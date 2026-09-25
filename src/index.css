@@ -293,6 +293,14 @@ h3 {
   transform: translateY(-1px);
 }
 
+.liste-produits li {
+  margin-bottom: 14px;
+}
+
+.liste-produits li span:first-child {
+  font-size: 13px;
+}
+
 .liste-produits .quantite-controle {
   display: flex;
   align-items: center;
@@ -508,12 +516,15 @@ h3 {
 }
 
 .liste-produits-commande li {
-  padding: 4px 2px;
-  font-size: 14px;
+  padding: 6px 4px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--couleur-muted);
   border-bottom: 1px solid var(--couleur-bordure);
 }
 
 .liste-produits-commande li:last-child {
+  margin-bottom: 0;
   border-bottom: none;
 }
 

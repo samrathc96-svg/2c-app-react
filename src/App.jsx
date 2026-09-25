@@ -583,6 +583,16 @@ function App() {
     return course ? course.statut : 'À livrer'
   }
 
+  // Résumé court des produits pour la liste "Mes commandes" (le détail
+  // complet reste affiché quand on clique sur la commande) : évite
+  // d'afficher toute la liste sur une seule ligne quand il y a
+  // beaucoup d'articles.
+  function resumeProduits(texte) {
+    const items = texte.split(', ')
+    if (items.length === 1) return items[0]
+    return `${items[0]} +${items.length - 1} autre${items.length - 1 > 1 ? 's' : ''}`
+  }
+
   async function validerCommande() {
     if (panier.length === 0) {
       afficherNotification('Votre panier est vide.')
@@ -1284,7 +1294,7 @@ function App() {
                 {mesCommandes.map((commande, index) => (
                   <li key={commande.id} onClick={() => setCommandeSelectionnee(index)}>
                     <span>
-                      {commande.produits}
+                      {resumeProduits(commande.produits)}
                       <br />
                       <span className="souligne">
                         {new Date(commande.created_at).toLocaleDateString('fr-FR', {
