@@ -1259,6 +1259,7 @@ function App() {
 
           {vue === 'sousSection' && (
             <>
+              <p className="retour" onClick={retourAccueil}>← Retour</p>
               <div className="fil-ariane">
                 <span onClick={retourAccueil}>Accueil</span>
                 <span className="separateur-fil">›</span>

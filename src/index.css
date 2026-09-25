@@ -269,6 +269,7 @@ h3 {
   color: var(--couleur-muted);
   font-weight: 600;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .souligne {
@@ -299,6 +300,9 @@ h3 {
 
 .liste-produits li span:first-child {
   font-size: 13px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .liste-mes-commandes {
@@ -973,7 +977,7 @@ h3 {
 }
 
 .overlay-auth {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(30, 27, 23, 0.4);
   display: flex;
@@ -1245,14 +1249,6 @@ h3 {
   .liste-produits li,
   .liste-courses li {
     padding: 14px;
-  }
-
-  .liste-produits li {
-    flex-wrap: wrap;
-  }
-
-  .liste-produits button {
-    margin-left: auto;
   }
 
   .panneau-auth {
