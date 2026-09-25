@@ -593,6 +593,44 @@ function App() {
     return `${items[0]} +${items.length - 1} autre${items.length - 1 > 1 ? 's' : ''}`
   }
 
+  // Détail d'une commande, sous forme de tableau (produit, prix,
+  // quantité, sous-total) quand on a le détail ligne par ligne. Les
+  // commandes passées avant l'ajout de ce détail n'ont pas cette
+  // information : on retombe alors sur la simple liste des noms.
+  function detailCommande(commande) {
+    if (commande.produits_detail && commande.produits_detail.length > 0) {
+      return (
+        <table className="tableau-produits-commande">
+          <thead>
+            <tr>
+              <th>Produit</th>
+              <th>Prix</th>
+              <th>Qté</th>
+              <th>Sous-total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {commande.produits_detail.map((ligne, index) => (
+              <tr key={index}>
+                <td>{ligne.nom}</td>
+                <td>{ligne.prix.toFixed(2)} CHF</td>
+                <td>{ligne.quantite}</td>
+                <td>{(ligne.prix * ligne.quantite).toFixed(2)} CHF</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    return (
+      <ul className="liste-produits-commande">
+        {commande.produits.split(', ').map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    )
+  }
+
   async function validerCommande() {
     if (panier.length === 0) {
       afficherNotification('Votre panier est vide.')
@@ -614,9 +652,19 @@ function App() {
       .map((produit) => (produit.quantite > 1 ? `${produit.nom} x${produit.quantite}` : produit.nom))
       .join(', ')
 
+    // Détail ligne par ligne (nom, prix, quantité), pour pouvoir
+    // afficher un vrai tableau dans le détail de la commande —
+    // "listeProduits" ci-dessus ne garde qu'un texte résumé, sans prix.
+    const detailProduits = panier.map((produit) => ({
+      nom: produit.nom,
+      prix: produit.prix,
+      quantite: produit.quantite
+    }))
+
     const { data: nouvelleCommande, error: erreurCommande } = await supabase
       .rpc('creer_commande', {
         p_produits: listeProduits,
+        p_produits_detail: detailProduits,
         p_total: total,
         p_nom_client: nomClient,
         p_adresse: adresseClient,
@@ -1317,11 +1365,7 @@ function App() {
               <p className="retour" onClick={() => setCommandeSelectionnee(null)}>← Retour</p>
               <h3>Détail de la commande</h3>
               <p className="souligne">Produits commandés :</p>
-              <ul className="liste-produits-commande">
-                {mesCommandes[commandeSelectionnee].produits.split(', ').map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
+              {detailCommande(mesCommandes[commandeSelectionnee])}
               {mesCommandes[commandeSelectionnee].adresse && (
                 <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
               )}
@@ -1428,11 +1472,7 @@ function App() {
             <>
               <p className="retour" onClick={nouvelleRechercheSuivi}>← Nouvelle recherche</p>
               <p className="souligne">Produits commandés :</p>
-              <ul className="liste-produits-commande">
-                {commandeInvite.produits.split(', ').map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
+              {detailCommande(commandeInvite)}
               {commandeInvite.adresse && (
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}

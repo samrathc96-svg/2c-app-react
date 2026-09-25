@@ -566,6 +566,32 @@ h3 {
   border-bottom: none;
 }
 
+.tableau-produits-commande {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0 16px;
+  font-size: 12px;
+}
+
+.tableau-produits-commande th,
+.tableau-produits-commande td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure);
+}
+
+.tableau-produits-commande th {
+  color: var(--couleur-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.tableau-produits-commande tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .tableau-admin tbody tr:hover {
   background: var(--couleur-accent-clair);
 }
