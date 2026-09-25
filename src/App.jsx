@@ -98,12 +98,14 @@ function App() {
   const [nouveauSousSection, setNouveauSousSection] = useState('')
   const [nouveauNomProduit, setNouveauNomProduit] = useState('')
   const [nouveauPrixProduit, setNouveauPrixProduit] = useState('')
+  const [nouveauImageProduit, setNouveauImageProduit] = useState('')
   const [erreurProduit, setErreurProduit] = useState('')
   const [rechercheProduitsAdmin, setRechercheProduitsAdmin] = useState('')
   const [editionProduitId, setEditionProduitId] = useState(null)
   const [editionSousSection, setEditionSousSection] = useState('')
   const [editionNomProduit, setEditionNomProduit] = useState('')
   const [editionPrixProduit, setEditionPrixProduit] = useState('')
+  const [editionImageProduit, setEditionImageProduit] = useState('')
 
   const [vue, setVue] = useState('accueil')
   const [sousSectionActive, setSousSectionActive] = useState(null)
@@ -167,6 +169,31 @@ function App() {
     annulees: courses.filter((course) => course.statut === 'Annulée').length,
     chiffreAffaires: courses.filter((course) => course.statut !== 'Annulée').reduce((somme, course) => somme + course.prix, 0)
   }
+
+  // Chiffre d'affaires des 7 derniers jours, pour le petit graphique
+  // du tableau de bord admin.
+  const chiffreParJour = (() => {
+    const jours = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      jours.push({
+        cle: date.toISOString().slice(0, 10),
+        label: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
+        total: 0
+      })
+    }
+    courses
+      .filter((course) => course.statut !== 'Annulée' && course.created_at)
+      .forEach((course) => {
+        const cle = course.created_at.slice(0, 10)
+        const jour = jours.find((j) => j.cle === cle)
+        if (jour) jour.total += course.prix
+      })
+    return jours
+  })()
+
+  const maxChiffreJournalier = Math.max(1, ...chiffreParJour.map((j) => j.total))
 
   useEffect(() => {
     if (!notification) return
@@ -898,7 +925,8 @@ function App() {
         metier: 'Ventilation',
         sous_section: nouveauSousSection.trim(),
         nom: nouveauNomProduit.trim(),
-        prix: prixNombre
+        prix: prixNombre,
+        image_url: nouveauImageProduit.trim() || null
       })
       .select()
       .single()
@@ -915,6 +943,7 @@ function App() {
     setNouveauSousSection('')
     setNouveauNomProduit('')
     setNouveauPrixProduit('')
+    setNouveauImageProduit('')
     afficherNotification('Produit ajouté au catalogue.', 'info')
   }
 
@@ -923,6 +952,7 @@ function App() {
     setEditionSousSection(produit.sous_section)
     setEditionNomProduit(produit.nom)
     setEditionPrixProduit(String(produit.prix))
+    setEditionImageProduit(produit.image_url || '')
   }
 
   function annulerEditionProduit() {
@@ -942,7 +972,8 @@ function App() {
       .update({
         sous_section: editionSousSection.trim(),
         nom: editionNomProduit.trim(),
-        prix: prixNombre
+        prix: prixNombre,
+        image_url: editionImageProduit.trim() || null
       })
       .eq('id', id)
 
@@ -954,7 +985,13 @@ function App() {
 
     const nouveauxProduits = produitsBruts.map((p) =>
       p.id === id
-        ? { ...p, sous_section: editionSousSection.trim(), nom: editionNomProduit.trim(), prix: prixNombre }
+        ? {
+            ...p,
+            sous_section: editionSousSection.trim(),
+            nom: editionNomProduit.trim(),
+            prix: prixNombre,
+            image_url: editionImageProduit.trim() || null
+          }
         : p
     )
     setProduitsBruts(nouveauxProduits)
@@ -1231,6 +1268,9 @@ function App() {
               <ul className="liste-produits">
                 {sousSectionActive.produits.map((produit) => (
                   <li key={produit.nom}>
+                    {produit.image_url && (
+                      <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
+                    )}
                     <span>{produit.nom}</span>
                     <span className="prix">{produit.prix.toFixed(2)} CHF</span>
                     <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
@@ -1739,6 +1779,19 @@ function App() {
           </div>
           <p className="total-panier">Chiffre d'affaires (hors annulées) : {statsAdmin.chiffreAffaires.toFixed(2)} CHF</p>
 
+          <p className="souligne" style={{ textAlign: 'center' }}>7 derniers jours</p>
+          <div className="graphique-ca">
+            {chiffreParJour.map((jour) => (
+              <div key={jour.cle} className="barre-jour" title={`${jour.total.toFixed(2)} CHF`}>
+                <div
+                  className="barre-jour-valeur"
+                  style={{ height: `${Math.max(4, (jour.total / maxChiffreJournalier) * 100)}%` }}
+                ></div>
+                <span className="barre-jour-label">{jour.label}</span>
+              </div>
+            ))}
+          </div>
+
           <input
             type="text"
             className="barre-recherche"
@@ -1855,6 +1908,12 @@ function App() {
               value={nouveauPrixProduit}
               onChange={(e) => setNouveauPrixProduit(e.target.value)}
             />
+            <input
+              type="text"
+              placeholder="URL de l'image (facultatif)"
+              value={nouveauImageProduit}
+              onChange={(e) => setNouveauImageProduit(e.target.value)}
+            />
             {erreurProduit && <p className="souligne">{erreurProduit}</p>}
             <button className="valider" onClick={ajouterProduit}>Ajouter au catalogue</button>
           </div>
@@ -1875,6 +1934,7 @@ function App() {
                     <th>Sous-section</th>
                     <th>Nom</th>
                     <th>Prix</th>
+                    <th>Image</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -1906,6 +1966,14 @@ function App() {
                             />
                           </td>
                           <td>
+                            <input
+                              type="text"
+                              placeholder="URL de l'image"
+                              value={editionImageProduit}
+                              onChange={(e) => setEditionImageProduit(e.target.value)}
+                            />
+                          </td>
+                          <td>
                             <button onClick={() => enregistrerModificationProduit(produit.id)} title="Enregistrer">
                               <i className="bi bi-check-lg"></i>
                             </button>
@@ -1919,6 +1987,13 @@ function App() {
                           <td>{produit.sous_section}</td>
                           <td>{produit.nom}</td>
                           <td>{produit.prix.toFixed(2)} CHF</td>
+                          <td>
+                            {produit.image_url ? (
+                              <img src={produit.image_url} alt="" className="vignette-produit" />
+                            ) : (
+                              <span className="souligne">Aucune</span>
+                            )}
+                          </td>
                           <td>
                             <button onClick={() => commencerEditionProduit(produit)} title="Modifier">
                               <i className="bi bi-pencil"></i>

@@ -460,6 +460,56 @@ h3 {
   text-align: center;
 }
 
+.graphique-ca {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  max-width: 400px;
+  height: 90px;
+  margin: 8px auto 20px;
+  padding: 0 4px;
+}
+
+.barre-jour {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 6px;
+}
+
+.barre-jour-valeur {
+  width: 100%;
+  max-width: 26px;
+  background: var(--couleur-accent);
+  border-radius: 4px 4px 0 0;
+  transition: height var(--transition);
+}
+
+.barre-jour-label {
+  font-size: 10px;
+  color: var(--couleur-muted);
+  text-transform: capitalize;
+}
+
+.vignette-produit-catalogue {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--rayon-s);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.vignette-produit {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rayon-s);
+  object-fit: cover;
+}
+
 .filtres-admin {
   display: flex;
   gap: 6px;
