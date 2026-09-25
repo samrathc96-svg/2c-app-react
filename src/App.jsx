@@ -1290,7 +1290,7 @@ function App() {
           {!chargementCommandes && mesCommandes.length > 0 && commandeSelectionnee === null && (
             <>
               <h3>Mes commandes</h3>
-              <ul className="liste-produits">
+              <ul className="liste-mes-commandes">
                 {mesCommandes.map((commande, index) => (
                   <li key={commande.id} onClick={() => setCommandeSelectionnee(index)}>
                     <span>

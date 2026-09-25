@@ -301,6 +301,44 @@ h3 {
   font-size: 13px;
 }
 
+.liste-mes-commandes {
+  list-style: none;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.liste-mes-commandes li {
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.liste-mes-commandes li:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ombre-s);
+}
+
+.liste-mes-commandes li:last-child {
+  margin-bottom: 0;
+}
+
+.liste-mes-commandes .prix {
+  color: var(--couleur-muted);
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
 .liste-produits .quantite-controle {
   display: flex;
   align-items: center;
