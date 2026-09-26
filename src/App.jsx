@@ -1568,7 +1568,7 @@ function App() {
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
           <h3>FAQ</h3>
 
-          <div className="carte-auth">
+          <div className="carte-faq">
             <strong>Comment suivre ma commande ?</strong>
             <p>
               Utilise le numéro de suivi reçu à la validation de ta commande, via le menu ☰ → "Suivre ma commande".
@@ -1576,7 +1576,7 @@ function App() {
             </p>
           </div>
 
-          <div className="carte-auth">
+          <div className="carte-faq">
             <strong>Dois-je créer un compte pour commander ?</strong>
             <p>
               Non, tu peux commander sans compte : un numéro de suivi t'est donné à la fin.
@@ -1584,7 +1584,7 @@ function App() {
             </p>
           </div>
 
-          <div className="carte-auth">
+          <div className="carte-faq">
             <strong>Puis-je annuler ma commande ?</strong>
             <p>
               Oui, tant qu'elle est encore au statut "À livrer", depuis l'écran de suivi ou "Mes commandes".
@@ -1592,7 +1592,7 @@ function App() {
             </p>
           </div>
 
-          <div className="carte-auth">
+          <div className="carte-faq">
             <strong>Comment se fait la livraison ?</strong>
             <p>
               Selon le livreur qui prend en charge ta commande et le format de celle-ci : scooter, moto ou vélo cargo.
@@ -1600,7 +1600,7 @@ function App() {
             </p>
           </div>
 
-          <div className="carte-auth">
+          <div className="carte-faq">
             <strong>Quels produits proposez-vous ?</strong>
             <p>
               Des petits consommables pour le métier de la ventilation (supportage, silicone, gaines, soupapes, grilles de finition...),

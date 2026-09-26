@@ -1096,6 +1096,29 @@ h3 {
   font-size: 15px;
 }
 
+.carte-faq {
+  background: var(--couleur-blanc);
+  border-radius: var(--rayon-m);
+  border-left: 3px solid var(--couleur-accent);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--ombre-s);
+}
+
+.carte-faq strong {
+  display: block;
+  color: var(--couleur-encre);
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.carte-faq p {
+  margin: 0;
+  color: var(--couleur-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .carte-auth input {
   width: 100%;
   padding: 10px 12px;
