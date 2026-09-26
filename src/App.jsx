@@ -101,7 +101,11 @@ function estimerCreneauLivraison(nombreEnAttente) {
   }
 }
 
-function telechargerFacture(commande) {
+// Construit le document PDF de la facture, sans le télécharger ni
+// l'envoyer : réutilisé à la fois par le téléchargement manuel
+// (telechargerFacture) et par l'envoi automatique par email une fois la
+// commande livrée (envoyerFactureAutomatique).
+function construireFacturePDF(commande) {
   const doc = new jsPDF()
   const accent = [255, 106, 19]
   const encre = [30, 27, 23]
@@ -253,6 +257,11 @@ function telechargerFacture(commande) {
     )
   }
 
+  return { doc, numeroFacture }
+}
+
+function telechargerFacture(commande) {
+  const { doc, numeroFacture } = construireFacturePDF(commande)
   doc.save(`Facture_${numeroFacture}.pdf`)
 }
 
@@ -1020,6 +1029,34 @@ function App() {
     setSousSectionActive(null)
   }
 
+  // Envoie automatiquement la facture par email au client dès que sa
+  // commande passe au statut "Livrée" — comme ça, la facture correspond
+  // toujours à une commande réellement livrée, jamais à une commande en
+  // cours ou annulée. Se déroule en arrière-plan : si ça échoue (pas
+  // d'email renseigné, souci réseau...), ça n'empêche jamais de valider
+  // la livraison elle-même.
+  async function envoyerFactureAutomatique(commandeId) {
+    const { data, error } = await supabase
+      .rpc('obtenir_commande_facture', { p_commande_id: commandeId })
+      .single()
+
+    if (error || !data || !data.email) {
+      if (error) console.error('Erreur de récupération de la commande pour la facture :', error)
+      return
+    }
+
+    const { doc, numeroFacture } = construireFacturePDF(data)
+    const pdfBase64 = doc.output('datauristring').split(',')[1]
+
+    supabase.functions
+      .invoke('envoyer-facture-email', {
+        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64 }
+      })
+      .catch((erreurEmail) => {
+        console.error("Erreur d'envoi automatique de la facture :", erreurEmail)
+      })
+  }
+
   async function avancerStatut(index) {
     const course = courses[index]
     const indexStatut = STATUTS.indexOf(course.statut)
@@ -1039,6 +1076,10 @@ function App() {
     }
 
     setCourses(courses.map((c, i) => (i === index ? { ...c, statut: nouveauStatut } : c)))
+
+    if (nouveauStatut === 'Livrée' && course.commande_id) {
+      envoyerFactureAutomatique(course.commande_id)
+    }
   }
 
   async function annulerCommande(commande) {
@@ -1167,6 +1208,13 @@ function App() {
     }
 
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, statut: nouveauStatut } : c)))
+
+    if (nouveauStatut === 'Livrée') {
+      const course = courses.find((c) => c.id === courseId)
+      if (course && course.commande_id) {
+        envoyerFactureAutomatique(course.commande_id)
+      }
+    }
   }
 
   async function assignerLivreur(courseId, livreurId) {
