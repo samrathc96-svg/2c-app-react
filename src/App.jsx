@@ -72,6 +72,17 @@ function estimerPrixTransformation(formeEntree, tailleEntree, formeSortie, taill
   return Math.round(prix * 20) / 20 // arrondi au 0.05 le plus proche, comme le reste du catalogue
 }
 
+// Estimation (approximative) du créneau de livraison, à partir du nombre
+// de courses déjà en attente. Purement indicatif : à ajuster une fois
+// qu'on aura une vraie idée des temps de trajet réels.
+function estimerCreneauLivraison(nombreEnAttente) {
+  const base = 20 + nombreEnAttente * 8
+  return {
+    min: Math.min(base, 90),
+    max: Math.min(base + 15, 105)
+  }
+}
+
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -185,14 +196,23 @@ function App() {
   const [commandesRecentesLocales, setCommandesRecentesLocales] = useState([])
 
   const [notification, setNotification] = useState(null)
+  const [creneauLivraison, setCreneauLivraison] = useState(null)
 
   const total = panier.reduce((somme, produit) => somme + produit.prix * produit.quantite, 0)
   const nombreArticles = panier.reduce((somme, produit) => somme + produit.quantite, 0)
 
   const sousSectionsDisponibles = metiers.flatMap((metier) => metier.sousSections)
-  const sousSectionsFiltrees = sousSectionsDisponibles.filter((sousSection) =>
-    retirerAccents(sousSection.nom.toLowerCase()).includes(retirerAccents(recherche.toLowerCase()))
-  )
+
+  // Recherche transversale : cherche directement dans les produits de
+  // toutes les catégories, plutôt que de se limiter aux noms de catégories.
+  const rechercheNormalisee = retirerAccents(recherche.trim().toLowerCase())
+  const produitsRecherches = rechercheNormalisee === ''
+    ? []
+    : sousSectionsDisponibles.flatMap((sousSection) =>
+        sousSection.produits
+          .filter((produit) => retirerAccents(produit.nom.toLowerCase()).includes(rechercheNormalisee))
+          .map((produit) => ({ ...produit, sousSection: sousSection.nom }))
+      )
 
   const produitsFiltresAdmin = produitsBruts.filter((produit) => {
     const cible = retirerAccents(`${produit.nom} ${produit.sous_section}`.toLowerCase())
@@ -695,6 +715,13 @@ function App() {
     return `${items[0]} +${items.length - 1} autre${items.length - 1 > 1 ? 's' : ''}`
   }
 
+  async function mettreAJourCreneau() {
+    const { data, error } = await supabase.rpc('compter_file_attente')
+    if (!error && typeof data === 'number') {
+      setCreneauLivraison(estimerCreneauLivraison(data))
+    }
+  }
+
   // Détail d'une commande, sous forme de tableau (produit, prix,
   // quantité, sous-total) quand on a le détail ligne par ligne. Les
   // commandes passées avant l'ajout de ce détail n'ont pas cette
@@ -812,6 +839,7 @@ function App() {
     setTelephoneClient('')
     setEmailClient('')
     setVue('commande')
+    mettreAJourCreneau()
   }
 
   function retourAccueil() {
@@ -902,6 +930,9 @@ function App() {
         const autres = precedentes.filter((c) => c.id !== data[0].course_id)
         return [...autres, { id: data[0].course_id, commande_id: data[0].id, statut: data[0].statut }]
       })
+    }
+    if (data[0].statut && data[0].statut !== 'Livrée' && data[0].statut !== 'Annulée') {
+      mettreAJourCreneau()
     }
   }
 
@@ -1314,20 +1345,43 @@ function App() {
               <input
                 type="text"
                 className="barre-recherche"
-                placeholder="Rechercher une catégorie..."
+                placeholder="Rechercher un produit..."
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
               />
-              <div className="grille-categories">
-                {sousSectionsFiltrees.map((sousSection, index) => (
-                  <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
-                    <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
-                    <span>{sousSection.nom}</span>
-                  </div>
-                ))}
-              </div>
-              {sousSectionsFiltrees.length === 0 && (
-                <p className="aucun-resultat">Aucune catégorie trouvée pour cette recherche.</p>
+
+              {rechercheNormalisee === '' && (
+                <div className="grille-categories">
+                  {sousSectionsDisponibles.map((sousSection, index) => (
+                    <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
+                      <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
+                      <span>{sousSection.nom}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {rechercheNormalisee !== '' && (
+                <ul className="liste-produits">
+                  {produitsRecherches.map((produit) => (
+                    <li key={produit.id}>
+                      {produit.image_url && (
+                        <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
+                      )}
+                      <span>
+                        {produit.nom}
+                        <br />
+                        <span className="souligne">{produit.sousSection}</span>
+                      </span>
+                      <span className="prix">{produit.prix.toFixed(2)} CHF</span>
+                      <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {rechercheNormalisee !== '' && produitsRecherches.length === 0 && (
+                <p className="aucun-resultat">Aucun produit trouvé pour cette recherche.</p>
               )}
             </>
           )}
@@ -1472,6 +1526,11 @@ function App() {
               <p>{recapCommande}</p>
               <p className="slogan">Merci, votre commande a bien été enregistrée.</p>
               <p className="souligne">Un email de confirmation vient de t'être envoyé.</p>
+              {creneauLivraison && (
+                <p className="creneau-estime">
+                  <i className="bi bi-clock"></i> Livraison estimée sous {creneauLivraison.min} à {creneauLivraison.max} min
+                </p>
+              )}
               {commandeInvite && commandeInvite.numero_suivi && (
                 <p className="slogan">
                   Numéro de suivi : <strong>{commandeInvite.numero_suivi}</strong>
@@ -1517,7 +1576,15 @@ function App() {
               <h3>Mes commandes</h3>
               <ul className="liste-mes-commandes">
                 {mesCommandes.map((commande, index) => (
-                  <li key={commande.id} onClick={() => setCommandeSelectionnee(index)}>
+                  <li
+                    key={commande.id}
+                    onClick={() => {
+                      setCommandeSelectionnee(index)
+                      if (statutCommande(commande.id) !== 'Livrée' && statutCommande(commande.id) !== 'Annulée') {
+                        mettreAJourCreneau()
+                      }
+                    }}
+                  >
                     <span>
                       {resumeProduits(commande.produits)}
                       <br />
@@ -1568,6 +1635,12 @@ function App() {
                     <div></div>
                     <div className={`label-statut ${statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
                   </div>
+
+                  {statutCommande(mesCommandes[commandeSelectionnee].id) !== 'Livrée' && creneauLivraison && (
+                    <p className="creneau-estime">
+                      <i className="bi bi-clock"></i> Livraison estimée sous {creneauLivraison.min} à {creneauLivraison.max} min
+                    </p>
+                  )}
 
                   {statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' && (
                     confirmationAnnulation ? (
@@ -1672,6 +1745,12 @@ function App() {
                     <div></div>
                     <div className={`label-statut ${statutCommande(commandeInvite.id) === 'Livrée' ? 'actuelle' : ''}`}>Livrée</div>
                   </div>
+
+                  {statutCommande(commandeInvite.id) !== 'Livrée' && creneauLivraison && (
+                    <p className="creneau-estime">
+                      <i className="bi bi-clock"></i> Livraison estimée sous {creneauLivraison.min} à {creneauLivraison.max} min
+                    </p>
+                  )}
 
                   {statutCommande(commandeInvite.id) === 'À livrer' && (
                     confirmationAnnulation ? (

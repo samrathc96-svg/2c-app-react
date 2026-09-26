@@ -1208,6 +1208,22 @@ h3 {
   transform: translateY(-1px);
 }
 
+.creneau-estime {
+  text-align: center;
+  background: var(--couleur-accent-clair);
+  color: var(--couleur-encre);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 10px 14px;
+  border-radius: var(--rayon-m);
+  margin: 14px 0;
+}
+
+.creneau-estime i {
+  color: var(--couleur-accent);
+  margin-right: 6px;
+}
+
 .carte-auth input {
   width: 100%;
   padding: 10px 12px;
