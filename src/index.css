@@ -1119,6 +1119,95 @@ h3 {
   line-height: 1.6;
 }
 
+.carte-configurateur {
+  background: var(--couleur-accent-clair);
+  margin-bottom: 20px;
+}
+
+.souligne-configurateur {
+  color: var(--couleur-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 2px 0 14px;
+}
+
+.ligne-configurateur {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.etiquette-configurateur {
+  flex-shrink: 0;
+  width: 50px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--couleur-encre);
+}
+
+.ligne-configurateur select,
+.ligne-configurateur input {
+  padding: 8px 10px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.ligne-configurateur select:first-of-type {
+  flex: 1 1 45%;
+}
+
+.ligne-configurateur select:last-of-type {
+  flex: 1 1 55%;
+}
+
+.ligne-configurateur input {
+  width: 90px;
+  cursor: text;
+}
+
+.ligne-configurateur select:focus,
+.ligne-configurateur input:focus {
+  outline: none;
+  border-color: var(--couleur-accent);
+}
+
+.pied-configurateur {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.prix-configurateur {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--couleur-encre);
+}
+
+.pied-configurateur button {
+  background: var(--couleur-accent);
+  color: var(--couleur-blanc);
+  border: none;
+  border-radius: var(--rayon-s);
+  padding: 8px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.pied-configurateur button:hover {
+  background: #e65c0a;
+  transform: translateY(-1px);
+}
+
 .carte-auth input {
   width: 100%;
   padding: 10px 12px;
@@ -1250,6 +1339,20 @@ h3 {
   .barre-menu-haut {
     top: 12px;
     left: 12px;
+  }
+
+  .ligne-configurateur {
+    flex-wrap: wrap;
+  }
+
+  .etiquette-configurateur {
+    width: 100%;
+    margin-bottom: 2px;
+  }
+
+  .ligne-configurateur select:first-of-type,
+  .ligne-configurateur select:last-of-type {
+    flex: 1 1 100%;
   }
 
   .lien-compte {

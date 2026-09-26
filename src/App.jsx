@@ -26,6 +26,52 @@ const iconsParSousSection = {
   'Finition & Diffusion': 'sliders'
 }
 
+// =========================================================
+// Configurateur de transformation sur mesure (Gaines Quadratique)
+// =========================================================
+// Le catalogue ne liste que des transformations toutes faites (tailles
+// voisines, ou quelques combinaisons rond/carré fixes). Ici, le client
+// choisit lui-même l'entrée et la sortie de sa pièce, sans avoir à
+// chercher si la combinaison existe déjà dans la liste.
+// Les tailles proposées restent les tailles standards du catalogue (les
+// seules réellement disponibles chez le fournisseur).
+const DIAMETRES_RONDS = [80, 100, 125, 160, 200, 224, 250, 280, 315, 355, 400, 450]
+const TAILLES_QUADRA = ['200x100', '300x150', '400x200', '500x250', '600x300', '800x400']
+
+// Prix de base par taille, utilisés uniquement pour ESTIMER le prix d'une
+// pièce sur mesure (ce sont les prix des manchons / piquages déjà au
+// catalogue pour ces tailles). À ajuster le jour où le vrai tarif
+// fournisseur pour ces pièces sur mesure sera disponible.
+const PRIX_BASE_ROND = [4.50, 5.20, 6.20, 7.80, 9.80, 11.00, 12.50, 14.50, 17.00, 20.00, 24.00, 28.50]
+const PRIX_BASE_QUADRA = [11.50, 14.00, 17.50, 21.50, 26.00, 33.00]
+
+function libelleSection(forme, taille) {
+  return forme === 'rond' ? `Rond Ø${taille}mm` : `Carré ${taille}mm`
+}
+
+function estimerPrixTransformation(formeEntree, tailleEntree, formeSortie, tailleSortie, longueur) {
+  const baseRond = (taille) => PRIX_BASE_ROND[DIAMETRES_RONDS.indexOf(Number(taille))]
+  const baseQuadra = (taille) => PRIX_BASE_QUADRA[TAILLES_QUADRA.indexOf(taille)]
+
+  const baseEntree = formeEntree === 'rond' ? baseRond(tailleEntree) : baseQuadra(tailleEntree)
+  const baseSortie = formeSortie === 'rond' ? baseRond(tailleSortie) : baseQuadra(tailleSortie)
+  if (baseEntree === undefined || baseSortie === undefined) return null
+
+  // Coefficient de façonnage observé sur les transformations déjà au
+  // catalogue : environ 1.5x le prix de base des raccords standards des
+  // mêmes tailles.
+  let prix = ((baseEntree + baseSortie) / 2) * 1.5
+
+  // Supplément longueur : au-delà de 300mm (une longueur "standard" pour
+  // ce type de pièce), un petit forfait par tranche de 100mm en plus.
+  const longueurMm = Number(longueur) || 300
+  if (longueurMm > 300) {
+    prix += Math.ceil((longueurMm - 300) / 100) * 1.20
+  }
+
+  return Math.round(prix * 20) / 20 // arrondi au 0.05 le plus proche, comme le reste du catalogue
+}
+
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -110,6 +156,11 @@ function App() {
   const [vue, setVue] = useState('accueil')
   const [sousSectionActive, setSousSectionActive] = useState(null)
   const [panier, setPanier] = useState([])
+  const [configFormeEntree, setConfigFormeEntree] = useState('rond')
+  const [configTailleEntree, setConfigTailleEntree] = useState(DIAMETRES_RONDS[0])
+  const [configFormeSortie, setConfigFormeSortie] = useState('carre')
+  const [configTailleSortie, setConfigTailleSortie] = useState(TAILLES_QUADRA[0])
+  const [configLongueur, setConfigLongueur] = useState(300)
   const [recapCommande, setRecapCommande] = useState('')
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
   const [nomClient, setNomClient] = useState('')
@@ -587,6 +638,30 @@ function App() {
       }
       return [...precedent, { id: produit.id, nom: produit.nom, prix: produit.prix, quantite: 1 }]
     })
+  }
+
+  function changerFormeEntree(forme) {
+    setConfigFormeEntree(forme)
+    setConfigTailleEntree(forme === 'rond' ? DIAMETRES_RONDS[0] : TAILLES_QUADRA[0])
+  }
+
+  function changerFormeSortie(forme) {
+    setConfigFormeSortie(forme)
+    setConfigTailleSortie(forme === 'rond' ? DIAMETRES_RONDS[0] : TAILLES_QUADRA[0])
+  }
+
+  function ajouterTransformationAuPanier() {
+    const prix = estimerPrixTransformation(
+      configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur
+    )
+    if (prix === null) {
+      afficherNotification('Choisis une entrée et une sortie valides.')
+      return
+    }
+    const nom = `Transformation sur mesure : ${libelleSection(configFormeEntree, configTailleEntree)} → ${libelleSection(configFormeSortie, configTailleSortie)} (long. ${configLongueur}mm)`
+    const id = `transfo-${configFormeEntree}-${configTailleEntree}-${configFormeSortie}-${configTailleSortie}-${configLongueur}`
+    ajouterAuPanier({ id, nom, prix })
+    afficherNotification('Pièce sur mesure ajoutée au panier.', 'info')
   }
 
   function augmenterQuantite(index) {
@@ -1266,6 +1341,67 @@ function App() {
                 <span className="actif">{sousSectionActive.nom}</span>
               </div>
               <h3>{sousSectionActive.nom}</h3>
+
+              {sousSectionActive.nom === 'Gaines Quadratique' && (
+                <div className="carte-faq carte-configurateur">
+                  <strong>Composer ma pièce sur mesure</strong>
+                  <p className="souligne-configurateur">
+                    Transformation, réduction... choisis directement l'entrée et la sortie de ta pièce,
+                    sans chercher si la combinaison existe déjà ci-dessous.
+                  </p>
+
+                  <div className="ligne-configurateur">
+                    <span className="etiquette-configurateur">Entrée</span>
+                    <select value={configFormeEntree} onChange={(e) => changerFormeEntree(e.target.value)}>
+                      <option value="rond">Rond</option>
+                      <option value="carre">Carré / rectangulaire</option>
+                    </select>
+                    <select value={configTailleEntree} onChange={(e) => setConfigTailleEntree(e.target.value)}>
+                      {(configFormeEntree === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
+                        <option key={taille} value={taille}>
+                          {configFormeEntree === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="ligne-configurateur">
+                    <span className="etiquette-configurateur">Sortie</span>
+                    <select value={configFormeSortie} onChange={(e) => changerFormeSortie(e.target.value)}>
+                      <option value="rond">Rond</option>
+                      <option value="carre">Carré / rectangulaire</option>
+                    </select>
+                    <select value={configTailleSortie} onChange={(e) => setConfigTailleSortie(e.target.value)}>
+                      {(configFormeSortie === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
+                        <option key={taille} value={taille}>
+                          {configFormeSortie === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="ligne-configurateur">
+                    <span className="etiquette-configurateur">Longueur</span>
+                    <input
+                      type="number"
+                      min="50"
+                      step="10"
+                      value={configLongueur}
+                      onChange={(e) => setConfigLongueur(e.target.value)}
+                    />
+                    <span className="souligne">mm</span>
+                  </div>
+
+                  <div className="pied-configurateur">
+                    <span className="prix-configurateur">
+                      ≈ {(estimerPrixTransformation(configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur) || 0).toFixed(2)} CHF
+                    </span>
+                    <button onClick={ajouterTransformationAuPanier}>Ajouter</button>
+                  </div>
+                  <p className="souligne-configurateur">Prix estimé, ajusté si besoin après validation.</p>
+                </div>
+              )}
+
               <ul className="liste-produits">
                 {sousSectionActive.produits.map((produit) => (
                   <li key={produit.nom}>
