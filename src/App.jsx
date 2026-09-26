@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
 import './App.css'
+
+// =========================================================
+// Informations d'entreprise pour la facture PDF
+// =========================================================
+// "nom" est déjà le vrai nom à afficher. Le reste (adresse, contact, TVA)
+// est en attente : "donneesTest" à true fait apparaître un petit
+// avertissement en bas de facture tant que ce n'est pas finalisé. Une
+// fois les vraies infos en main, il suffit de compléter les champs
+// ci-dessous et de repasser "donneesTest" à false.
+const INFOS_ENTREPRISE = {
+  nom: '2C',
+  adresse: "Adresse de l'entreprise — à compléter",
+  contact: 'email@exemple.ch • +41 00 000 00 00 — à compléter',
+  tvaNumero: null, // ex: 'CHE-123.456.789 TVA'
+  tvaTaux: null,   // ex: 8.1 (en %), une fois le statut TVA connu
+  donneesTest: true
+}
 
 const iconsParMetier = {
   'Maçonnerie & Gros œuvre': 'bricks',
@@ -81,6 +99,161 @@ function estimerCreneauLivraison(nombreEnAttente) {
     min: Math.min(base, 90),
     max: Math.min(base + 15, 105)
   }
+}
+
+function telechargerFacture(commande) {
+  const doc = new jsPDF()
+  const accent = [255, 106, 19]
+  const encre = [30, 27, 23]
+  const muted = [121, 112, 95]
+
+  const numeroFacture = `2C-${String(commande.id).padStart(5, '0')}`
+  const dateFacture = new Date(commande.created_at).toLocaleDateString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  })
+
+  let y = 20
+
+  // En-tête : entreprise à gauche, "FACTURE" + références à droite
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  doc.setTextColor(...encre)
+  doc.text(INFOS_ENTREPRISE.nom, 15, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...muted)
+  doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
+  doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
+  if (INFOS_ENTREPRISE.tvaNumero) {
+    doc.text(`N° TVA : ${INFOS_ENTREPRISE.tvaNumero}`, 15, y + 16)
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(...accent)
+  doc.text('FACTURE', 195, y, { align: 'right' })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...encre)
+  doc.text(`N° ${numeroFacture}`, 195, y + 7, { align: 'right' })
+  doc.text(`Date : ${dateFacture}`, 195, y + 13, { align: 'right' })
+  if (commande.numero_suivi) {
+    doc.text(`Suivi : ${commande.numero_suivi}`, 195, y + 19, { align: 'right' })
+  }
+
+  y += 30
+  doc.setDrawColor(...accent)
+  doc.setLineWidth(0.6)
+  doc.line(15, y, 195, y)
+  y += 10
+
+  // Coordonnées du client
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.setTextColor(...encre)
+  doc.text('Facturé à', 15, y)
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.text(commande.nom_client || '—', 15, y)
+  y += 5
+  if (commande.adresse) { doc.text(commande.adresse, 15, y); y += 5 }
+  if (commande.telephone) { doc.text(commande.telephone, 15, y); y += 5 }
+  if (commande.email) { doc.text(commande.email, 15, y); y += 5 }
+
+  y += 8
+
+  // Tableau des produits
+  const colProduit = 17
+  const colPrix = 122
+  const colQte = 150
+  const colTotal = 168
+
+  doc.setFillColor(...accent)
+  doc.rect(15, y - 5, 180, 8, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(255, 255, 255)
+  doc.text('Produit', colProduit, y)
+  doc.text('Prix', colPrix, y)
+  doc.text('Qté', colQte, y)
+  doc.text('Sous-total', colTotal, y)
+  y += 8
+
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...encre)
+
+  // Les commandes passées avant l'ajout du détail ligne par ligne n'ont
+  // pas "produits_detail" : on retombe alors sur le texte résumé, sans
+  // détail de prix par article.
+  const lignes = commande.produits_detail && commande.produits_detail.length > 0
+    ? commande.produits_detail
+    : [{ nom: commande.produits, prix: null, quantite: null }]
+
+  lignes.forEach((ligne, index) => {
+    const nomAffiche = doc.splitTextToSize(ligne.nom, 100)
+    const hauteurLigne = Math.max(7, nomAffiche.length * 5)
+
+    if (index % 2 === 1) {
+      doc.setFillColor(245, 242, 235)
+      doc.rect(15, y - 5, 180, hauteurLigne, 'F')
+    }
+
+    doc.text(nomAffiche, colProduit, y)
+    if (ligne.prix !== null) {
+      doc.text(`${ligne.prix.toFixed(2)} CHF`, colPrix, y)
+      doc.text(String(ligne.quantite), colQte, y)
+      doc.text(`${(ligne.prix * ligne.quantite).toFixed(2)} CHF`, colTotal, y)
+    }
+    y += hauteurLigne
+  })
+
+  y += 5
+  doc.setDrawColor(...muted)
+  doc.setLineWidth(0.2)
+  doc.line(15, y, 195, y)
+  y += 8
+
+  // Totaux : TVA affichée seulement si un taux a été renseigné
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...encre)
+  if (INFOS_ENTREPRISE.tvaTaux) {
+    const sousTotal = commande.total / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
+    const montantTVA = commande.total - sousTotal
+    doc.text('Sous-total HT', 140, y)
+    doc.text(`${sousTotal.toFixed(2)} CHF`, 195, y, { align: 'right' })
+    y += 6
+    doc.text(`TVA (${INFOS_ENTREPRISE.tvaTaux}%)`, 140, y)
+    doc.text(`${montantTVA.toFixed(2)} CHF`, 195, y, { align: 'right' })
+    y += 6
+  } else {
+    doc.setFontSize(8)
+    doc.setTextColor(...muted)
+    doc.text('TVA non applicable', 140, y)
+    doc.setFontSize(10)
+    doc.setTextColor(...encre)
+    y += 6
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Total à payer', 140, y)
+  doc.text(`${commande.total.toFixed(2)} CHF`, 195, y, { align: 'right' })
+
+  if (INFOS_ENTREPRISE.donneesTest) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...muted)
+    doc.text(
+      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
+      15, 285
+    )
+  }
+
+  doc.save(`Facture_${numeroFacture}.pdf`)
 }
 
 function retirerAccents(texte) {
@@ -1617,6 +1790,12 @@ function App() {
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
               )}
+              <button
+                className="bouton-facture"
+                onClick={() => telechargerFacture(mesCommandes[commandeSelectionnee])}
+              >
+                <i className="bi bi-file-earmark-pdf"></i> Télécharger la facture
+              </button>
 
               {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
@@ -1727,6 +1906,9 @@ function App() {
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}
               <p className="total-panier">{commandeInvite.total.toFixed(2)} CHF</p>
+              <button className="bouton-facture" onClick={() => telechargerFacture(commandeInvite)}>
+                <i className="bi bi-file-earmark-pdf"></i> Télécharger la facture
+              </button>
 
               {statutCommande(commandeInvite.id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
