@@ -1617,17 +1617,27 @@ function App() {
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
           <h3>Qui sommes-nous</h3>
 
-          <div className="carte-auth">
-            <p className="slogan">Du rayon au chantier, en un clic.</p>
+          <p className="slogan">Du rayon au chantier, en un clic.</p>
+
+          <div className="carte-faq">
+            <strong>Notre mission</strong>
             <p>
               <strong>2C</strong> est un service de livraison pensé pour les artisans du bâtiment : on livre rapidement,
               directement sur chantier, les petits consommables qui manquent au dernier moment — sans avoir à quitter le chantier
               pour aller en magasin.
             </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Nos métiers</strong>
             <p>
               On démarre avec le métier de la <strong>ventilation</strong> (montage de gaines quadratiques et spiro, du
               supportage à la finition), avec l'ambition d'ajouter d'autres métiers du BTP par la suite.
             </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Notre livraison</strong>
             <p>
               Nos livreurs se déplacent en scooter, moto ou vélo cargo pour aller vite, même en ville ou sur des accès difficiles.
             </p>
