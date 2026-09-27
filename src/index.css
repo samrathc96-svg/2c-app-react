@@ -1224,6 +1224,42 @@ h3 {
   margin-right: 6px;
 }
 
+.bouton-secondaire {
+  display: block;
+  width: 100%;
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+  padding: 10px;
+  margin: 10px 0;
+  font-weight: 600;
+  font-size: 13.5px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.bouton-secondaire i {
+  color: var(--couleur-accent);
+  margin-right: 6px;
+}
+
+.bouton-secondaire:hover {
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
+.bouton-televerser input[type='file'],
+.bouton-televerser-petit input[type='file'] {
+  display: none;
+}
+
+.bouton-televerser-petit {
+  display: inline-block;
+  margin-left: 6px;
+}
+
 .carte-auth input {
   width: 100%;
   padding: 10px 12px;
@@ -1446,4 +1482,23 @@ h3 {
     width: 90px;
     height: 90px;
   }
+}
+
+/* Écran admin "Facturation entreprises" : réutilise .ligne-configurateur
+   pour l'alignement, mais avec un input mois et un bouton plus compacts
+   que dans le configurateur de gaines. */
+.carte-entreprise .ligne-configurateur input[type='month'] {
+  width: auto;
+  flex: 1 1 auto;
+  cursor: pointer;
+}
+
+.carte-entreprise .ligne-configurateur .valider {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  box-shadow: none;
+  border-radius: var(--rayon-s);
+  white-space: nowrap;
 }

@@ -56,6 +56,13 @@ const iconsParSousSection = {
 const DIAMETRES_RONDS = [80, 100, 125, 160, 200, 224, 250, 280, 315, 355, 400, 450]
 const TAILLES_QUADRA = ['200x100', '300x150', '400x200', '500x250', '600x300', '800x400']
 
+// Longueur maximale d'une pièce sur mesure, tous moyens de livraison
+// confondus (scooter/moto/vélo cargo) : une seule limite globale pour
+// l'instant, plutôt que de distinguer par véhicule. 2000mm (2m) est une
+// valeur de départ raisonnable pour ce que peut transporter un deux-roues
+// — à ajuster facilement ici si besoin.
+const LONGUEUR_MAX_MM = 2000
+
 // Prix de base par taille, utilisés uniquement pour ESTIMER le prix d'une
 // pièce sur mesure (ce sont les prix des manchons / piquages déjà au
 // catalogue pour ces tailles). À ajuster le jour où le vrai tarif
@@ -88,6 +95,28 @@ function estimerPrixTransformation(formeEntree, tailleEntree, formeSortie, taill
   }
 
   return Math.round(prix * 20) / 20 // arrondi au 0.05 le plus proche, comme le reste du catalogue
+}
+
+// Petit bip de notification (livreur) généré directement dans le
+// navigateur, sans fichier audio externe à héberger. Échoue silencieusement
+// si l'audio n'est pas disponible (permissions navigateur, etc.).
+function jouerSonNotification() {
+  try {
+    const ContexteAudio = window.AudioContext || window.webkitAudioContext
+    const contexte = new ContexteAudio()
+    const oscillateur = contexte.createOscillator()
+    const gain = contexte.createGain()
+    oscillateur.connect(gain)
+    gain.connect(contexte.destination)
+    oscillateur.type = 'sine'
+    oscillateur.frequency.setValueAtTime(880, contexte.currentTime)
+    gain.gain.setValueAtTime(0.2, contexte.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, contexte.currentTime + 0.4)
+    oscillateur.start()
+    oscillateur.stop(contexte.currentTime + 0.4)
+  } catch (e) {
+    // audio indisponible - on ignore silencieusement
+  }
 }
 
 // Estimation (approximative) du créneau de livraison, à partir du nombre
@@ -259,6 +288,137 @@ function construireFacturePDF(commande) {
   return { doc, numeroFacture }
 }
 
+// Facture groupée mensuelle pour un compte entreprise : une seule facture
+// listant toutes les commandes livrées du mois, chacune avec son chantier
+// et l'employé qui l'a passée, plus un total général en bas. Générée
+// depuis l'admin (genererFactureMensuelle), jamais automatiquement.
+function construireFactureGroupeePDF(entreprise, commandes, periodeLabel) {
+  const doc = new jsPDF()
+  const accent = [255, 106, 19]
+  const encre = [30, 27, 23]
+  const muted = [121, 112, 95]
+
+  const numeroFacture = `2C-${entreprise.id.slice(0, 8).toUpperCase()}-${periodeLabel.replace('-', '')}`
+  const totalGeneral = commandes.reduce((somme, commande) => somme + commande.total, 0)
+
+  let y = 20
+
+  function nouvellePage() {
+    doc.addPage()
+    y = 20
+  }
+
+  function enteteFacture() {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.setTextColor(...encre)
+    doc.text(INFOS_ENTREPRISE.nom, 15, y)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...muted)
+    doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
+    doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.setTextColor(...accent)
+    doc.text('FACTURE MENSUELLE', 195, y, { align: 'right' })
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(...encre)
+    doc.text(`N° ${numeroFacture}`, 195, y + 7, { align: 'right' })
+    doc.text(`Période : ${periodeLabel}`, 195, y + 13, { align: 'right' })
+
+    y += 30
+    doc.setDrawColor(...accent)
+    doc.setLineWidth(0.6)
+    doc.line(15, y, 195, y)
+    y += 10
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(...encre)
+    doc.text('Facturé à', 15, y)
+    y += 6
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(entreprise.nom || '—', 15, y)
+    y += 5
+    if (entreprise.email) { doc.text(entreprise.email, 15, y); y += 5 }
+    y += 6
+  }
+
+  enteteFacture()
+
+  commandes.forEach((commande, indexCommande) => {
+    if (y > 245) nouvellePage()
+
+    const dateCommande = new Date(commande.created_at).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    })
+
+    doc.setFillColor(245, 242, 235)
+    doc.rect(15, y - 5, 180, 7, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...encre)
+    doc.text(`Chantier : ${commande.chantier || '—'}   •   Technicien : ${commande.technicien || '—'}   •   ${dateCommande}`, 17, y)
+    y += 9
+
+    const lignes = commande.produits_detail && commande.produits_detail.length > 0
+      ? commande.produits_detail
+      : [{ nom: commande.produits, prix: null, quantite: null }]
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    lignes.forEach((ligne) => {
+      if (y > 270) nouvellePage()
+      const nomAffiche = doc.splitTextToSize(ligne.nom, 110)
+      doc.text(nomAffiche, 20, y)
+      if (ligne.prix !== null) {
+        doc.text(`${ligne.quantite} x ${ligne.prix.toFixed(2)} CHF`, 160, y, { align: 'right' })
+      }
+      y += Math.max(5, nomAffiche.length * 5)
+    })
+
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Sous-total : ${commande.total.toFixed(2)} CHF`, 195, y, { align: 'right' })
+    y += 4
+    doc.setDrawColor(...muted)
+    doc.setLineWidth(0.15)
+    doc.line(15, y, 195, y)
+    y += 8
+
+    if (indexCommande === commandes.length - 1 && y > 260) nouvellePage()
+  })
+
+  if (y > 265) nouvellePage()
+
+  doc.setDrawColor(...accent)
+  doc.setLineWidth(0.6)
+  doc.line(15, y, 195, y)
+  y += 10
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(...encre)
+  doc.text('Total à payer', 140, y)
+  doc.text(`${totalGeneral.toFixed(2)} CHF`, 195, y, { align: 'right' })
+
+  if (INFOS_ENTREPRISE.donneesTest) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...muted)
+    doc.text(
+      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
+      15, 290
+    )
+  }
+
+  return { doc, numeroFacture }
+}
+
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -320,6 +480,9 @@ function App() {
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
   const [livreurs, setLivreurs] = useState([])
+  const [entreprises, setEntreprises] = useState([])
+  const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
+  const [facturationEnCoursId, setFacturationEnCoursId] = useState(null)
   const [filtreAdmin, setFiltreAdmin] = useState('toutes')
   const [rechercheAdmin, setRechercheAdmin] = useState('')
 
@@ -339,6 +502,7 @@ function App() {
   const [editionNomProduit, setEditionNomProduit] = useState('')
   const [editionPrixProduit, setEditionPrixProduit] = useState('')
   const [editionImageProduit, setEditionImageProduit] = useState('')
+  const [televersementEnCours, setTeleversementEnCours] = useState(false)
 
   const [vue, setVue] = useState('accueil')
   const [sousSectionActive, setSousSectionActive] = useState(null)
@@ -354,6 +518,8 @@ function App() {
   const [adresseClient, setAdresseClient] = useState('')
   const [telephoneClient, setTelephoneClient] = useState('')
   const [emailClient, setEmailClient] = useState('')
+  const [technicienCommande, setTechnicienCommande] = useState('')
+  const [chantierCommande, setChantierCommande] = useState('')
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -451,6 +617,16 @@ function App() {
   useEffect(() => {
     setConfirmationAnnulation(false)
   }, [commandeSelectionnee])
+
+  // Pré-remplit le nom (raison sociale) et l'email pour un compte
+  // entreprise, pour ne pas avoir à les retaper à chaque commande —
+  // reste modifiable si besoin.
+  useEffect(() => {
+    if (role === 'entreprise' && session) {
+      setNomClient((precedent) => precedent || nomUtilisateur)
+      setEmailClient((precedent) => precedent || session.user.email || '')
+    }
+  }, [role, session, nomUtilisateur])
 
   function afficherNotification(message, type = 'erreur') {
     setNotification({ message, type })
@@ -560,12 +736,22 @@ function App() {
         setLivreurs(data)
       }
     }
+
+    async function chargerEntreprises() {
+      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'entreprise')
+      if (!error && data) {
+        setEntreprises(data)
+      }
+    }
+
     chargerLivreurs()
+    chargerEntreprises()
 
     const canal = supabase
       .channel('profils-en-direct')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profils' }, () => {
         chargerLivreurs()
+        chargerEntreprises()
       })
       .subscribe()
 
@@ -623,6 +809,12 @@ function App() {
           setCourses((precedentes) =>
             precedentes.some((c) => c.id === payload.new.id) ? precedentes : [...precedentes, payload.new]
           )
+          // Alerte livreur : une nouvelle course vient d'apparaître et
+          // n'est encore prise par personne — visuel (bandeau) + son.
+          if (role === 'livreur' && !payload.new.livreur_id && payload.new.statut === 'À livrer') {
+            afficherNotification('Nouvelle course disponible !', 'info')
+            jouerSonNotification()
+          }
         } else if (payload.eventType === 'UPDATE') {
           setCourses((precedentes) =>
             precedentes.map((c) => (c.id === payload.new.id ? payload.new : c))
@@ -636,7 +828,7 @@ function App() {
     return () => {
       supabase.removeChannel(canal)
     }
-  }, [session])
+  }, [session, role])
 
   useEffect(() => {
     const canal = supabase
@@ -847,6 +1039,10 @@ function App() {
   }
 
   function ajouterTransformationAuPanier() {
+    if (Number(configLongueur) > LONGUEUR_MAX_MM) {
+      afficherNotification(`La longueur maximale pour une pièce sur mesure est de ${LONGUEUR_MAX_MM}mm.`)
+      return
+    }
     const prix = estimerPrixTransformation(
       configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur
     )
@@ -950,6 +1146,10 @@ function App() {
       afficherNotification("Merci de renseigner le nom, l'adresse de livraison, le téléphone et l'email.")
       return
     }
+    if (role === 'entreprise' && (technicienCommande.trim() === '' || chantierCommande.trim() === '')) {
+      afficherNotification("Merci de renseigner le nom du chantier et le nom de l'employé qui commande.")
+      return
+    }
 
     setEnvoiEnCours(true)
 
@@ -975,7 +1175,9 @@ function App() {
         p_adresse: adresseClient,
         p_telephone: telephoneClient,
         p_email: emailClient,
-        p_user_id: session ? session.user.id : null
+        p_user_id: session ? session.user.id : null,
+        p_technicien: role === 'entreprise' ? technicienCommande.trim() : null,
+        p_chantier: role === 'entreprise' ? chantierCommande.trim() : null
       })
       .single()
 
@@ -1010,10 +1212,17 @@ function App() {
 
     setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' CHF')
     setPanier([])
-    setNomClient('')
+    // Pour un compte entreprise, on garde le nom et l'email (toujours les
+    // mêmes) : seuls le chantier, le technicien et l'adresse changent
+    // d'une commande à l'autre.
+    if (role !== 'entreprise') {
+      setNomClient('')
+      setEmailClient('')
+    }
     setAdresseClient('')
     setTelephoneClient('')
-    setEmailClient('')
+    setTechnicienCommande('')
+    setChantierCommande('')
     setVue('commande')
     mettreAJourCreneau()
   }
@@ -1029,12 +1238,15 @@ function App() {
   // cours ou annulée. Se déroule en arrière-plan : si ça échoue (pas
   // d'email renseigné, souci réseau...), ça n'empêche jamais de valider
   // la livraison elle-même.
+  // Exception : les commandes d'un compte entreprise (facturation_mensuelle)
+  // ne partent jamais individuellement — elles sont regroupées dans la
+  // facture mensuelle générée depuis l'admin (genererFactureMensuelle).
   async function envoyerFactureAutomatique(commandeId) {
     const { data, error } = await supabase
       .rpc('obtenir_commande_facture', { p_commande_id: commandeId })
       .single()
 
-    if (error || !data || !data.email) {
+    if (error || !data || !data.email || data.facturation_mensuelle) {
       if (error) console.error('Erreur de récupération de la commande pour la facture :', error)
       return
     }
@@ -1226,6 +1438,117 @@ function App() {
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, livreur_id: livreurId || null } : c)))
   }
 
+  // Envoie une vraie photo produit vers le stockage Supabase ("Storage",
+  // bucket public "produits") et renvoie son URL publique, à mettre dans
+  // image_url. Nécessite que ce bucket existe côté Supabase (voir
+  // instructions données à part) : c'est la seule étape à faire une fois,
+  // à la main, dans le dashboard.
+  async function televerserImageProduit(fichier) {
+    if (!fichier) return null
+    setTeleversementEnCours(true)
+
+    const extension = fichier.name.split('.').pop()
+    const nomFichier = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`
+
+    const { error } = await supabase.storage.from('produits').upload(nomFichier, fichier)
+    setTeleversementEnCours(false)
+
+    if (error) {
+      console.error("Erreur d'envoi de l'image :", error)
+      afficherNotification("L'envoi de la photo a échoué, réessaie (vérifie que le bucket \"produits\" existe et est public).")
+      return null
+    }
+
+    const { data } = supabase.storage.from('produits').getPublicUrl(nomFichier)
+    return data.publicUrl
+  }
+
+  // Export CSV des courses actuellement affichées à l'admin (respecte le
+  // filtre de statut et la recherche en cours). Ouvre directement le
+  // téléchargement dans le navigateur, sans passer par le serveur.
+  function exporterCoursesCSV() {
+    const entetes = ['ID', 'Client', 'Téléphone', 'Adresse', 'Produits', 'Prix (CHF)', 'Statut', 'Livreur', 'Date']
+    const lignes = coursesFiltreesAdmin.map((course) => {
+      const livreur = livreurs.find((l) => l.id === course.livreur_id)
+      return [
+        course.id,
+        course.client,
+        course.telephone || '',
+        course.adresse,
+        course.produits,
+        course.prix.toFixed(2),
+        course.statut,
+        livreur ? livreur.nom : '',
+        course.created_at ? new Date(course.created_at).toLocaleDateString('fr-FR') : ''
+      ]
+    })
+
+    const echapper = (valeur) => `"${String(valeur).replace(/"/g, '""')}"`
+    // Séparateur point-virgule et BOM UTF-8 : Excel en France/Suisse
+    // interprète mieux les caractères accentués et les colonnes ainsi.
+    const contenu = [entetes, ...lignes].map((ligne) => ligne.map(echapper).join(';')).join('\r\n')
+
+    const blob = new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const lien = document.createElement('a')
+    lien.href = url
+    lien.download = `courses_2C_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(lien)
+    lien.click()
+    document.body.removeChild(lien)
+    URL.revokeObjectURL(url)
+  }
+
+  // Génère et envoie la facture mensuelle groupée d'un compte entreprise,
+  // pour le mois choisi (format "YYYY-MM", ex: "2026-09"). Regroupe toutes
+  // ses commandes livrées sur ce mois en une seule facture PDF.
+  async function genererFactureMensuelle(entreprise, moisValeur) {
+    if (!moisValeur) {
+      afficherNotification('Choisis un mois avant de générer la facture.')
+      return
+    }
+
+    setFacturationEnCoursId(entreprise.id)
+
+    const [annee, mois] = moisValeur.split('-').map(Number)
+    const debut = new Date(Date.UTC(annee, mois - 1, 1)).toISOString()
+    const fin = new Date(Date.UTC(mois === 12 ? annee + 1 : annee, mois === 12 ? 0 : mois, 1)).toISOString()
+
+    const { data, error } = await supabase.rpc('obtenir_commandes_entreprise_periode', {
+      p_entreprise_id: entreprise.id,
+      p_debut: debut,
+      p_fin: fin
+    })
+
+    setFacturationEnCoursId(null)
+
+    if (error) {
+      console.error('Erreur de récupération des commandes entreprise :', error)
+      afficherNotification('Impossible de récupérer les commandes de cette entreprise, réessaie.')
+      return
+    }
+
+    if (!data || data.length === 0) {
+      afficherNotification('Aucune commande livrée pour cette entreprise sur ce mois.', 'info')
+      return
+    }
+
+    const { doc, numeroFacture } = construireFactureGroupeePDF(entreprise, data, moisValeur)
+    const pdfBase64 = doc.output('datauristring').split(',')[1]
+
+    const { error: erreurEnvoi } = await supabase.functions.invoke('envoyer-facture-email', {
+      body: { email: entreprise.email, nomClient: entreprise.nom, numeroFacture, pdfBase64 }
+    })
+
+    if (erreurEnvoi) {
+      console.error("Erreur d'envoi de la facture mensuelle :", erreurEnvoi)
+      afficherNotification("L'envoi a échoué, réessaie.")
+      return
+    }
+
+    afficherNotification(`Facture mensuelle envoyée à ${entreprise.nom} (${data.length} commande(s)).`, 'info')
+  }
+
   async function ajouterProduit() {
     const prixNombre = parseFloat(nouveauPrixProduit.replace(',', '.'))
 
@@ -1390,6 +1713,11 @@ function App() {
                   <i className="bi bi-box-seam"></i> Gérer le catalogue
                 </button>
               )}
+              {role === 'admin' && (
+                <button onClick={() => { setEspace('facturationEntreprises'); setAfficherMenu(false) }}>
+                  <i className="bi bi-building"></i> Facturation entreprises
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -1483,9 +1811,14 @@ function App() {
 
                 <div className="carte-auth">
                   <h3>Inscription</h3>
+                  <div className="choix-role">
+                    <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
+                    <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
+                    <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
+                  </div>
                   <input
                     type="text"
-                    placeholder="Nom"
+                    placeholder={roleChoisi === 'entreprise' ? "Nom de l'entreprise" : 'Nom'}
                     value={nomInscription}
                     onChange={(e) => setNomInscription(e.target.value)}
                   />
@@ -1501,10 +1834,14 @@ function App() {
                     value={motDePasseInscription}
                     onChange={(e) => setMotDePasseInscription(e.target.value)}
                   />
-                  <div className="choix-role">
-                    <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
-                    <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
-                  </div>
+                  {roleChoisi === 'entreprise' && (
+                    <p className="souligne-configurateur">
+                      Compte partagé : tes employés pourront se connecter avec ce même
+                      identifiant pour commander (en indiquant leur nom à chaque commande).
+                      Toutes les commandes livrées seront regroupées en une seule facture,
+                      envoyée chaque mois.
+                    </p>
+                  )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
                   {messageInscription && <p className="souligne">{messageInscription}</p>}
                   <button className="valider" onClick={inscription}>S'inscrire</button>
@@ -1515,7 +1852,9 @@ function App() {
             {!modeReinitialisation && !chargementAuth && session && (
               <div className="carte-auth">
                 <p className="slogan">{nomUtilisateur || session.user.email}</p>
-                <p className="slogan">Rôle : {role === 'livreur' ? 'Livreur' : role === 'admin' ? 'Admin' : 'Client'}</p>
+                <p className="slogan">
+                  Rôle : {role === 'livreur' ? 'Livreur' : role === 'admin' ? 'Admin' : role === 'entreprise' ? 'Entreprise' : 'Client'}
+                </p>
                 {role === 'livreur' && espace !== 'livreur' && (
                   <button className="valider" onClick={() => { setEspace('livreur'); setAfficherAuth(false) }}>
                     Aller à mon espace livreur
@@ -1654,6 +1993,7 @@ function App() {
                     <input
                       type="number"
                       min="50"
+                      max={LONGUEUR_MAX_MM}
                       step="10"
                       value={configLongueur}
                       onChange={(e) => setConfigLongueur(e.target.value)}
@@ -1667,7 +2007,9 @@ function App() {
                     </span>
                     <button onClick={ajouterTransformationAuPanier}>Ajouter</button>
                   </div>
-                  <p className="souligne-configurateur">Prix estimé, ajusté si besoin après validation.</p>
+                  <p className="souligne-configurateur">
+                    Prix estimé, ajusté si besoin après validation. Longueur maximale : {LONGUEUR_MAX_MM}mm.
+                  </p>
                 </div>
               )}
 
@@ -1705,10 +2047,26 @@ function App() {
               <div className="champ-livraison">
                 <input
                   type="text"
-                  placeholder="Nom du client"
+                  placeholder={role === 'entreprise' ? "Nom de l'entreprise" : 'Nom du client'}
                   value={nomClient}
                   onChange={(e) => setNomClient(e.target.value)}
                 />
+                {role === 'entreprise' && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Nom du chantier"
+                      value={chantierCommande}
+                      onChange={(e) => setChantierCommande(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Nom de l'employé qui commande"
+                      value={technicienCommande}
+                      onChange={(e) => setTechnicienCommande(e.target.value)}
+                    />
+                  </>
+                )}
                 <input
                   type="text"
                   placeholder="Adresse de livraison"
@@ -1741,6 +2099,11 @@ function App() {
               <p>{recapCommande}</p>
               <p className="slogan">Merci, votre commande a bien été enregistrée.</p>
               <p className="souligne">Un email de confirmation vient de t'être envoyé.</p>
+              {role === 'entreprise' && (
+                <p className="souligne">
+                  Cette commande sera incluse dans la facture mensuelle de l'entreprise, une fois livrée.
+                </p>
+              )}
               {creneauLivraison && (
                 <p className="creneau-estime">
                   <i className="bi bi-clock"></i> Livraison estimée sous {creneauLivraison.min} à {creneauLivraison.max} min
@@ -1825,6 +2188,12 @@ function App() {
               <h3>Détail de la commande</h3>
               <p className="souligne">Produits commandés :</p>
               {detailCommande(mesCommandes[commandeSelectionnee])}
+              {mesCommandes[commandeSelectionnee].chantier && (
+                <p className="souligne">Chantier : {mesCommandes[commandeSelectionnee].chantier}</p>
+              )}
+              {mesCommandes[commandeSelectionnee].technicien && (
+                <p className="souligne">Commandé par : {mesCommandes[commandeSelectionnee].technicien}</p>
+              )}
               {mesCommandes[commandeSelectionnee].adresse && (
                 <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
               )}
@@ -2197,6 +2566,9 @@ function App() {
           <button className="bouton-petit" onClick={() => setEspace('catalogueAdmin')}>
             <i className="bi bi-box-seam"></i> Gérer le catalogue
           </button>
+          <button className="bouton-petit" onClick={() => setEspace('facturationEntreprises')}>
+            <i className="bi bi-building"></i> Facturation entreprises
+          </button>
 
           <div className="stats-admin">
             <div className="stat-carte">
@@ -2250,6 +2622,10 @@ function App() {
               </button>
             ))}
           </div>
+
+          <button className="bouton-secondaire" onClick={exporterCoursesCSV}>
+            <i className="bi bi-download"></i> Exporter en CSV ({coursesFiltreesAdmin.length})
+          </button>
 
           {chargementCourses && (
             <div className="skeleton-liste">
@@ -2321,6 +2697,43 @@ function App() {
         </>
       )}
 
+      {espace === 'facturationEntreprises' && role === 'admin' && (
+        <>
+          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <h3>Facturation entreprises</h3>
+          <p className="souligne-configurateur">
+            Une facture par mois, regroupant toutes les commandes livrées sur la période choisie.
+          </p>
+
+          {entreprises.length === 0 && (
+            <p className="aucun-resultat">Aucun compte entreprise inscrit pour l'instant.</p>
+          )}
+
+          {entreprises.map((entreprise) => (
+            <div key={entreprise.id} className="carte-faq carte-entreprise">
+              <strong>{entreprise.nom || 'Entreprise sans nom'}</strong>
+              <p className="souligne">{entreprise.email}</p>
+              <div className="ligne-configurateur">
+                <input
+                  type="month"
+                  value={moisFacturationParEntreprise[entreprise.id] || ''}
+                  onChange={(e) =>
+                    setMoisFacturationParEntreprise((precedent) => ({ ...precedent, [entreprise.id]: e.target.value }))
+                  }
+                />
+                <button
+                  className="valider"
+                  disabled={facturationEnCoursId === entreprise.id}
+                  onClick={() => genererFactureMensuelle(entreprise, moisFacturationParEntreprise[entreprise.id])}
+                >
+                  {facturationEnCoursId === entreprise.id ? 'Envoi en cours...' : 'Générer et envoyer'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       {espace === 'catalogueAdmin' && role === 'admin' && (
         <>
           <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
@@ -2353,6 +2766,24 @@ function App() {
               value={nouveauImageProduit}
               onChange={(e) => setNouveauImageProduit(e.target.value)}
             />
+            <label className="bouton-secondaire bouton-televerser">
+              <i className="bi bi-camera"></i>{' '}
+              {televersementEnCours ? 'Envoi en cours...' : 'Ou envoyer une photo depuis mon appareil'}
+              <input
+                type="file"
+                accept="image/*"
+                disabled={televersementEnCours}
+                onChange={async (e) => {
+                  const fichier = e.target.files[0]
+                  e.target.value = ''
+                  const url = await televerserImageProduit(fichier)
+                  if (url) setNouveauImageProduit(url)
+                }}
+              />
+            </label>
+            {nouveauImageProduit && (
+              <img src={nouveauImageProduit} alt="Aperçu" className="vignette-produit" />
+            )}
             {erreurProduit && <p className="souligne">{erreurProduit}</p>}
             <button className="valider" onClick={ajouterProduit}>Ajouter au catalogue</button>
           </div>
@@ -2411,6 +2842,20 @@ function App() {
                               value={editionImageProduit}
                               onChange={(e) => setEditionImageProduit(e.target.value)}
                             />
+                            <label className="bouton-petit bouton-televerser-petit" title="Envoyer une photo">
+                              <i className="bi bi-camera"></i>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={televersementEnCours}
+                                onChange={async (e) => {
+                                  const fichier = e.target.files[0]
+                                  e.target.value = ''
+                                  const url = await televerserImageProduit(fichier)
+                                  if (url) setEditionImageProduit(url)
+                                }}
+                              />
+                            </label>
                           </td>
                           <td>
                             <button onClick={() => enregistrerModificationProduit(produit.id)} title="Enregistrer">
