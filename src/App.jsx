@@ -101,10 +101,9 @@ function estimerCreneauLivraison(nombreEnAttente) {
   }
 }
 
-// Construit le document PDF de la facture, sans le télécharger ni
-// l'envoyer : réutilisé à la fois par le téléchargement manuel
-// (telechargerFacture) et par l'envoi automatique par email une fois la
-// commande livrée (envoyerFactureAutomatique).
+// Construit le document PDF de la facture, sans l'envoyer : utilisé par
+// l'envoi automatique par email une fois la commande livrée
+// (envoyerFactureAutomatique).
 function construireFacturePDF(commande) {
   const doc = new jsPDF()
   const accent = [255, 106, 19]
@@ -258,11 +257,6 @@ function construireFacturePDF(commande) {
   }
 
   return { doc, numeroFacture }
-}
-
-function telechargerFacture(commande) {
-  const { doc, numeroFacture } = construireFacturePDF(commande)
-  doc.save(`Facture_${numeroFacture}.pdf`)
 }
 
 function retirerAccents(texte) {
@@ -1838,13 +1832,6 @@ function App() {
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
               )}
-              <button
-                className="bouton-facture"
-                onClick={() => telechargerFacture(mesCommandes[commandeSelectionnee])}
-              >
-                <i className="bi bi-file-earmark-pdf"></i> Télécharger la facture
-              </button>
-
               {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
               ) : (
@@ -1954,10 +1941,6 @@ function App() {
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}
               <p className="total-panier">{commandeInvite.total.toFixed(2)} CHF</p>
-              <button className="bouton-facture" onClick={() => telechargerFacture(commandeInvite)}>
-                <i className="bi bi-file-earmark-pdf"></i> Télécharger la facture
-              </button>
-
               {statutCommande(commandeInvite.id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
               ) : (
