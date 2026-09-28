@@ -1023,8 +1023,8 @@ function App() {
 
   async function reinitialiserMotDePasse() {
     setErreurReinitialisation('')
-    if (nouveauMotDePasse.length < 6) {
-      setErreurReinitialisation('Le mot de passe doit contenir au moins 6 caractères.')
+    if (nouveauMotDePasse.length < 8) {
+      setErreurReinitialisation('Le mot de passe doit contenir au moins 8 caractères.')
       return
     }
     if (nouveauMotDePasse !== confirmationNouveauMotDePasse) {
@@ -1049,6 +1049,10 @@ function App() {
   async function inscription() {
     setErreurInscription('')
     setMessageInscription('')
+    if (motDePasseInscription.length < 8) {
+      setErreurInscription('Le mot de passe doit contenir au moins 8 caractères.')
+      return
+    }
     const { data, error } = await supabase.auth.signUp({
       email: emailInscription,
       password: motDePasseInscription,
@@ -2007,6 +2011,9 @@ function App() {
                       {calculerForceMotDePasse(motDePasseInscription).libelle}
                     </p>
                   )}
+                  {motDePasseInscription.length > 0 && motDePasseInscription.length < 8 && (
+                    <p className="souligne">8 caractères minimum.</p>
+                  )}
                   {roleChoisi === 'entreprise' && (
                     <p className="souligne-configurateur">
                       Compte partagé : tes employés pourront se connecter avec ce même
@@ -2017,7 +2024,7 @@ function App() {
                   )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
                   {messageInscription && <p className="souligne">{messageInscription}</p>}
-                  <button className="valider" onClick={inscription}>S'inscrire</button>
+                  <button className="valider" disabled={motDePasseInscription.length > 0 && motDePasseInscription.length < 8} onClick={inscription}>S'inscrire</button>
                 </div>
               </div>
             )}
