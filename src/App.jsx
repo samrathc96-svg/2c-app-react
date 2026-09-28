@@ -462,7 +462,13 @@ function grouperProduits(lignes) {
     if (!parMetier[ligne.metier][ligne.sous_section]) {
       parMetier[ligne.metier][ligne.sous_section] = []
     }
-    parMetier[ligne.metier][ligne.sous_section].push({ id: ligne.id, nom: ligne.nom, prix: ligne.prix })
+    parMetier[ligne.metier][ligne.sous_section].push({
+      id: ligne.id,
+      nom: ligne.nom,
+      prix: ligne.prix,
+      image_url: ligne.image_url,
+      quantite_stock: ligne.quantite_stock
+    })
   })
 
   return Object.keys(parMetier).map((nomMetier) => ({
@@ -532,6 +538,7 @@ function App() {
   const [nouveauNomProduit, setNouveauNomProduit] = useState('')
   const [nouveauPrixProduit, setNouveauPrixProduit] = useState('')
   const [nouveauImageProduit, setNouveauImageProduit] = useState('')
+  const [nouveauStockProduit, setNouveauStockProduit] = useState('')
   const [erreurProduit, setErreurProduit] = useState('')
   const [rechercheProduitsAdmin, setRechercheProduitsAdmin] = useState('')
   const [editionProduitId, setEditionProduitId] = useState(null)
@@ -539,6 +546,7 @@ function App() {
   const [editionNomProduit, setEditionNomProduit] = useState('')
   const [editionPrixProduit, setEditionPrixProduit] = useState('')
   const [editionImageProduit, setEditionImageProduit] = useState('')
+  const [editionStockProduit, setEditionStockProduit] = useState('')
   const [televersementEnCours, setTeleversementEnCours] = useState(false)
 
   const [vue, setVue] = useState('accueil')
@@ -1104,6 +1112,10 @@ function App() {
   }
 
   function ajouterAuPanier(produit) {
+    if (produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 0) {
+      afficherNotification('Ce produit est en rupture de stock.')
+      return
+    }
     setPanier((precedent) => {
       const indexExistant = precedent.findIndex((item) => item.id === produit.id)
       if (indexExistant !== -1) {
@@ -1113,6 +1125,12 @@ function App() {
       }
       return [...precedent, { id: produit.id, nom: produit.nom, prix: produit.prix, quantite: 1 }]
     })
+  }
+
+  // Un produit dont le stock n'est pas suivi (quantite_stock = null) est
+  // toujours considéré disponible.
+  function estEnRupture(produit) {
+    return produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 0
   }
 
   function changerFormeEntree(forme) {
@@ -1728,6 +1746,8 @@ function App() {
 
   async function ajouterProduit() {
     const prixNombre = parseFloat(nouveauPrixProduit.replace(',', '.'))
+    const stockTexte = nouveauStockProduit.trim()
+    const stockNombre = stockTexte === '' ? null : parseInt(stockTexte, 10)
 
     if (nouveauNomProduit.trim() === '' || nouveauSousSection.trim() === '' || nouveauPrixProduit.trim() === '') {
       setErreurProduit('Merci de remplir la sous-section, le nom et le prix.')
@@ -1735,6 +1755,10 @@ function App() {
     }
     if (isNaN(prixNombre) || prixNombre < 0) {
       setErreurProduit('Le prix doit être un nombre positif.')
+      return
+    }
+    if (stockTexte !== '' && (isNaN(stockNombre) || stockNombre < 0)) {
+      setErreurProduit('La quantité en stock doit être un nombre positif (ou vide si illimité).')
       return
     }
 
@@ -1747,7 +1771,8 @@ function App() {
         sous_section: nouveauSousSection.trim(),
         nom: nouveauNomProduit.trim(),
         prix: prixNombre,
-        image_url: nouveauImageProduit.trim() || null
+        image_url: nouveauImageProduit.trim() || null,
+        quantite_stock: stockNombre
       })
       .select()
       .single()
@@ -1765,6 +1790,7 @@ function App() {
     setNouveauNomProduit('')
     setNouveauPrixProduit('')
     setNouveauImageProduit('')
+    setNouveauStockProduit('')
     afficherNotification('Produit ajouté au catalogue.', 'info')
   }
 
@@ -1774,6 +1800,7 @@ function App() {
     setEditionNomProduit(produit.nom)
     setEditionPrixProduit(String(produit.prix))
     setEditionImageProduit(produit.image_url || '')
+    setEditionStockProduit(produit.quantite_stock === null || produit.quantite_stock === undefined ? '' : String(produit.quantite_stock))
   }
 
   function annulerEditionProduit() {
@@ -1782,9 +1809,15 @@ function App() {
 
   async function enregistrerModificationProduit(id) {
     const prixNombre = parseFloat(editionPrixProduit.replace(',', '.'))
+    const stockTexte = editionStockProduit.trim()
+    const stockNombre = stockTexte === '' ? null : parseInt(stockTexte, 10)
 
     if (editionNomProduit.trim() === '' || editionSousSection.trim() === '' || isNaN(prixNombre) || prixNombre < 0) {
       afficherNotification('Champs invalides, vérifie le nom, la sous-section et le prix.')
+      return
+    }
+    if (stockTexte !== '' && (isNaN(stockNombre) || stockNombre < 0)) {
+      afficherNotification('La quantité en stock doit être un nombre positif (ou vide si illimité).')
       return
     }
 
@@ -1794,7 +1827,8 @@ function App() {
         sous_section: editionSousSection.trim(),
         nom: editionNomProduit.trim(),
         prix: prixNombre,
-        image_url: editionImageProduit.trim() || null
+        image_url: editionImageProduit.trim() || null,
+        quantite_stock: stockNombre
       })
       .eq('id', id)
 
@@ -1811,7 +1845,8 @@ function App() {
             sous_section: editionSousSection.trim(),
             nom: editionNomProduit.trim(),
             prix: prixNombre,
-            image_url: editionImageProduit.trim() || null
+            image_url: editionImageProduit.trim() || null,
+            quantite_stock: stockNombre
           }
         : p
     )
@@ -2127,7 +2162,16 @@ function App() {
                         <span className="souligne">{produit.sousSection}</span>
                       </span>
                       <span className="prix">{produit.prix.toFixed(2)} CHF</span>
-                      <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
+                      {estEnRupture(produit) ? (
+                        <span className="rupture-stock">Rupture de stock</span>
+                      ) : (
+                        <>
+                          {produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3 && (
+                            <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>
+                          )}
+                          <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -2240,7 +2284,16 @@ function App() {
                     )}
                     <span>{produit.nom}</span>
                     <span className="prix">{produit.prix.toFixed(2)} CHF</span>
-                    <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
+                    {estEnRupture(produit) ? (
+                      <span className="rupture-stock">Rupture de stock</span>
+                    ) : (
+                      <>
+                        {produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3 && (
+                          <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>
+                        )}
+                        <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -3061,6 +3114,13 @@ function App() {
             />
             <input
               type="text"
+              inputMode="numeric"
+              placeholder="Quantité en stock (vide = illimité)"
+              value={nouveauStockProduit}
+              onChange={(e) => setNouveauStockProduit(e.target.value)}
+            />
+            <input
+              type="text"
               placeholder="URL de l'image (facultatif)"
               value={nouveauImageProduit}
               onChange={(e) => setNouveauImageProduit(e.target.value)}
@@ -3103,6 +3163,7 @@ function App() {
                     <th>Sous-section</th>
                     <th>Nom</th>
                     <th>Prix</th>
+                    <th>Stock</th>
                     <th>Image</th>
                     <th></th>
                   </tr>
@@ -3132,6 +3193,15 @@ function App() {
                               inputMode="decimal"
                               value={editionPrixProduit}
                               onChange={(e) => setEditionPrixProduit(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="Vide = illimité"
+                              value={editionStockProduit}
+                              onChange={(e) => setEditionStockProduit(e.target.value)}
                             />
                           </td>
                           <td>
@@ -3170,6 +3240,15 @@ function App() {
                           <td>{produit.sous_section}</td>
                           <td>{produit.nom}</td>
                           <td>{produit.prix.toFixed(2)} CHF</td>
+                          <td>
+                            {produit.quantite_stock === null || produit.quantite_stock === undefined ? (
+                              <span className="souligne">Illimité</span>
+                            ) : produit.quantite_stock <= 0 ? (
+                              <span className="rupture-stock">Rupture</span>
+                            ) : (
+                              produit.quantite_stock
+                            )}
+                          </td>
                           <td>
                             {produit.image_url ? (
                               <img src={produit.image_url} alt="" className="vignette-produit" />

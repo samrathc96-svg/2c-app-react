@@ -313,6 +313,22 @@ h3 {
   color: var(--couleur-muted);
 }
 
+.rupture-stock {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b3261e;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.stock-faible {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--couleur-accent);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .liste-produits button {
   background: var(--couleur-accent);
   color: var(--couleur-blanc);
