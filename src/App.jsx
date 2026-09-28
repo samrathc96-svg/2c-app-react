@@ -1978,6 +1978,10 @@ function App() {
         <span className="lettre">C</span>
         <span className="chiffre">2</span>
       </div>
+      <p className="sous-marque">
+        <span className="sous-marque-accent">Deli</span>
+        <span className="sous-marque-encre">very</span>
+      </p>
       <div className="separateur-un"></div>
       <p className="slogan">Du rayon au chantier, en un clic.</p>
 

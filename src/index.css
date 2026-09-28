@@ -85,6 +85,23 @@ body {
   left: 11px;
 }
 
+.sous-marque {
+  margin: -8px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.sous-marque-accent {
+  color: var(--couleur-accent);
+}
+
+.sous-marque-encre {
+  color: var(--couleur-encre);
+}
+
 .separateur-un {
   width: 55px;
   height: 3px;
