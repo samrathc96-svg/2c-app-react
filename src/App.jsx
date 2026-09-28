@@ -618,11 +618,11 @@ function App() {
     setConfirmationAnnulation(false)
   }, [commandeSelectionnee])
 
-  // Pré-remplit le nom (raison sociale) et l'email pour un compte
-  // entreprise, pour ne pas avoir à les retaper à chaque commande —
+  // Pré-remplit le nom et l'email pour un compte connecté (client ou
+  // entreprise), pour ne pas avoir à les retaper à chaque commande —
   // reste modifiable si besoin.
   useEffect(() => {
-    if (role === 'entreprise' && session) {
+    if ((role === 'entreprise' || role === 'client') && session) {
       setNomClient((precedent) => precedent || nomUtilisateur)
       setEmailClient((precedent) => precedent || session.user.email || '')
     }
@@ -1212,10 +1212,11 @@ function App() {
 
     setRecapCommande(nombreArticles + ' article(s) pour un total de ' + total.toFixed(2) + ' CHF')
     setPanier([])
-    // Pour un compte entreprise, on garde le nom et l'email (toujours les
-    // mêmes) : seuls le chantier, le technicien et l'adresse changent
-    // d'une commande à l'autre.
-    if (role !== 'entreprise') {
+    // Pour un compte client ou entreprise connecté, on garde le nom et
+    // l'email (toujours les mêmes) : seuls l'adresse (et, pour une
+    // entreprise, le chantier/technicien) changent d'une commande à
+    // l'autre. Pour une commande invité (sans compte), on repart de zéro.
+    if (role !== 'entreprise' && role !== 'client') {
       setNomClient('')
       setEmailClient('')
     }
@@ -2001,11 +2002,22 @@ function App() {
                     <span className="souligne">mm</span>
                   </div>
 
+                  {Number(configLongueur) > LONGUEUR_MAX_MM && (
+                    <p className="avertissement-configurateur">
+                      La longueur maximale pour une pièce sur mesure est de {LONGUEUR_MAX_MM}mm.
+                    </p>
+                  )}
+
                   <div className="pied-configurateur">
                     <span className="prix-configurateur">
                       ≈ {(estimerPrixTransformation(configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur) || 0).toFixed(2)} CHF
                     </span>
-                    <button onClick={ajouterTransformationAuPanier}>Ajouter</button>
+                    <button
+                      onClick={ajouterTransformationAuPanier}
+                      disabled={Number(configLongueur) > LONGUEUR_MAX_MM}
+                    >
+                      Ajouter
+                    </button>
                   </div>
                   <p className="souligne-configurateur">
                     Prix estimé, ajusté si besoin après validation. Longueur maximale : {LONGUEUR_MAX_MM}mm.
@@ -2439,8 +2451,6 @@ function App() {
               Nos livreurs se déplacent en scooter, moto ou vélo cargo pour aller vite, même en ville ou sur des accès difficiles.
             </p>
           </div>
-
-          <p className="aucun-resultat">Cette page sera complétée avec plus de détails (équipe, zone de livraison, contact...).</p>
         </>
       )}
 
@@ -2508,6 +2518,12 @@ function App() {
               <p className="retour" onClick={() => setCourseSelectionnee(null)}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
+              {courses[courseSelectionnee].chantier && (
+                <p className="souligne">Chantier : {courses[courseSelectionnee].chantier}</p>
+              )}
+              {courses[courseSelectionnee].technicien && (
+                <p className="souligne">Commandé par : {courses[courseSelectionnee].technicien}</p>
+              )}
               {courses[courseSelectionnee].telephone && (
                 <p className="souligne">
                   <a href={`tel:${courses[courseSelectionnee].telephone}`}>
@@ -2636,7 +2652,9 @@ function App() {
           )}
 
           {!chargementCourses && coursesFiltreesAdmin.length > 0 && (
-            <div className="tableau-scroll">
+            <>
+              <p className="indice-defilement-tableau">← Fais glisser le tableau pour voir le statut et le livreur →</p>
+              <div className="tableau-scroll">
               <table className="tableau-admin">
                 <thead>
                   <tr>
@@ -2689,7 +2707,8 @@ function App() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
           {!chargementCourses && coursesFiltreesAdmin.length === 0 && (
             <p className="aucun-resultat">Aucune commande pour ce filtre.</p>
