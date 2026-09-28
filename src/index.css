@@ -723,6 +723,36 @@ h3 {
   border-color: var(--couleur-accent);
 }
 
+/* Ligne avec un statut/livreur choisi mais pas encore validé : petit
+   liseré orange pour que ce soit visible avant de faire glisser le
+   tableau jusqu'au bouton "Valider". */
+.ligne-modifiee {
+  box-shadow: inset 3px 0 0 var(--couleur-accent);
+}
+
+.bouton-valider-ligne {
+  background: var(--couleur-accent);
+  color: var(--couleur-blanc);
+  border: none;
+  border-radius: var(--rayon-s);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition), opacity var(--transition);
+}
+
+.bouton-valider-ligne:hover:not(:disabled) {
+  background: #e65c0a;
+}
+
+.bouton-valider-ligne:disabled {
+  background: var(--couleur-bordure);
+  color: var(--couleur-muted);
+  cursor: default;
+}
+
 .tableau-admin td input {
   width: 100%;
   padding: 6px 8px;

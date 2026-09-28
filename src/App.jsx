@@ -512,6 +512,13 @@ function App() {
   const [entreprises, setEntreprises] = useState([])
   const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
   const [facturationEnCoursId, setFacturationEnCoursId] = useState(null)
+  // Modifications de statut/livreur pas encore validées dans le tableau
+  // admin : { [courseId]: { statut, livreurId } }. Rien n'est envoyé à la
+  // base tant que l'admin n'a pas cliqué sur "Valider" pour cette ligne —
+  // ça évite un changement accidentel en faisant glisser le tableau ou en
+  // cliquant de travers sur mobile.
+  const [modifsAdminEnAttente, setModifsAdminEnAttente] = useState({})
+  const [validationEnCoursId, setValidationEnCoursId] = useState(null)
   const [filtreAdmin, setFiltreAdmin] = useState('toutes')
   const [rechercheAdmin, setRechercheAdmin] = useState('')
 
@@ -1554,6 +1561,40 @@ function App() {
     }
 
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, livreur_id: livreurId || null } : c)))
+  }
+
+  // Y a-t-il, pour cette course, un choix de statut/livreur différent de
+  // ce qui est enregistré et pas encore validé ?
+  function aModificationEnAttente(course) {
+    const modif = modifsAdminEnAttente[course.id]
+    if (!modif) return false
+    const statutChange = modif.statut !== undefined && modif.statut !== course.statut
+    const livreurChange = modif.livreurId !== undefined && modif.livreurId !== (course.livreur_id || '')
+    return statutChange || livreurChange
+  }
+
+  // Envoie réellement les changements en attente pour une ligne du
+  // tableau admin (statut et/ou livreur), déclenché par le bouton
+  // "Valider" plutôt qu'automatiquement à la sélection.
+  async function validerModificationsAdmin(course) {
+    const modif = modifsAdminEnAttente[course.id]
+    if (!modif || !aModificationEnAttente(course)) return
+
+    setValidationEnCoursId(course.id)
+
+    if (modif.statut !== undefined && modif.statut !== course.statut) {
+      await changerStatutAdmin(course.id, modif.statut)
+    }
+    if (modif.livreurId !== undefined && modif.livreurId !== (course.livreur_id || '')) {
+      await assignerLivreur(course.id, modif.livreurId)
+    }
+
+    setValidationEnCoursId(null)
+    setModifsAdminEnAttente((precedent) => {
+      const copie = { ...precedent }
+      delete copie[course.id]
+      return copie
+    })
   }
 
   // Envoie une vraie photo produit vers le stockage Supabase ("Storage",
@@ -2864,11 +2905,18 @@ function App() {
                     <th>Prix</th>
                     <th>Statut</th>
                     <th>Livreur</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {coursesFiltreesAdmin.map((course) => (
-                    <tr key={course.id}>
+                  {coursesFiltreesAdmin.map((course) => {
+                    const modif = modifsAdminEnAttente[course.id]
+                    const statutAffiche = modif?.statut ?? course.statut
+                    const livreurAffiche = modif?.livreurId ?? (course.livreur_id || '')
+                    const modifie = aModificationEnAttente(course)
+
+                    return (
+                    <tr key={course.id} className={modifie ? 'ligne-modifiee' : ''}>
                       <td>
                         {course.client}
                         {course.telephone && <><br /><span className="souligne">{course.telephone}</span></>}
@@ -2884,8 +2932,13 @@ function App() {
                       <td>{course.prix.toFixed(2)} CHF</td>
                       <td>
                         <select
-                          value={course.statut}
-                          onChange={(e) => changerStatutAdmin(course.id, e.target.value)}
+                          value={statutAffiche}
+                          onChange={(e) =>
+                            setModifsAdminEnAttente((precedent) => ({
+                              ...precedent,
+                              [course.id]: { statut: e.target.value, livreurId: precedent[course.id]?.livreurId ?? (course.livreur_id || '') }
+                            }))
+                          }
                         >
                           {[...STATUTS, 'Annulée'].map((statut) => (
                             <option key={statut} value={statut}>{statut}</option>
@@ -2894,8 +2947,13 @@ function App() {
                       </td>
                       <td>
                         <select
-                          value={course.livreur_id || ''}
-                          onChange={(e) => assignerLivreur(course.id, e.target.value)}
+                          value={livreurAffiche}
+                          onChange={(e) =>
+                            setModifsAdminEnAttente((precedent) => ({
+                              ...precedent,
+                              [course.id]: { statut: precedent[course.id]?.statut ?? course.statut, livreurId: e.target.value }
+                            }))
+                          }
                         >
                           <option value="">Non assigné</option>
                           {livreurs.map((livreur) => (
@@ -2903,8 +2961,18 @@ function App() {
                           ))}
                         </select>
                       </td>
+                      <td>
+                        <button
+                          className="bouton-valider-ligne"
+                          disabled={!modifie || validationEnCoursId === course.id}
+                          onClick={() => validerModificationsAdmin(course)}
+                        >
+                          {validationEnCoursId === course.id ? '...' : 'Valider'}
+                        </button>
+                      </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
               </div>
