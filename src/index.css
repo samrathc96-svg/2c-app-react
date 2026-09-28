@@ -1,13 +1,12 @@
 :root {
   --couleur-fond: #E8E3D8;
-  --couleur-carte: #FFFFFF;
+  --couleur-carte: #F2EEE4;
   --couleur-blanc: #FFFFFF;
   --couleur-encre: #1E1B17;
   --couleur-accent: #FF6A13;
   --couleur-accent-clair: rgba(255, 106, 19, 0.12);
   --couleur-muted: #79705F;
   --couleur-bordure: rgba(30, 27, 23, 0.12);
-  --couleur-bordure-carte: rgba(30, 27, 23, 0.32);
 
   --rayon-s: 8px;
   --rayon-m: 12px;
@@ -231,7 +230,6 @@ h3 {
   padding: 16px 18px;
   margin-bottom: 10px;
   border-radius: var(--rayon-m);
-  border: 1.5px solid var(--couleur-bordure-carte);
   box-shadow: var(--ombre-s);
   font-weight: 600;
   cursor: pointer;
@@ -285,7 +283,6 @@ h3 {
   padding: 15px 18px;
   margin-bottom: 10px;
   border-radius: var(--rayon-m);
-  border: 1.5px solid var(--couleur-bordure-carte);
   box-shadow: var(--ombre-s);
   display: flex;
   justify-content: space-between;
@@ -441,7 +438,6 @@ h3 {
 .carte-categorie {
   background: var(--couleur-blanc);
   border-radius: var(--rayon-l);
-  border: 1.5px solid var(--couleur-bordure-carte);
   box-shadow: var(--ombre-s);
   padding: 22px 12px;
   display: flex;
@@ -493,7 +489,6 @@ h3 {
 .stat-carte {
   background: var(--couleur-blanc);
   border-radius: var(--rayon-m);
-  border: 1.5px solid var(--couleur-bordure-carte);
   box-shadow: var(--ombre-s);
   padding: 12px 6px;
   display: flex;
@@ -1173,7 +1168,6 @@ h3 {
 .carte-auth {
   background: var(--couleur-blanc);
   border-radius: var(--rayon-m);
-  border: 1.5px solid var(--couleur-bordure-carte);
   padding: 14px;
   box-shadow: var(--ombre-s);
 }
@@ -1187,7 +1181,6 @@ h3 {
 .carte-faq {
   background: var(--couleur-blanc);
   border-radius: var(--rayon-m);
-  border: 1.5px solid var(--couleur-bordure-carte);
   border-left: 3px solid var(--couleur-accent);
   padding: 16px 18px;
   margin-bottom: 14px;
