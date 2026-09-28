@@ -514,6 +514,11 @@ function App() {
   const [messageInscription, setMessageInscription] = useState('')
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
+  // État des notifications navigateur pour les livreurs (permission
+  // demandée explicitement via un clic, les navigateurs l'exigent).
+  const [permissionNotifs, setPermissionNotifs] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  )
   const [livreurs, setLivreurs] = useState([])
   const [entreprises, setEntreprises] = useState([])
   const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
@@ -679,6 +684,23 @@ function App() {
 
   function afficherNotification(message, type = 'erreur') {
     setNotification({ message, type })
+  }
+
+  // Demande la permission d'afficher des notifications navigateur (livreur).
+  // Doit être déclenchée par un clic : les navigateurs refusent cette
+  // demande si elle n'est pas liée à une action de l'utilisateur.
+  async function demanderPermissionNotifications() {
+    if (typeof Notification === 'undefined') {
+      afficherNotification("Les notifications ne sont pas prises en charge par ce navigateur.")
+      return
+    }
+    const resultat = await Notification.requestPermission()
+    setPermissionNotifs(resultat)
+    if (resultat === 'granted') {
+      afficherNotification('Notifications activées : tu seras alerté même si l\'onglet est en arrière-plan.', 'info')
+    } else {
+      afficherNotification("Notifications refusées. Tu peux les activer dans les réglages du navigateur.")
+    }
   }
 
   useEffect(() => {
@@ -863,6 +885,23 @@ function App() {
           if (role === 'livreur' && !payload.new.livreur_id && payload.new.statut === 'À livrer') {
             afficherNotification('Nouvelle course disponible !', 'info')
             jouerSonNotification()
+            // Notification navigateur : visible même si l'onglet n'est pas
+            // au premier plan (permission à activer une fois via le bouton
+            // dédié de l'espace livreur). Échoue silencieusement sinon.
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              try {
+                const notifNavigateur = new Notification('Nouvelle course disponible !', {
+                  body: `${payload.new.client || 'Client'} — ${payload.new.adresse || ''}`,
+                  tag: `course-${payload.new.id}`
+                })
+                notifNavigateur.onclick = () => {
+                  window.focus()
+                  notifNavigateur.close()
+                }
+              } catch (e) {
+                // notifications indisponibles - on ignore silencieusement
+              }
+            }
           }
         } else if (payload.eventType === 'UPDATE') {
           setCourses((precedentes) =>
@@ -2763,6 +2802,15 @@ function App() {
       {espace === 'livreur' && role === 'livreur' && (
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+
+          {permissionNotifs !== 'granted' && permissionNotifs !== 'unsupported' && (
+            <button className="bouton-petit" onClick={demanderPermissionNotifications}>
+              <i className="bi bi-bell"></i> Activer les notifications
+            </button>
+          )}
+          {permissionNotifs === 'granted' && (
+            <p className="souligne"><i className="bi bi-bell-fill"></i> Notifications activées</p>
+          )}
 
           {chargementCourses && (
             <div className="skeleton-liste">
