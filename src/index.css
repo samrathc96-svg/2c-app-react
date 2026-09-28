@@ -77,12 +77,12 @@ body {
 
 .lettre {
   color: var(--couleur-accent);
-  left: 15px;
+  left: 26px;
 }
 
 .chiffre {
   color: var(--couleur-encre);
-  left: 0;
+  left: 11px;
 }
 
 .separateur-un {
@@ -92,7 +92,6 @@ body {
   border-radius: 2px;
   margin: 14px auto;
   position: relative;
-  left: -2px;
 }
 
 .slogan {
