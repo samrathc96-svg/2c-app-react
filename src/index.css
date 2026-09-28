@@ -132,6 +132,42 @@ h3 {
   box-shadow: 0 0 0 3px var(--couleur-accent-clair);
 }
 
+.tri-catalogue {
+  display: block;
+  margin: 0 0 14px auto;
+  padding: 7px 10px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  cursor: pointer;
+}
+
+.tri-catalogue:focus {
+  outline: none;
+  border-color: var(--couleur-accent);
+}
+
+.force-mot-de-passe {
+  margin: -6px 0 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.force-mot-de-passe.force-faible {
+  color: #b3261e;
+}
+
+.force-mot-de-passe.force-moyen {
+  color: #9a6b00;
+}
+
+.force-mot-de-passe.force-fort {
+  color: #1e7d3c;
+}
+
 .aucun-resultat {
   color: var(--couleur-muted);
   font-size: 14px;
@@ -334,6 +370,18 @@ h3 {
 
 .liste-mes-commandes li:last-child {
   margin-bottom: 0;
+}
+
+.liste-factures li {
+  cursor: default;
+}
+
+.liste-factures .bouton-secondaire {
+  flex-shrink: 0;
+  width: auto;
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 11px;
 }
 
 .liste-mes-commandes .prix {
@@ -1265,9 +1313,14 @@ h3 {
   margin-right: 6px;
 }
 
-.bouton-secondaire:hover {
+.bouton-secondaire:hover:not(:disabled) {
   border-color: var(--couleur-accent);
   color: var(--couleur-accent);
+}
+
+.bouton-secondaire:disabled {
+  color: var(--couleur-muted);
+  cursor: not-allowed;
 }
 
 .bouton-televerser input[type='file'],

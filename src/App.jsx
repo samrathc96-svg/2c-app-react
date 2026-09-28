@@ -416,11 +416,40 @@ function construireFactureGroupeePDF(entreprise, commandes, periodeLabel) {
     )
   }
 
-  return { doc, numeroFacture }
+  return { doc, numeroFacture, totalGeneral }
 }
 
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+// Évalue grossièrement la robustesse d'un mot de passe pour donner un
+// repère visuel à l'inscription (pas une vraie mesure d'entropie, juste
+// de quoi décourager les mots de passe évidents).
+function calculerForceMotDePasse(mdp) {
+  if (!mdp) return null
+  let score = 0
+  if (mdp.length >= 8) score++
+  if (mdp.length >= 12) score++
+  if (/[a-z]/.test(mdp) && /[A-Z]/.test(mdp)) score++
+  if (/[0-9]/.test(mdp)) score++
+  if (/[^a-zA-Z0-9]/.test(mdp)) score++
+
+  if (mdp.length < 6 || score <= 1) return { niveau: 'faible', libelle: 'Trop faible' }
+  if (score <= 3) return { niveau: 'moyen', libelle: 'Correct' }
+  return { niveau: 'fort', libelle: 'Solide' }
+}
+
+// Trie une liste de produits pour l'affichage catalogue, sans modifier la
+// liste d'origine. "defaut" garde l'ordre du catalogue (celui d\u00e9j\u00e0 utilis\u00e9
+// partout ailleurs, ex: table admin, export CSV).
+function trierProduits(produits, tri) {
+  if (tri === 'defaut') return produits
+  const copie = [...produits]
+  if (tri === 'prixAsc') return copie.sort((a, b) => a.prix - b.prix)
+  if (tri === 'prixDesc') return copie.sort((a, b) => b.prix - a.prix)
+  if (tri === 'alpha') return copie.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+  return copie
 }
 
 function grouperProduits(lignes) {
@@ -490,6 +519,7 @@ function App() {
   const [produitsBruts, setProduitsBruts] = useState([])
   const [chargement, setChargement] = useState(true)
   const [recherche, setRecherche] = useState('')
+  const [triCatalogue, setTriCatalogue] = useState('defaut')
 
   const [nouveauSousSection, setNouveauSousSection] = useState('')
   const [nouveauNomProduit, setNouveauNomProduit] = useState('')
@@ -527,6 +557,10 @@ function App() {
 
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
+
+  const [mesFactures, setMesFactures] = useState([])
+  const [chargementFactures, setChargementFactures] = useState(true)
+  const [telechargementFactureId, setTelechargementFactureId] = useState(null)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
   const [confirmationAnnulation, setConfirmationAnnulation] = useState(false)
 
@@ -880,6 +914,48 @@ function App() {
     }
     chargerCommandes()
   }, [session])
+
+  useEffect(() => {
+    async function chargerFactures() {
+      if (!session) {
+        setMesFactures([])
+        setChargementFactures(false)
+        return
+      }
+      const { data, error } = await supabase
+        .from('factures')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Erreur de chargement des factures :', error)
+      } else {
+        setMesFactures(data)
+      }
+      setChargementFactures(false)
+    }
+    chargerFactures()
+  }, [session])
+
+  // Télécharge une facture depuis l'espace "Mes factures" : on génère une
+  // URL signée à la demande (le bucket est privé) plutôt que de garder un
+  // lien permanent.
+  async function telechargerFacture(facture) {
+    setTelechargementFactureId(facture.id)
+    const { data, error } = await supabase.storage
+      .from('factures')
+      .createSignedUrl(facture.chemin_pdf, 60)
+    setTelechargementFactureId(null)
+
+    if (error || !data) {
+      console.error('Erreur de génération du lien de téléchargement :', error)
+      afficherNotification('Impossible de récupérer cette facture, réessaie.')
+      return
+    }
+
+    window.open(data.signedUrl, '_blank')
+  }
 
   function messageErreurAuth(error) {
     const code = error?.code || ''
@@ -1242,6 +1318,40 @@ function App() {
   // Exception : les commandes d'un compte entreprise (facturation_mensuelle)
   // ne partent jamais individuellement — elles sont regroupées dans la
   // facture mensuelle générée depuis l'admin (genererFactureMensuelle).
+  // Sauvegarde une facture déjà générée (PDF) dans le Storage et dans la
+  // table "factures", pour qu'elle reste consultable dans "Mes factures"
+  // même après l'envoi de l'email. N'empêche jamais l'envoi de la facture
+  // si ça échoue — juste loggé, l'email reste le canal principal.
+  async function enregistrerFacture({ numeroFacture, userId, commandeId = null, periodeDebut = null, periodeFin = null, montant, doc }) {
+    try {
+      const cheminPdf = `${userId}/${numeroFacture}.pdf`
+      const { error: erreurUpload } = await supabase.storage
+        .from('factures')
+        .upload(cheminPdf, doc.output('blob'), { contentType: 'application/pdf', upsert: true })
+
+      if (erreurUpload) {
+        console.error("Erreur d'enregistrement de la facture (storage) :", erreurUpload)
+        return
+      }
+
+      const { error: erreurLigne } = await supabase.from('factures').insert({
+        numero_facture: numeroFacture,
+        user_id: userId,
+        commande_id: commandeId,
+        periode_debut: periodeDebut,
+        periode_fin: periodeFin,
+        montant_total: montant,
+        chemin_pdf: cheminPdf
+      })
+
+      if (erreurLigne) {
+        console.error("Erreur d'enregistrement de la facture (table) :", erreurLigne)
+      }
+    } catch (erreur) {
+      console.error("Erreur inattendue lors de l'enregistrement de la facture :", erreur)
+    }
+  }
+
   async function envoyerFactureAutomatique(commandeId) {
     const { data, error } = await supabase
       .rpc('obtenir_commande_facture', { p_commande_id: commandeId })
@@ -1262,6 +1372,13 @@ function App() {
       .catch((erreurEmail) => {
         console.error("Erreur d'envoi automatique de la facture :", erreurEmail)
       })
+
+    // Copie consultable dans "Mes factures" — seulement pour les commandes
+    // passées par un compte (un invité n'a pas d'espace où la retrouver,
+    // il garde l'email).
+    if (data.user_id) {
+      enregistrerFacture({ numeroFacture, userId: data.user_id, commandeId, montant: data.total, doc })
+    }
   }
 
   async function avancerStatut(index) {
@@ -1534,7 +1651,7 @@ function App() {
       return
     }
 
-    const { doc, numeroFacture } = construireFactureGroupeePDF(entreprise, data, moisValeur)
+    const { doc, numeroFacture, totalGeneral } = construireFactureGroupeePDF(entreprise, data, moisValeur)
     const pdfBase64 = doc.output('datauristring').split(',')[1]
 
     const { error: erreurEnvoi } = await supabase.functions.invoke('envoyer-facture-email', {
@@ -1546,6 +1663,15 @@ function App() {
       afficherNotification("L'envoi a échoué, réessaie.")
       return
     }
+
+    enregistrerFacture({
+      numeroFacture,
+      userId: entreprise.id,
+      periodeDebut: debut,
+      periodeFin: fin,
+      montant: totalGeneral,
+      doc
+    })
 
     afficherNotification(`Facture mensuelle envoyée à ${entreprise.nom} (${data.length} commande(s)).`, 'info')
   }
@@ -1835,6 +1961,11 @@ function App() {
                     value={motDePasseInscription}
                     onChange={(e) => setMotDePasseInscription(e.target.value)}
                   />
+                  {calculerForceMotDePasse(motDePasseInscription) && (
+                    <p className={`force-mot-de-passe force-${calculerForceMotDePasse(motDePasseInscription).niveau}`}>
+                      {calculerForceMotDePasse(motDePasseInscription).libelle}
+                    </p>
+                  )}
                   {roleChoisi === 'entreprise' && (
                     <p className="souligne-configurateur">
                       Compte partagé : tes employés pourront se connecter avec ce même
@@ -1874,6 +2005,11 @@ function App() {
                 {espace !== 'mesCommandes' && (
                   <button className="valider" onClick={() => { setEspace('mesCommandes'); setCommandeSelectionnee(null); setAfficherAuth(false) }}>
                     Voir mes commandes
+                  </button>
+                )}
+                {(role === 'client' || role === 'entreprise') && espace !== 'mesFactures' && (
+                  <button className="valider" onClick={() => { setEspace('mesFactures'); setAfficherAuth(false) }}>
+                    Voir mes factures
                   </button>
                 )}
                 <button className="valider" onClick={deconnexion}>Se déconnecter</button>
@@ -1916,9 +2052,18 @@ function App() {
                 </div>
               )}
 
+              {rechercheNormalisee !== '' && produitsRecherches.length > 0 && (
+                <select className="tri-catalogue" value={triCatalogue} onChange={(e) => setTriCatalogue(e.target.value)}>
+                  <option value="defaut">Trier par défaut</option>
+                  <option value="prixAsc">Prix croissant</option>
+                  <option value="prixDesc">Prix décroissant</option>
+                  <option value="alpha">Ordre alphabétique</option>
+                </select>
+              )}
+
               {rechercheNormalisee !== '' && (
                 <ul className="liste-produits">
-                  {produitsRecherches.map((produit) => (
+                  {trierProduits(produitsRecherches, triCatalogue).map((produit) => (
                     <li key={produit.id}>
                       {produit.image_url && (
                         <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
@@ -2025,8 +2170,17 @@ function App() {
                 </div>
               )}
 
+              {sousSectionActive.produits.length > 1 && (
+                <select className="tri-catalogue" value={triCatalogue} onChange={(e) => setTriCatalogue(e.target.value)}>
+                  <option value="defaut">Trier par défaut</option>
+                  <option value="prixAsc">Prix croissant</option>
+                  <option value="prixDesc">Prix décroissant</option>
+                  <option value="alpha">Ordre alphabétique</option>
+                </select>
+              )}
+
               <ul className="liste-produits">
-                {sousSectionActive.produits.map((produit) => (
+                {trierProduits(sousSectionActive.produits, triCatalogue).map((produit) => (
                   <li key={produit.nom}>
                     {produit.image_url && (
                       <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
@@ -2265,6 +2419,52 @@ function App() {
                 </>
               )}
             </>
+          )}
+        </>
+      )}
+
+      {espace === 'mesFactures' && (role === 'client' || role === 'entreprise') && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Mes factures</h3>
+
+          {chargementFactures && (
+            <div className="skeleton-liste">
+              <div className="skeleton-ligne"></div>
+              <div className="skeleton-ligne"></div>
+            </div>
+          )}
+
+          {!chargementFactures && mesFactures.length === 0 && (
+            <p className="aucun-resultat">
+              Aucune facture pour l'instant{role === 'entreprise' ? " — elles apparaîtront ici une fois la première facture mensuelle envoyée." : '.'}
+            </p>
+          )}
+
+          {!chargementFactures && mesFactures.length > 0 && (
+            <ul className="liste-mes-commandes liste-factures">
+              {mesFactures.map((facture) => (
+                <li key={facture.id}>
+                  <span>
+                    N° {facture.numero_facture}
+                    <br />
+                    <span className="souligne">
+                      {facture.periode_debut
+                        ? `Facture mensuelle — ${new Date(facture.periode_debut).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+                        : new Date(facture.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {' · '}{facture.montant_total.toFixed(2)} CHF
+                    </span>
+                  </span>
+                  <button
+                    className="bouton-secondaire"
+                    disabled={telechargementFactureId === facture.id}
+                    onClick={() => telechargerFacture(facture)}
+                  >
+                    {telechargementFactureId === facture.id ? '...' : 'Télécharger'}
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}
