@@ -2376,6 +2376,13 @@ function App() {
                       envoyée chaque mois.
                     </p>
                   )}
+                  {roleChoisi === 'livreur' && (
+                    <p className="souligne-configurateur">
+                      Ton inscription sera examinée avant validation. Conditions requises : pièce
+                      d'identité valide, casier judiciaire vierge, et disposer d'un moyen de livraison
+                      (scooter, moto ou vélo cargo).
+                    </p>
+                  )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
                   {messageInscription && <p className="souligne">{messageInscription}</p>}
                   <button className="valider" disabled={motDePasseInscription.length > 0 && motDePasseInscription.length < 8} onClick={inscription}>S'inscrire</button>
@@ -3073,6 +3080,7 @@ function App() {
             <button className="bouton-secondaire" onClick={() => { setRoleChoisi('livreur'); setAfficherAuth(true) }}>
               <i className="bi bi-bicycle"></i> Devenir livreur
             </button>
+            <p className="condition-livreur">Inscription soumise à validation</p>
           </div>
 
           <h3 className="titre-accueil">Comment ça marche</h3>
