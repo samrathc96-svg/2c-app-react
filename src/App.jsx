@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
 import './App.css'
@@ -519,6 +519,10 @@ function App() {
   const [permissionNotifs, setPermissionNotifs] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
+  // Mémorise, par course, le dernier statut déjà notifié au client — évite
+  // de renotifier plusieurs fois pour le même changement (mise à jour
+  // realtime redondante, re-render, etc.).
+  const dernierStatutNotifieRef = useRef({})
   const [livreurs, setLivreurs] = useState([])
   const [demandesLivreur, setDemandesLivreur] = useState([])
   const [entreprises, setEntreprises] = useState([])
@@ -584,6 +588,14 @@ function App() {
   const [telechargementFactureId, setTelechargementFactureId] = useState(null)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
   const [confirmationAnnulation, setConfirmationAnnulation] = useState(false)
+
+  // Avis client sur une course livrée : { [courseId]: { note, commentaire } }
+  // pour savoir si une commande a déjà été notée, plus l'état du petit
+  // formulaire (étoiles + commentaire) affiché dans le détail de commande.
+  const [mesAvis, setMesAvis] = useState({})
+  const [noteChoisie, setNoteChoisie] = useState(0)
+  const [commentaireAvis, setCommentaireAvis] = useState('')
+  const [envoiAvisEnCours, setEnvoiAvisEnCours] = useState(false)
 
   const [commandeInvite, setCommandeInvite] = useState(null)
   const [numeroSuiviInvite, setNumeroSuiviInvite] = useState('')
@@ -671,10 +683,16 @@ function App() {
       if (!course.created_at) return plusRecente
       return !plusRecente || course.created_at > plusRecente ? course.created_at : plusRecente
     }, null)
+    const avisDuLivreur = avisAdmin.filter((avis) => avis.livreur_id === livreur.id)
+    const noteMoyenne = avisDuLivreur.length > 0
+      ? avisDuLivreur.reduce((somme, avis) => somme + avis.note, 0) / avisDuLivreur.length
+      : null
     return {
       ...livreur,
       nbLivrees: coursesDuLivreur.filter((course) => course.statut === 'Livrée').length,
-      derniereActivite
+      derniereActivite,
+      noteMoyenne,
+      nbAvis: avisDuLivreur.length
     }
   })
 
@@ -861,6 +879,31 @@ function App() {
     }
   }, [role])
 
+  // Avis clients, pour la moyenne affichée dans "Gérer les livreurs".
+  const [avisAdmin, setAvisAdmin] = useState([])
+  useEffect(() => {
+    if (role !== 'admin') return
+
+    async function chargerAvisAdmin() {
+      const { data, error } = await supabase.from('avis').select('livreur_id, note')
+      if (!error && data) {
+        setAvisAdmin(data)
+      }
+    }
+    chargerAvisAdmin()
+
+    const canal = supabase
+      .channel('avis-en-direct')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'avis' }, () => {
+        chargerAvisAdmin()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(canal)
+    }
+  }, [role])
+
   useEffect(() => {
     async function chargerProduits() {
       const { data, error } = await supabase.from('produits').select('*')
@@ -937,6 +980,39 @@ function App() {
           setCourses((precedentes) =>
             precedentes.map((c) => (c.id === payload.new.id ? payload.new : c))
           )
+          // Suivi client en direct : on prévient le client (ou l'entreprise)
+          // quand sa commande passe à une étape qui le concerne, une seule
+          // fois par changement grâce à dernierStatutNotifieRef.
+          const etapesSuivies = ['En cours', 'Livrée', 'Annulée']
+          if (
+            (role === 'client' || role === 'entreprise') &&
+            etapesSuivies.includes(payload.new.statut) &&
+            dernierStatutNotifieRef.current[payload.new.id] !== payload.new.statut
+          ) {
+            dernierStatutNotifieRef.current[payload.new.id] = payload.new.statut
+            const messages = {
+              'En cours': 'Ta commande est en route !',
+              'Livrée': 'Ta commande a été livrée !',
+              'Annulée': 'Ta commande a été annulée.'
+            }
+            const message = messages[payload.new.statut]
+            afficherNotification(message, payload.new.statut === 'Annulée' ? 'erreur' : 'info')
+            jouerSonNotification()
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              try {
+                const notifNavigateur = new Notification(message, {
+                  body: payload.new.adresse || '',
+                  tag: `commande-${payload.new.id}`
+                })
+                notifNavigateur.onclick = () => {
+                  window.focus()
+                  notifNavigateur.close()
+                }
+              } catch (e) {
+                // notifications indisponibles - on ignore silencieusement
+              }
+            }
+          }
         } else if (payload.eventType === 'DELETE') {
           setCourses((precedentes) => precedentes.filter((c) => c.id !== payload.old.id))
         }
@@ -998,6 +1074,34 @@ function App() {
     }
     chargerCommandes()
   }, [session])
+
+  useEffect(() => {
+    async function chargerMesAvis() {
+      if (!session) {
+        setMesAvis({})
+        return
+      }
+      const { data, error } = await supabase
+        .from('avis')
+        .select('course_id, note, commentaire')
+        .eq('client_id', session.user.id)
+      if (!error && data) {
+        const parCourse = {}
+        data.forEach((avis) => {
+          parCourse[avis.course_id] = { note: avis.note, commentaire: avis.commentaire }
+        })
+        setMesAvis(parCourse)
+      }
+    }
+    chargerMesAvis()
+  }, [session])
+
+  // Le petit formulaire de note repart à zéro à chaque changement de
+  // commande consultée.
+  useEffect(() => {
+    setNoteChoisie(0)
+    setCommentaireAvis('')
+  }, [commandeSelectionnee])
 
   useEffect(() => {
     async function chargerFactures() {
@@ -1249,6 +1353,34 @@ function App() {
   function statutCommande(commandeId) {
     const course = courses.find((c) => c.commande_id === commandeId)
     return course ? course.statut : 'À livrer'
+  }
+
+  // La course liée à une commande (même donnée que statutCommande, mais
+  // on a besoin de la ligne complète pour l'avis : id de la course et
+  // livreur assigné).
+  function courseDeCommande(commandeId) {
+    return courses.find((c) => c.commande_id === commandeId)
+  }
+
+  async function envoyerAvis(courseId) {
+    if (noteChoisie < 1) return
+    setEnvoiAvisEnCours(true)
+    const { error } = await supabase.rpc('laisser_avis', {
+      p_course_id: courseId,
+      p_note: noteChoisie,
+      p_commentaire: commentaireAvis.trim() || null
+    })
+    setEnvoiAvisEnCours(false)
+    if (error) {
+      console.error("Erreur lors de l'envoi de l'avis :", error)
+      afficherNotification("L'envoi de ton avis a échoué, réessaie.")
+      return
+    }
+    setMesAvis((precedent) => ({
+      ...precedent,
+      [courseId]: { note: noteChoisie, commentaire: commentaireAvis.trim() || null }
+    }))
+    afficherNotification('Merci pour ton avis !', 'info')
   }
 
   // Résumé court des produits pour la liste "Mes commandes" (le détail
@@ -2540,6 +2672,15 @@ function App() {
         <>
           <p className="retour" onClick={() => { setEspace('catalogue'); setCommandeSelectionnee(null) }}>← Retour au catalogue</p>
 
+          {permissionNotifs !== 'granted' && permissionNotifs !== 'unsupported' && (
+            <button className="bouton-petit" onClick={demanderPermissionNotifications}>
+              <i className="bi bi-bell"></i> Être notifié de l'avancement
+            </button>
+          )}
+          {permissionNotifs === 'granted' && (
+            <p className="souligne"><i className="bi bi-bell-fill"></i> Notifications activées</p>
+          )}
+
           {chargementCommandes && (
             <div className="skeleton-liste">
               <div className="skeleton-ligne"></div>
@@ -2655,6 +2796,53 @@ function App() {
                       </button>
                     )
                   )}
+
+                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' && (() => {
+                    const course = courseDeCommande(mesCommandes[commandeSelectionnee].id)
+                    if (!course) return null
+                    const avisExistant = mesAvis[course.id]
+                    return (
+                      <div className="carte-avis">
+                        {avisExistant ? (
+                          <>
+                            <strong>Ton avis</strong>
+                            <p className="etoiles-avis">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <i key={n} className={`bi ${n <= avisExistant.note ? 'bi-star-fill' : 'bi-star'}`}></i>
+                              ))}
+                            </p>
+                            {avisExistant.commentaire && <p className="souligne">{avisExistant.commentaire}</p>}
+                          </>
+                        ) : (
+                          <>
+                            <strong>Comment s'est passée la livraison ?</strong>
+                            <p className="etoiles-avis etoiles-choix">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <i
+                                  key={n}
+                                  className={`bi ${n <= noteChoisie ? 'bi-star-fill' : 'bi-star'}`}
+                                  onClick={() => setNoteChoisie(n)}
+                                ></i>
+                              ))}
+                            </p>
+                            <textarea
+                              className="commentaire-avis"
+                              placeholder="Un commentaire ? (optionnel)"
+                              value={commentaireAvis}
+                              onChange={(e) => setCommentaireAvis(e.target.value)}
+                            />
+                            <button
+                              className="valider"
+                              disabled={noteChoisie < 1 || envoiAvisEnCours}
+                              onClick={() => envoyerAvis(course.id)}
+                            >
+                              {envoiAvisEnCours ? 'Envoi...' : 'Envoyer mon avis'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </>
               )}
             </>
@@ -3144,6 +3332,14 @@ function App() {
               <p className="retour" onClick={() => setCourseSelectionnee(null)}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
+              <a
+                className="bouton-petit"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(courses[courseSelectionnee].adresse)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="bi bi-signpost-2"></i> Itinéraire
+              </a>
               {courses[courseSelectionnee].chantier && (
                 <p className="souligne">Chantier : {courses[courseSelectionnee].chantier}</p>
               )}
@@ -3445,6 +3641,7 @@ function App() {
                     <th>Nom</th>
                     <th>Email</th>
                     <th>Courses livrées</th>
+                    <th>Note moyenne</th>
                     <th>Dernière activité</th>
                     <th></th>
                   </tr>
@@ -3455,6 +3652,11 @@ function App() {
                       <td>{livreur.nom || 'Sans nom'}</td>
                       <td>{livreur.email}</td>
                       <td>{livreur.nbLivrees}</td>
+                      <td>
+                        {livreur.noteMoyenne !== null
+                          ? `${livreur.noteMoyenne.toFixed(1)} ★ (${livreur.nbAvis})`
+                          : '—'}
+                      </td>
                       <td>
                         {livreur.derniereActivite
                           ? new Date(livreur.derniereActivite).toLocaleDateString('fr-FR')
