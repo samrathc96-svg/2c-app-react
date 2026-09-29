@@ -489,7 +489,7 @@ function App() {
   const [chargementAuth, setChargementAuth] = useState(true)
   const [afficherAuth, setAfficherAuth] = useState(false)
   const [afficherMenu, setAfficherMenu] = useState(false)
-  const [espace, setEspace] = useState('catalogue')
+  const [espace, setEspace] = useState('accueil')
 
   const [emailConnexion, setEmailConnexion] = useState('')
   const [motDePasseConnexion, setMotDePasseConnexion] = useState('')
@@ -514,6 +514,10 @@ function App() {
   const [messageInscription, setMessageInscription] = useState('')
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
+  // Disponibilité du livreur connecté (bascule lui-même) et état d'envoi
+  // pendant la mise à jour, pour désactiver le bouton le temps de la requête.
+  const [disponibleLivreur, setDisponibleLivreur] = useState(true)
+  const [changementDisponibiliteEnCours, setChangementDisponibiliteEnCours] = useState(false)
   // État des notifications navigateur pour les livreurs (permission
   // demandée explicitement via un clic, les navigateurs l'exigent).
   const [permissionNotifs, setPermissionNotifs] = useState(
@@ -696,6 +700,44 @@ function App() {
     }
   })
 
+  // Produits les plus commandés (comptage à partir du texte "produits" de
+  // chaque course, en tenant compte du "xN" ajouté quand un même produit
+  // est présent plusieurs fois dans une commande) et adresses générant
+  // le plus de chiffre d'affaires — pour les statistiques admin avancées.
+  const produitsPopulaires = (() => {
+    const compteur = {}
+    courses
+      .filter((course) => course.statut !== 'Annulée')
+      .forEach((course) => {
+        course.produits.split(', ').forEach((item) => {
+          const correspondance = item.match(/^(.*) x(\d+)$/)
+          const nom = correspondance ? correspondance[1] : item
+          const quantite = correspondance ? parseInt(correspondance[2], 10) : 1
+          compteur[nom] = (compteur[nom] || 0) + quantite
+        })
+      })
+    return Object.entries(compteur)
+      .map(([nom, quantite]) => ({ nom, quantite }))
+      .sort((a, b) => b.quantite - a.quantite)
+      .slice(0, 5)
+  })()
+
+  const adressesTop = (() => {
+    const compteur = {}
+    courses
+      .filter((course) => course.statut !== 'Annulée')
+      .forEach((course) => {
+        if (!compteur[course.adresse]) {
+          compteur[course.adresse] = { adresse: course.adresse, chiffreAffaires: 0, nombre: 0 }
+        }
+        compteur[course.adresse].chiffreAffaires += course.prix
+        compteur[course.adresse].nombre += 1
+      })
+    return Object.values(compteur)
+      .sort((a, b) => b.chiffreAffaires - a.chiffreAffaires)
+      .slice(0, 5)
+  })()
+
   useEffect(() => {
     if (!notification) return
     const minuteur = setTimeout(() => setNotification(null), 3500)
@@ -735,6 +777,18 @@ function App() {
     } else {
       afficherNotification("Notifications refusées. Tu peux les activer dans les réglages du navigateur.")
     }
+  }
+
+  async function changerDisponibilite(nouvelleValeur) {
+    setChangementDisponibiliteEnCours(true)
+    const { error } = await supabase.rpc('changer_disponibilite', { p_disponible: nouvelleValeur })
+    setChangementDisponibiliteEnCours(false)
+    if (error) {
+      console.error('Erreur de mise à jour de la disponibilité :', error)
+      afficherNotification('La mise à jour a échoué, réessaie.')
+      return
+    }
+    setDisponibleLivreur(nouvelleValeur)
   }
 
   useEffect(() => {
@@ -813,13 +867,14 @@ function App() {
       if (!session) return
       const { data, error } = await supabase
         .from('profils')
-        .select('role, nom')
+        .select('role, nom, disponible')
         .eq('id', session.user.id)
         .single()
 
       if (!error && data) {
         setRole(data.role)
         setNomUtilisateur(data.nom || '')
+        setDisponibleLivreur(data.disponible !== false)
         if (!modeReinitialisation) {
           setEspace(
             data.role === 'livreur' ? 'livreur' :
@@ -841,7 +896,7 @@ function App() {
     if (role !== 'admin') return
 
     async function chargerLivreurs() {
-      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'livreur')
+      const { data, error } = await supabase.from('profils').select('id, nom, email, disponible').eq('role', 'livreur')
       if (!error && data) {
         setLivreurs(data)
       }
@@ -955,7 +1010,7 @@ function App() {
           )
           // Alerte livreur : une nouvelle course vient d'apparaître et
           // n'est encore prise par personne — visuel (bandeau) + son.
-          if (role === 'livreur' && !payload.new.livreur_id && payload.new.statut === 'À livrer') {
+          if (role === 'livreur' && disponibleLivreur && !payload.new.livreur_id && payload.new.statut === 'À livrer') {
             afficherNotification('Nouvelle course disponible !', 'info')
             jouerSonNotification()
             // Notification navigateur : visible même si l'onglet n'est pas
@@ -1022,7 +1077,7 @@ function App() {
     return () => {
       supabase.removeChannel(canal)
     }
-  }, [session, role])
+  }, [session, role, disponibleLivreur])
 
   useEffect(() => {
     const canal = supabase
@@ -1275,7 +1330,7 @@ function App() {
     setEmailOubli('')
     setMessageOubli('')
     setErreurOubli('')
-    setEspace('catalogue')
+    setEspace('accueil')
     setAfficherAuth(false)
   }
 
@@ -2147,6 +2202,11 @@ function App() {
             <button className="fermer-auth" onClick={() => setAfficherMenu(false)}>✕</button>
             <h3>Menu</h3>
             <nav className="liste-menu">
+              {espace !== 'accueil' && !role && (
+                <button onClick={() => { setEspace('accueil'); setAfficherMenu(false) }}>
+                  <i className="bi bi-house"></i> Accueil
+                </button>
+              )}
               <button onClick={() => { setEspace('suivi'); setAfficherMenu(false) }}>
                 <i className="bi bi-truck"></i> Suivre ma commande
               </button>
@@ -2999,6 +3059,70 @@ function App() {
         </>
       )}
 
+      {espace === 'accueil' && (
+        <>
+          <p className="accueil-intro">
+            La livraison de matériel de chantier, pensée pour les artisans : commande en quelques clics,
+            un livreur proche de toi s'en charge, et ta commande arrive directement sur le chantier.
+          </p>
+
+          <div className="boutons-hero">
+            <button className="valider" onClick={() => setEspace('catalogue')}>
+              <i className="bi bi-shop"></i> Voir le catalogue
+            </button>
+            <button className="bouton-secondaire" onClick={() => { setRoleChoisi('livreur'); setAfficherAuth(true) }}>
+              <i className="bi bi-bicycle"></i> Devenir livreur
+            </button>
+          </div>
+
+          <h3 className="titre-accueil">Comment ça marche</h3>
+          <div className="grille-etapes">
+            <div className="etape-accueil">
+              <span className="numero-etape">1</span>
+              <i className="bi bi-cart-check"></i>
+              <strong>Tu commandes</strong>
+              <p>Choisis tes produits dans le catalogue, avec ou sans compte.</p>
+            </div>
+            <div className="etape-accueil">
+              <span className="numero-etape">2</span>
+              <i className="bi bi-bicycle"></i>
+              <strong>Un livreur prend en charge</strong>
+              <p>Un livreur disponible à proximité récupère et prépare ta commande.</p>
+            </div>
+            <div className="etape-accueil">
+              <span className="numero-etape">3</span>
+              <i className="bi bi-geo-alt"></i>
+              <strong>Livraison sur chantier</strong>
+              <p>Ta commande arrive directement où tu en as besoin, avec un suivi en temps réel.</p>
+            </div>
+          </div>
+
+          <h3 className="titre-accueil">Pourquoi 2C Delivery</h3>
+          <div className="grille-avantages">
+            <div className="avantage-accueil">
+              <i className="bi bi-lightning-charge"></i>
+              <span>Livraison rapide, directement sur chantier</span>
+            </div>
+            <div className="avantage-accueil">
+              <i className="bi bi-person-check"></i>
+              <span>Aucun compte nécessaire pour commander</span>
+            </div>
+            <div className="avantage-accueil">
+              <i className="bi bi-star"></i>
+              <span>Livreurs notés par les clients</span>
+            </div>
+            <div className="avantage-accueil">
+              <i className="bi bi-signpost-2"></i>
+              <span>Suivi de commande en temps réel</span>
+            </div>
+          </div>
+
+          <p className="lien-carte" onClick={() => setEspace('apropos')}>
+            En savoir plus sur nous →
+          </p>
+        </>
+      )}
+
       {espace === 'faq' && (
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
@@ -3263,6 +3387,15 @@ function App() {
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
 
+          <button
+            className={`bouton-disponibilite ${disponibleLivreur ? 'actif' : ''}`}
+            disabled={changementDisponibiliteEnCours}
+            onClick={() => changerDisponibilite(!disponibleLivreur)}
+          >
+            <i className={`bi ${disponibleLivreur ? 'bi-toggle-on' : 'bi-toggle-off'}`}></i>
+            {disponibleLivreur ? 'Disponible' : 'Indisponible'}
+          </button>
+
           {permissionNotifs !== 'granted' && permissionNotifs !== 'unsupported' && (
             <button className="bouton-petit" onClick={demanderPermissionNotifications}>
               <i className="bi bi-bell"></i> Activer les notifications
@@ -3463,6 +3596,39 @@ function App() {
             ))}
           </div>
 
+          <h3 className="titre-accueil">Produits les plus commandés</h3>
+          {produitsPopulaires.length === 0 ? (
+            <p className="aucun-resultat">Pas encore assez de données.</p>
+          ) : (
+            <div className="liste-top">
+              {produitsPopulaires.map((produit, index) => (
+                <div key={produit.nom} className="ligne-top">
+                  <span className="rang-top">{index + 1}</span>
+                  <span className="libelle-top">{produit.nom}</span>
+                  <span className="valeur-top">{produit.quantite}×</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 className="titre-accueil">Meilleures adresses (chiffre d'affaires)</h3>
+          {adressesTop.length === 0 ? (
+            <p className="aucun-resultat">Pas encore assez de données.</p>
+          ) : (
+            <div className="liste-top">
+              {adressesTop.map((adresse, index) => (
+                <div key={adresse.adresse} className="ligne-top">
+                  <span className="rang-top">{index + 1}</span>
+                  <span className="libelle-top">
+                    {adresse.adresse}
+                    <span className="souligne"> ({adresse.nombre} commande{adresse.nombre > 1 ? 's' : ''})</span>
+                  </span>
+                  <span className="valeur-top">{adresse.chiffreAffaires.toFixed(2)} CHF</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <input
             type="text"
             className="barre-recherche"
@@ -3640,6 +3806,7 @@ function App() {
                   <tr>
                     <th>Nom</th>
                     <th>Email</th>
+                    <th>Statut</th>
                     <th>Courses livrées</th>
                     <th>Note moyenne</th>
                     <th>Dernière activité</th>
@@ -3651,6 +3818,11 @@ function App() {
                     <tr key={livreur.id}>
                       <td>{livreur.nom || 'Sans nom'}</td>
                       <td>{livreur.email}</td>
+                      <td>
+                        <span className={`badge-disponibilite ${livreur.disponible ? 'actif' : ''}`}>
+                          {livreur.disponible ? 'Disponible' : 'Indisponible'}
+                        </span>
+                      </td>
                       <td>{livreur.nbLivrees}</td>
                       <td>
                         {livreur.noteMoyenne !== null

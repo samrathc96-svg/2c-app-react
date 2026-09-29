@@ -1286,6 +1286,47 @@ h3 {
   border-color: #b3261e;
 }
 
+.bouton-disponibilite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 18px;
+  padding: 8px 16px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  color: var(--couleur-muted);
+  border-radius: 16px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.bouton-disponibilite i {
+  font-size: 16px;
+}
+
+.bouton-disponibilite.actif {
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
+.badge-disponibilite {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(30, 27, 23, 0.08);
+  color: var(--couleur-muted);
+}
+
+.badge-disponibilite.actif {
+  background: var(--couleur-accent-clair);
+  color: var(--couleur-accent);
+}
+
 .carte-avis {
   background: var(--couleur-blanc);
   border-radius: var(--rayon-m);
@@ -1764,4 +1805,158 @@ h3 {
   box-shadow: none;
   border-radius: var(--rayon-s);
   white-space: nowrap;
+}
+
+/* Page d'accueil (vitrine) */
+.accueil-intro {
+  color: var(--couleur-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 400px;
+  margin: 6px auto 0;
+}
+
+.boutons-hero {
+  display: flex;
+  flex-direction: column;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.grille-etapes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.etape-accueil {
+  position: relative;
+  background: var(--couleur-blanc);
+  border-radius: var(--rayon-l);
+  box-shadow: var(--ombre-s);
+  padding: 16px 18px 16px 54px;
+  text-align: left;
+}
+
+.etape-accueil i {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: var(--couleur-accent);
+  font-size: 18px;
+}
+
+.etape-accueil strong {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+
+.etape-accueil p {
+  color: var(--couleur-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.numero-etape {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--couleur-accent-clair);
+  color: var(--couleur-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.grille-avantages {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.avantage-accueil {
+  background: var(--couleur-blanc);
+  border-radius: var(--rayon-l);
+  box-shadow: var(--ombre-s);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.avantage-accueil i {
+  color: var(--couleur-accent);
+  font-size: 20px;
+}
+
+.avantage-accueil span {
+  font-size: 12px;
+  color: var(--couleur-encre);
+  line-height: 1.3;
+}
+
+/* Statistiques admin avancées : produits les plus commandés / meilleures
+   adresses (chiffre d'affaires) */
+.liste-top {
+  background: var(--couleur-blanc);
+  border-radius: var(--rayon-l);
+  box-shadow: var(--ombre-s);
+  padding: 4px 14px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.ligne-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--couleur-bordure);
+  font-size: 13px;
+  text-align: left;
+}
+
+.ligne-top:first-of-type {
+  border-top: none;
+}
+
+.rang-top {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--couleur-accent-clair);
+  color: var(--couleur-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.libelle-top {
+  flex: 1;
+  color: var(--couleur-encre);
+  overflow-wrap: anywhere;
+}
+
+.valeur-top {
+  font-weight: 700;
+  color: var(--couleur-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
