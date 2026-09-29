@@ -1233,6 +1233,58 @@ h3 {
   line-height: 1.6;
 }
 
+.ligne-demande-livreur {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--couleur-bordure);
+  font-size: 14px;
+}
+
+.ligne-demande-livreur:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.boutons-demande-livreur {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.boutons-demande-livreur button {
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), opacity var(--transition);
+}
+
+.bouton-approuver {
+  background: var(--couleur-accent);
+  border: 1px solid var(--couleur-accent);
+  color: var(--couleur-blanc);
+}
+
+.bouton-approuver:hover {
+  opacity: 0.85;
+}
+
+.bouton-refuser {
+  background: none;
+  border: 1px solid rgba(179, 38, 30, 0.35);
+  color: #b3261e;
+}
+
+.bouton-refuser:hover {
+  background: #fdecea;
+  border-color: #b3261e;
+}
+
 .carte-configurateur {
   background: var(--couleur-accent-clair);
   margin-bottom: 20px;

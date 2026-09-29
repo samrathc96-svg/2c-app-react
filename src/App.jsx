@@ -520,6 +520,7 @@ function App() {
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   )
   const [livreurs, setLivreurs] = useState([])
+  const [demandesLivreur, setDemandesLivreur] = useState([])
   const [entreprises, setEntreprises] = useState([])
   const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
   const [facturationEnCoursId, setFacturationEnCoursId] = useState(null)
@@ -787,7 +788,12 @@ function App() {
         setRole(data.role)
         setNomUtilisateur(data.nom || '')
         if (!modeReinitialisation) {
-          setEspace(data.role === 'livreur' ? 'livreur' : data.role === 'admin' ? 'admin' : 'catalogue')
+          setEspace(
+            data.role === 'livreur' ? 'livreur' :
+            data.role === 'admin' ? 'admin' :
+            data.role === 'livreur_en_attente' ? 'livreurEnAttente' :
+            'catalogue'
+          )
           setAfficherAuth(false)
         }
       } else if (error) {
@@ -815,14 +821,23 @@ function App() {
       }
     }
 
+    async function chargerDemandesLivreur() {
+      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'livreur_en_attente')
+      if (!error && data) {
+        setDemandesLivreur(data)
+      }
+    }
+
     chargerLivreurs()
     chargerEntreprises()
+    chargerDemandesLivreur()
 
     const canal = supabase
       .channel('profils-en-direct')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profils' }, () => {
         chargerLivreurs()
         chargerEntreprises()
+        chargerDemandesLivreur()
       })
       .subscribe()
 
@@ -1629,6 +1644,34 @@ function App() {
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, livreur_id: livreurId || null } : c)))
   }
 
+  // Validation/refus d'une demande de compte livreur (inscription en
+  // attente) : ces deux opérations passent par des fonctions RPC
+  // côté base de données, qui vérifient elles-mêmes que l'appelant est
+  // bien admin — le client ne peut pas modifier le rôle d'un autre
+  // compte directement.
+  async function approuverLivreur(profilId) {
+    const { error } = await supabase.rpc('approuver_livreur', { p_profil_id: profilId })
+    if (error) {
+      console.error("Erreur de validation du livreur :", error)
+      afficherNotification("La validation a échoué, réessaie.")
+      return
+    }
+    setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
+    afficherNotification('Compte livreur validé.', 'info')
+  }
+
+  async function refuserDemandeLivreur(profilId) {
+    if (!window.confirm('Refuser cette demande de compte livreur ? Le compte redevient un compte client normal.')) return
+    const { error } = await supabase.rpc('refuser_demande_livreur', { p_profil_id: profilId })
+    if (error) {
+      console.error('Erreur de refus de la demande :', error)
+      afficherNotification('Le refus a échoué, réessaie.')
+      return
+    }
+    setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
+    afficherNotification('Demande refusée.', 'info')
+  }
+
   // Y a-t-il, pour cette course, un choix de statut/livreur différent de
   // ce qui est enregistré et pas encore validé ?
   function aModificationEnAttente(course) {
@@ -2125,11 +2168,22 @@ function App() {
               <div className="carte-auth">
                 <p className="slogan">{nomUtilisateur || session.user.email}</p>
                 <p className="slogan">
-                  Rôle : {role === 'livreur' ? 'Livreur' : role === 'admin' ? 'Admin' : role === 'entreprise' ? 'Entreprise' : 'Client'}
+                  Rôle : {
+                    role === 'livreur' ? 'Livreur' :
+                    role === 'livreur_en_attente' ? 'Livreur (en attente de validation)' :
+                    role === 'admin' ? 'Admin' :
+                    role === 'entreprise' ? 'Entreprise' :
+                    'Client'
+                  }
                 </p>
                 {role === 'livreur' && espace !== 'livreur' && (
                   <button className="valider" onClick={() => { setEspace('livreur'); setAfficherAuth(false) }}>
                     Aller à mon espace livreur
+                  </button>
+                )}
+                {role === 'livreur_en_attente' && espace !== 'livreurEnAttente' && (
+                  <button className="valider" onClick={() => { setEspace('livreurEnAttente'); setAfficherAuth(false) }}>
+                    Voir ma demande
                   </button>
                 )}
                 {role === 'admin' && espace !== 'admin' && (
@@ -2137,7 +2191,7 @@ function App() {
                     Aller à mon espace admin
                   </button>
                 )}
-                {(espace === 'livreur' || espace === 'admin') && (
+                {(espace === 'livreur' || espace === 'admin' || espace === 'livreurEnAttente') && (
                   <button className="valider" onClick={() => { setEspace('catalogue'); setAfficherAuth(false) }}>
                     Voir le catalogue
                   </button>
@@ -2970,6 +3024,21 @@ function App() {
         </>
       )}
 
+      {espace === 'livreurEnAttente' && role === 'livreur_en_attente' && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Demande en cours</h3>
+
+          <div className="carte-faq">
+            <strong>Ta demande est en cours de validation</strong>
+            <p>
+              Ton inscription en tant que livreur a bien été reçue. Un administrateur doit encore valider ton
+              compte avant que tu puisses accéder aux courses disponibles — tu recevras l'accès dès que ce sera fait.
+            </p>
+          </div>
+        </>
+      )}
+
       {espace === 'livreur' && role === 'livreur' && (
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
@@ -3110,6 +3179,25 @@ function App() {
           <button className="bouton-petit" onClick={() => setEspace('facturationEntreprises')}>
             <i className="bi bi-building"></i> Facturation entreprises
           </button>
+
+          {demandesLivreur.length > 0 && (
+            <div className="carte-faq">
+              <strong>Demandes de compte livreur ({demandesLivreur.length})</strong>
+              {demandesLivreur.map((demande) => (
+                <div key={demande.id} className="ligne-demande-livreur">
+                  <span>{demande.nom || demande.email}</span>
+                  <div className="boutons-demande-livreur">
+                    <button className="bouton-approuver" onClick={() => approuverLivreur(demande.id)}>
+                      Approuver
+                    </button>
+                    <button className="bouton-refuser" onClick={() => refuserDemandeLivreur(demande.id)}>
+                      Refuser
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="stats-admin">
             <div className="stat-carte">
