@@ -2985,7 +2985,12 @@ function App() {
 
           <div className="carte-faq">
             <strong>Droit applicable et litiges</strong>
-            <p><strong>[À compléter avec un professionnel, selon le pays d'immatriculation]</strong></p>
+            <p>
+              2C Delivery est basée en France ; le droit français est applicable, sous réserve des dispositions
+              impératives protégeant les consommateurs dans leur pays de résidence (notamment pour la clientèle
+              basée en Suisse, à Genève notamment). <strong>[Point à faire valider avec un professionnel du droit
+              compte tenu de la vente transfrontalière France–Suisse]</strong>
+            </p>
           </div>
         </>
       )}
