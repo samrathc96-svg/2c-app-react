@@ -1969,6 +1969,15 @@ function App() {
                   <i className="bi bi-building"></i> Facturation entreprises
                 </button>
               )}
+              <button onClick={() => { setEspace('mentionsLegales'); setAfficherMenu(false) }}>
+                <i className="bi bi-file-earmark-text"></i> Mentions légales
+              </button>
+              <button onClick={() => { setEspace('cgv'); setAfficherMenu(false) }}>
+                <i className="bi bi-file-earmark-text"></i> Conditions générales
+              </button>
+              <button onClick={() => { setEspace('confidentialite'); setAfficherMenu(false) }}>
+                <i className="bi bi-shield-lock"></i> Confidentialité
+              </button>
             </nav>
           </div>
         </div>
@@ -2798,6 +2807,164 @@ function App() {
             <strong>Notre livraison</strong>
             <p>
               Nos livreurs se déplacent en scooter, moto ou vélo cargo pour aller vite, même en ville ou sur des accès difficiles.
+            </p>
+          </div>
+        </>
+      )}
+
+      {espace === 'mentionsLegales' && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Mentions légales</h3>
+
+          <p className="aucun-resultat">
+            L'immatriculation de l'entreprise est en cours de finalisation. Les informations marquées
+            <strong> [à compléter]</strong> seront mises à jour dès que la raison sociale sera enregistrée.
+          </p>
+
+          <div className="carte-faq">
+            <strong>Éditeur du site</strong>
+            <p>
+              2C Delivery, exploité par Lyndie <strong>[nom de famille à compléter]</strong>.<br />
+              Adresse : <strong>[adresse du siège à compléter]</strong><br />
+              Numéro d'immatriculation (IDE / RC) : <strong>[à compléter]</strong><br />
+              Email de contact : <strong>[à compléter]</strong>
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Responsable de publication</strong>
+            <p>Lyndie <strong>[nom de famille à compléter]</strong>.</p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Hébergement</strong>
+            <p>
+              Site hébergé par Vercel Inc. (vercel.com).<br />
+              Base de données et authentification hébergées par Supabase Inc. (supabase.com).<br />
+              Suivi technique des erreurs assuré par Sentry (sentry.io) — aucune donnée de paiement n'y transite.
+            </p>
+          </div>
+        </>
+      )}
+
+      {espace === 'cgv' && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Conditions générales</h3>
+
+          <p className="aucun-resultat">
+            Version provisoire, à faire valider par un professionnel avant la mise en ligne définitive du service
+            — notamment les points marqués <strong>[à compléter]</strong>.
+          </p>
+
+          <div className="carte-faq">
+            <strong>Objet</strong>
+            <p>
+              2C Delivery propose un service de commande et de livraison de petits consommables pour les
+              métiers du bâtiment, directement sur chantier.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Commande</strong>
+            <p>
+              La commande se fait depuis le catalogue, avec ou sans compte. Un numéro de suivi est fourni à la
+              validation. Le client peut annuler sa commande tant qu'elle est au statut "À livrer" ; l'annulation
+              n'est plus possible une fois la commande "En cours".
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Délais de livraison</strong>
+            <p>
+              Les créneaux affichés sont estimatifs et dépendent du nombre de courses en attente au moment de la
+              commande. Ils ne constituent pas un engagement horaire ferme.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Prix et paiement</strong>
+            <p><strong>[Modalités de paiement à compléter]</strong></p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Droit de rétractation</strong>
+            <p><strong>[À compléter avec un professionnel, selon le droit applicable]</strong></p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Responsabilité</strong>
+            <p>
+              2C Delivery met tout en œuvre pour livrer les commandes dans les meilleurs délais, sans garantir
+              un horaire précis. La responsabilité de 2C Delivery ne saurait être engagée en cas de retard dû à
+              des circonstances hors de son contrôle (météo, trafic, indisponibilité temporaire d'un livreur).
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Droit applicable et litiges</strong>
+            <p><strong>[À compléter avec un professionnel, selon le pays d'immatriculation]</strong></p>
+          </div>
+        </>
+      )}
+
+      {espace === 'confidentialite' && (
+        <>
+          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <h3>Politique de confidentialité</h3>
+
+          <div className="carte-faq">
+            <strong>Données collectées</strong>
+            <p>
+              Nom, adresse de livraison, numéro de téléphone, email, et historique des commandes. Pour les
+              comptes créés, le mot de passe est stocké de façon sécurisée (haché) via Supabase Auth et n'est
+              jamais visible par 2C Delivery.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Pourquoi ces données</strong>
+            <p>
+              Uniquement pour traiter et livrer la commande, contacter le client si besoin, envoyer la
+              confirmation de commande, et — pour les comptes entreprise — établir la facturation mensuelle.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Qui y a accès</strong>
+            <p>
+              L'équipe 2C Delivery (administration) et le livreur assigné à la commande, uniquement le temps
+              nécessaire à la livraison.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Prestataires techniques</strong>
+            <p>
+              Supabase (hébergement de la base de données), Vercel (hébergement du site), Sentry (détection
+              d'erreurs techniques, sans donnée de paiement).
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Durée de conservation</strong>
+            <p><strong>[À compléter — durée légale de conservation à valider]</strong></p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Tes droits</strong>
+            <p>
+              Tu peux demander l'accès, la rectification ou la suppression de tes données en écrivant à
+              <strong> [email de contact à compléter]</strong>.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Cookies</strong>
+            <p>
+              Le site n'utilise pas de cookies publicitaires. Seuls des éléments techniques nécessaires au
+              fonctionnement (connexion) et l'outil de suivi d'erreurs Sentry sont utilisés.
             </p>
           </div>
         </>
