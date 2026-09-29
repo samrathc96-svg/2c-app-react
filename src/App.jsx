@@ -2825,7 +2825,7 @@ function App() {
           <div className="carte-faq">
             <strong>Éditeur du site</strong>
             <p>
-              2C Delivery, exploité par Lyndie <strong>[nom de famille à compléter]</strong>.<br />
+              2C Delivery, exploité par Samrath Chau.<br />
               Adresse : <strong>[adresse du siège à compléter]</strong><br />
               Numéro d'immatriculation (IDE / RC) : <strong>[à compléter]</strong><br />
               Email de contact : <strong>[à compléter]</strong>
@@ -2834,7 +2834,7 @@ function App() {
 
           <div className="carte-faq">
             <strong>Responsable de publication</strong>
-            <p>Lyndie <strong>[nom de famille à compléter]</strong>.</p>
+            <p>Samrath Chau.</p>
           </div>
 
           <div className="carte-faq">
