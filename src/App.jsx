@@ -663,6 +663,21 @@ function App() {
 
   const maxChiffreJournalier = Math.max(1, ...chiffreParJour.map((j) => j.total))
 
+  // Petites stats par livreur pour le tableau admin : nombre de courses
+  // livrées et date de la dernière course qui lui a été assignée.
+  const livreursAvecStats = livreurs.map((livreur) => {
+    const coursesDuLivreur = courses.filter((course) => course.livreur_id === livreur.id)
+    const derniereActivite = coursesDuLivreur.reduce((plusRecente, course) => {
+      if (!course.created_at) return plusRecente
+      return !plusRecente || course.created_at > plusRecente ? course.created_at : plusRecente
+    }, null)
+    return {
+      ...livreur,
+      nbLivrees: coursesDuLivreur.filter((course) => course.statut === 'Livrée').length,
+      derniereActivite
+    }
+  })
+
   useEffect(() => {
     if (!notification) return
     const minuteur = setTimeout(() => setNotification(null), 3500)
@@ -808,7 +823,7 @@ function App() {
     if (role !== 'admin') return
 
     async function chargerLivreurs() {
-      const { data, error } = await supabase.from('profils').select('id, nom').eq('role', 'livreur')
+      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'livreur')
       if (!error && data) {
         setLivreurs(data)
       }
@@ -1670,6 +1685,18 @@ function App() {
     }
     setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
     afficherNotification('Demande refusée.', 'info')
+  }
+
+  async function desactiverLivreur(profilId) {
+    if (!window.confirm('Désactiver ce livreur ? Il repassera en compte client normal.')) return
+    const { error } = await supabase.rpc('desactiver_livreur', { p_profil_id: profilId })
+    if (error) {
+      console.error('Erreur de désactivation du livreur :', error)
+      afficherNotification('La désactivation a échoué, réessaie.')
+      return
+    }
+    setLivreurs(livreurs.filter((livreur) => livreur.id !== profilId))
+    afficherNotification('Livreur désactivé.', 'info')
   }
 
   // Y a-t-il, pour cette course, un choix de statut/livreur différent de
@@ -3179,6 +3206,9 @@ function App() {
           <button className="bouton-petit" onClick={() => setEspace('facturationEntreprises')}>
             <i className="bi bi-building"></i> Facturation entreprises
           </button>
+          <button className="bouton-petit" onClick={() => setEspace('livreursListe')}>
+            <i className="bi bi-people"></i> Gérer les livreurs
+          </button>
 
           {demandesLivreur.length > 0 && (
             <div className="carte-faq">
@@ -3390,6 +3420,52 @@ function App() {
               </div>
             </div>
           ))}
+        </>
+      )}
+
+      {espace === 'livreursListe' && role === 'admin' && (
+        <>
+          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <h3>Livreurs</h3>
+
+          {livreursAvecStats.length === 0 && (
+            <p className="aucun-resultat">Aucun livreur pour l'instant.</p>
+          )}
+
+          {livreursAvecStats.length > 0 && (
+            <div className="tableau-scroll">
+              <table className="tableau-admin">
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>Email</th>
+                    <th>Courses livrées</th>
+                    <th>Dernière activité</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {livreursAvecStats.map((livreur) => (
+                    <tr key={livreur.id}>
+                      <td>{livreur.nom || 'Sans nom'}</td>
+                      <td>{livreur.email}</td>
+                      <td>{livreur.nbLivrees}</td>
+                      <td>
+                        {livreur.derniereActivite
+                          ? new Date(livreur.derniereActivite).toLocaleDateString('fr-FR')
+                          : '—'}
+                      </td>
+                      <td>
+                        <button className="bouton-refuser" onClick={() => desactiverLivreur(livreur.id)}>
+                          Désactiver
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 
