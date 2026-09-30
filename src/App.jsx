@@ -529,6 +529,16 @@ function App() {
   const dernierStatutNotifieRef = useRef({})
   const [livreurs, setLivreurs] = useState([])
   const [demandesLivreur, setDemandesLivreur] = useState([])
+  // Complément de candidature livreur (téléphone, moyen de livraison,
+  // documents) : renseigné après confirmation du compte, tant que
+  // l'admin n'a pas encore reçu de dossier complet à examiner.
+  const [demandeSoumise, setDemandeSoumise] = useState(false)
+  const [telephoneCandidature, setTelephoneCandidature] = useState('')
+  const [moyenLivraisonCandidature, setMoyenLivraisonCandidature] = useState('scooter')
+  const [fichierIdentite, setFichierIdentite] = useState(null)
+  const [fichierCasier, setFichierCasier] = useState(null)
+  const [erreurCandidature, setErreurCandidature] = useState('')
+  const [envoiCandidatureEnCours, setEnvoiCandidatureEnCours] = useState(false)
   const [entreprises, setEntreprises] = useState([])
   const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
   const [facturationEnCoursId, setFacturationEnCoursId] = useState(null)
@@ -867,7 +877,7 @@ function App() {
       if (!session) return
       const { data, error } = await supabase
         .from('profils')
-        .select('role, nom, disponible')
+        .select('role, nom, disponible, demande_soumise')
         .eq('id', session.user.id)
         .single()
 
@@ -875,6 +885,7 @@ function App() {
         setRole(data.role)
         setNomUtilisateur(data.nom || '')
         setDisponibleLivreur(data.disponible !== false)
+        setDemandeSoumise(data.demande_soumise === true)
         if (!modeReinitialisation) {
           setEspace(
             data.role === 'livreur' ? 'livreur' :
@@ -910,7 +921,14 @@ function App() {
     }
 
     async function chargerDemandesLivreur() {
-      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'livreur_en_attente')
+      // Seules les candidatures complètes (téléphone, moyen de livraison et
+      // documents fournis) remontent ici : tant que le candidat n'a pas
+      // terminé son dossier, l'admin n'a rien à examiner.
+      const { data, error } = await supabase
+        .from('profils')
+        .select('id, nom, email, telephone, moyen_livraison, document_identite_path, document_casier_path')
+        .eq('role', 'livreur_en_attente')
+        .eq('demande_soumise', true)
       if (!error && data) {
         setDemandesLivreur(data)
       }
@@ -1316,6 +1334,74 @@ function App() {
       setMotDePasseInscription('')
       setNomInscription('')
     }
+  }
+
+  // Complément de candidature livreur : dépose la pièce d'identité et le
+  // justificatif de casier judiciaire dans un bucket privé (chaque
+  // candidat ne peut écrire/lire que dans son propre dossier, cf. les
+  // politiques RLS de stockage), puis enregistre téléphone + moyen de
+  // livraison + chemins des fichiers via une fonction RPC dédiée — les
+  // documents ne sont jamais lisibles publiquement.
+  async function soumettreCandidatureLivreur() {
+    setErreurCandidature('')
+    if (!telephoneCandidature.trim()) {
+      setErreurCandidature('Merci d\'indiquer un numéro de téléphone.')
+      return
+    }
+    if (!fichierIdentite || !fichierCasier) {
+      setErreurCandidature('La pièce d\'identité et le justificatif de casier judiciaire sont tous les deux requis.')
+      return
+    }
+    setEnvoiCandidatureEnCours(true)
+    try {
+      const uid = session.user.id
+      const extensionIdentite = fichierIdentite.name.split('.').pop()
+      const extensionCasier = fichierCasier.name.split('.').pop()
+      const cheminIdentite = `${uid}/piece-identite.${extensionIdentite}`
+      const cheminCasier = `${uid}/casier-judiciaire.${extensionCasier}`
+
+      const { error: erreurUploadIdentite } = await supabase.storage
+        .from('documents-livreurs')
+        .upload(cheminIdentite, fichierIdentite, { upsert: true })
+      if (erreurUploadIdentite) throw erreurUploadIdentite
+
+      const { error: erreurUploadCasier } = await supabase.storage
+        .from('documents-livreurs')
+        .upload(cheminCasier, fichierCasier, { upsert: true })
+      if (erreurUploadCasier) throw erreurUploadCasier
+
+      const { error: erreurRpc } = await supabase.rpc('soumettre_documents_livreur', {
+        p_telephone: telephoneCandidature.trim(),
+        p_moyen_livraison: moyenLivraisonCandidature,
+        p_document_identite_path: cheminIdentite,
+        p_document_casier_path: cheminCasier
+      })
+      if (erreurRpc) throw erreurRpc
+
+      setDemandeSoumise(true)
+      afficherNotification('Ta candidature a bien été envoyée.', 'info')
+    } catch (erreur) {
+      console.error('Erreur lors de l\'envoi de la candidature livreur :', erreur)
+      setErreurCandidature('L\'envoi a échoué, réessaie.')
+    } finally {
+      setEnvoiCandidatureEnCours(false)
+    }
+  }
+
+  // Lien de consultation temporaire (60 secondes) pour un document de
+  // candidature livreur — évite qu'un lien reste valable indéfiniment
+  // une fois ouvert par l'admin.
+  async function voirDocumentLivreur(chemin) {
+    if (!chemin) return
+    const { data, error } = await supabase.storage
+      .from('documents-livreurs')
+      .createSignedUrl(chemin, 60)
+    if (error || !data) {
+      console.error('Erreur de génération du lien de document :', error)
+      afficherNotification("Impossible d'ouvrir ce document, réessaie.")
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener')
   }
 
   async function deconnexion() {
@@ -1860,6 +1946,12 @@ function App() {
     }
     setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
     afficherNotification('Compte livreur validé.', 'info')
+    // Les documents d'identité ne servent plus une fois la décision prise :
+    // suppression automatique du stockage (pas de conservation au-delà du
+    // strict nécessaire pour la vérification).
+    supabase.rpc('nettoyer_documents_livreur', { p_profil_id: profilId }).then(({ error: erreurNettoyage }) => {
+      if (erreurNettoyage) console.error('Erreur de nettoyage des documents livreur :', erreurNettoyage)
+    })
   }
 
   async function refuserDemandeLivreur(profilId) {
@@ -1872,6 +1964,9 @@ function App() {
     }
     setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
     afficherNotification('Demande refusée.', 'info')
+    supabase.rpc('nettoyer_documents_livreur', { p_profil_id: profilId }).then(({ error: erreurNettoyage }) => {
+      if (erreurNettoyage) console.error('Erreur de nettoyage des documents livreur :', erreurNettoyage)
+    })
   }
 
   async function desactiverLivreur(profilId) {
@@ -3379,15 +3474,72 @@ function App() {
       {espace === 'livreurEnAttente' && role === 'livreur_en_attente' && (
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
-          <h3>Demande en cours</h3>
 
-          <div className="carte-faq">
-            <strong>Ta demande est en cours de validation</strong>
-            <p>
-              Ton inscription en tant que livreur a bien été reçue. Un administrateur doit encore valider ton
-              compte avant que tu puisses accéder aux courses disponibles — tu recevras l'accès dès que ce sera fait.
-            </p>
-          </div>
+          {!demandeSoumise ? (
+            <>
+              <h3>Compléter ta candidature</h3>
+              <div className="carte-auth">
+                <p className="souligne-configurateur">
+                  Ton compte a bien été créé. Il manque encore les informations demandées à
+                  l'inscription pour que l'admin puisse examiner ta candidature : téléphone, moyen
+                  de livraison, pièce d'identité et justificatif de casier judiciaire.
+                </p>
+                <input
+                  type="tel"
+                  placeholder="Numéro de téléphone"
+                  value={telephoneCandidature}
+                  onChange={(e) => setTelephoneCandidature(e.target.value)}
+                />
+                <select
+                  value={moyenLivraisonCandidature}
+                  onChange={(e) => setMoyenLivraisonCandidature(e.target.value)}
+                >
+                  <option value="scooter">Scooter</option>
+                  <option value="moto">Moto</option>
+                  <option value="velo_cargo">Vélo cargo</option>
+                </select>
+                <label className="champ-fichier">
+                  Pièce d'identité (carte d'identité ou passeport)
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setFichierIdentite(e.target.files?.[0] || null)}
+                  />
+                </label>
+                <label className="champ-fichier">
+                  Justificatif de casier judiciaire (extrait vierge)
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setFichierCasier(e.target.files?.[0] || null)}
+                  />
+                </label>
+                <p className="souligne-configurateur">
+                  Ces documents ne sont visibles que par l'administrateur, le temps de l'examen de
+                  ta candidature, puis supprimés automatiquement dès qu'une décision est prise.
+                </p>
+                {erreurCandidature && <p className="souligne">{erreurCandidature}</p>}
+                <button
+                  className="valider"
+                  disabled={envoiCandidatureEnCours}
+                  onClick={soumettreCandidatureLivreur}
+                >
+                  {envoiCandidatureEnCours ? 'Envoi en cours...' : 'Envoyer ma candidature'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3>Demande en cours</h3>
+              <div className="carte-faq">
+                <strong>Ta demande est en cours de validation</strong>
+                <p>
+                  Ton dossier a bien été reçu. Un administrateur doit encore valider ton
+                  compte avant que tu puisses accéder aux courses disponibles — tu recevras l'accès dès que ce sera fait.
+                </p>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -3557,7 +3709,24 @@ function App() {
               <strong>Demandes de compte livreur ({demandesLivreur.length})</strong>
               {demandesLivreur.map((demande) => (
                 <div key={demande.id} className="ligne-demande-livreur">
-                  <span>{demande.nom || demande.email}</span>
+                  <div className="details-demande-livreur">
+                    <span>{demande.nom || demande.email}</span>
+                    <span className="souligne">
+                      {demande.telephone || 'Téléphone non fourni'}
+                      {' · '}
+                      {demande.moyen_livraison === 'moto' ? 'Moto' :
+                        demande.moyen_livraison === 'velo_cargo' ? 'Vélo cargo' :
+                        demande.moyen_livraison === 'scooter' ? 'Scooter' : 'Moyen non précisé'}
+                    </span>
+                    <div className="boutons-demande-livreur">
+                      <button className="bouton-document-livreur" onClick={() => voirDocumentLivreur(demande.document_identite_path)}>
+                        <i className="bi bi-file-earmark-person"></i> Pièce d'identité
+                      </button>
+                      <button className="bouton-document-livreur" onClick={() => voirDocumentLivreur(demande.document_casier_path)}>
+                        <i className="bi bi-file-earmark-text"></i> Casier judiciaire
+                      </button>
+                    </div>
+                  </div>
                   <div className="boutons-demande-livreur">
                     <button className="bouton-approuver" onClick={() => approuverLivreur(demande.id)}>
                       Approuver

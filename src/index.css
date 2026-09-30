@@ -1249,6 +1249,50 @@ h3 {
   padding-top: 0;
 }
 
+.details-demande-livreur {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bouton-document-livreur {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  color: var(--couleur-encre);
+  border-radius: 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.bouton-document-livreur i {
+  color: var(--couleur-accent);
+  margin-right: 4px;
+}
+
+.bouton-document-livreur:hover {
+  border-color: var(--couleur-accent);
+  color: var(--couleur-accent);
+}
+
+.champ-fichier {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--couleur-muted);
+  margin-bottom: 10px;
+}
+
+.champ-fichier input[type='file'] {
+  font-size: 12px;
+}
+
 .boutons-demande-livreur {
   display: flex;
   gap: 8px;
@@ -1536,7 +1580,8 @@ h3 {
   margin-left: 6px;
 }
 
-.carte-auth input {
+.carte-auth input,
+.carte-auth select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--couleur-bordure);
@@ -1544,10 +1589,13 @@ h3 {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 14px;
   margin-bottom: 10px;
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.carte-auth input:focus {
+.carte-auth input:focus,
+.carte-auth select:focus {
   outline: none;
   border-color: var(--couleur-accent);
   box-shadow: 0 0 0 3px var(--couleur-accent-clair);
@@ -1821,6 +1869,13 @@ h3 {
   flex-direction: column;
   max-width: 400px;
   margin: 0 auto;
+}
+
+.condition-livreur {
+  text-align: center;
+  color: var(--couleur-muted);
+  font-size: 11.5px;
+  margin: 2px 0 0;
 }
 
 .grille-etapes {
