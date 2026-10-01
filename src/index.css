@@ -60,6 +60,18 @@ body {
   background: linear-gradient(90deg, var(--couleur-accent), #ffb787, var(--couleur-accent));
 }
 
+.bloc-logo {
+  cursor: pointer;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.bloc-logo:focus-visible {
+  outline: 2px solid var(--couleur-accent);
+  outline-offset: 4px;
+  border-radius: var(--rayon-m);
+}
+
 .logo {
   position: relative;
   width: 100px;

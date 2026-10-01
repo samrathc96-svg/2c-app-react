@@ -2342,14 +2342,23 @@ function App() {
         </div>
       )}
 
-      <div className="logo">
-        <span className="lettre">C</span>
-        <span className="chiffre">2</span>
+      <div
+        className="bloc-logo"
+        role="button"
+        tabIndex={0}
+        title="Retour à l'accueil"
+        onClick={() => { setEspace('accueil'); setAfficherAuth(false); setAfficherMenu(false) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEspace('accueil'); setAfficherAuth(false); setAfficherMenu(false) } }}
+      >
+        <div className="logo">
+          <span className="lettre">C</span>
+          <span className="chiffre">2</span>
+        </div>
+        <p className="sous-marque">
+          <span className="sous-marque-accent">Deli</span>
+          <span className="sous-marque-encre">very</span>
+        </p>
       </div>
-      <p className="sous-marque">
-        <span className="sous-marque-accent">Deli</span>
-        <span className="sous-marque-encre">very</span>
-      </p>
       <div className="separateur-un"></div>
       <p className="slogan">Du rayon au chantier, en un clic.</p>
 
