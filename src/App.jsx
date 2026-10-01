@@ -514,6 +514,11 @@ function App() {
   const [roleChoisi, setRoleChoisi] = useState('client')
   const [erreurInscription, setErreurInscription] = useState('')
   const [messageInscription, setMessageInscription] = useState('')
+  // Accès discret à l'inscription livreur : invisible pour les visiteurs
+  // normaux (plus de bouton public depuis le retrait du recrutement sur
+  // l'accueil), révélé uniquement via un lien contenant ?livreur, partagé
+  // directement avec les candidats recrutés en physique.
+  const [accesRecrutementLivreur, setAccesRecrutementLivreur] = useState(false)
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
   // Disponibilité du livreur connecté (bascule lui-même) et état d'envoi
@@ -872,6 +877,21 @@ function App() {
       window.history.replaceState({}, document.title, window.location.pathname)
     }
     gererLienRecuperation()
+  }, [])
+
+  useEffect(() => {
+    // Lien discret de recrutement livreur (ex: 2cdelivery.../?livreur) :
+    // révèle l'option "Livreur" dans le formulaire d'inscription et
+    // l'ouvre directement, préremplie sur ce rôle — sans rien changer
+    // pour un visiteur normal. L'URL est nettoyée ensuite pour ne pas
+    // laisser traîner le paramètre dans la barre d'adresse.
+    const parametres = new URLSearchParams(window.location.search)
+    if (parametres.has('livreur')) {
+      setAccesRecrutementLivreur(true)
+      setRoleChoisi('livreur')
+      setAfficherAuth(true)
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
   }, [])
 
   useEffect(() => {
@@ -2448,6 +2468,9 @@ function App() {
                   <div className="choix-role">
                     <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
                     <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
+                    {accesRecrutementLivreur && (
+                      <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
+                    )}
                   </div>
                   <input
                     type="text"
@@ -2481,6 +2504,13 @@ function App() {
                       identifiant pour commander (en indiquant leur nom à chaque commande).
                       Toutes les commandes livrées seront regroupées en une seule facture,
                       envoyée chaque mois.
+                    </p>
+                  )}
+                  {roleChoisi === 'livreur' && (
+                    <p className="souligne-configurateur">
+                      Ton inscription sera examinée avant validation. Conditions requises : pièce
+                      d'identité valide, casier judiciaire vierge, et disposer d'un moyen de livraison
+                      (scooter, moto, vélo cargo ou petit utilitaire).
                     </p>
                   )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
