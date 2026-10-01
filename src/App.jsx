@@ -2404,12 +2404,14 @@ function App() {
                         placeholder="Email"
                         value={emailConnexion}
                         onChange={(e) => setEmailConnexion(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') connexion() }}
                       />
                       <input
                         type="password"
                         placeholder="Mot de passe"
                         value={motDePasseConnexion}
                         onChange={(e) => setMotDePasseConnexion(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') connexion() }}
                       />
                       {erreurConnexion && <p className="souligne">{erreurConnexion}</p>}
                       <button className="valider" onClick={connexion}>Se connecter</button>
