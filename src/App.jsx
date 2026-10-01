@@ -660,7 +660,7 @@ function App() {
   const coursesFiltreesAdmin = rechercheAdmin.trim() === ''
     ? coursesFiltreesStatut
     : coursesFiltreesStatut.filter((course) => {
-        const cible = retirerAccents(`${course.client} ${course.adresse} ${course.produits} ${course.telephone || ''}`.toLowerCase())
+        const cible = retirerAccents(`${course.client || ''} ${course.adresse || ''} ${course.produits || ''} ${course.telephone || ''}`.toLowerCase())
         return cible.includes(retirerAccents(rechercheAdmin.toLowerCase()))
       })
   const statsAdmin = {
@@ -668,7 +668,7 @@ function App() {
     actives: coursesActives.length,
     livrees: coursesLivrees.length,
     annulees: courses.filter((course) => course.statut === 'Annulée').length,
-    chiffreAffaires: courses.filter((course) => course.statut !== 'Annulée').reduce((somme, course) => somme + course.prix, 0)
+    chiffreAffaires: courses.filter((course) => course.statut !== 'Annulée').reduce((somme, course) => somme + (course.prix || 0), 0)
   }
 
   // Chiffre d'affaires des 7 derniers jours, pour le petit graphique
@@ -689,7 +689,7 @@ function App() {
       .forEach((course) => {
         const cle = course.created_at.slice(0, 10)
         const jour = jours.find((j) => j.cle === cle)
-        if (jour) jour.total += course.prix
+        if (jour) jour.total += course.prix || 0
       })
     return jours
   })()
@@ -722,11 +722,17 @@ function App() {
   // est présent plusieurs fois dans une commande) et adresses générant
   // le plus de chiffre d'affaires — pour les statistiques admin avancées.
   const produitsPopulaires = (() => {
+    // Garde défensive : une commande suivie sans compte n'ajoute à "courses"
+    // qu'un objet minimal (id, statut...) sans "produits" ni "prix" — voir
+    // rechercherCommandeInvite ci-dessous. Sans ce "|| ''", le premier
+    // visiteur qui suit sa commande sans compte faisait planter l'app
+    // entière (cette section est calculée à chaque rendu, pas seulement
+    // côté admin).
     const compteur = {}
     courses
       .filter((course) => course.statut !== 'Annulée')
       .forEach((course) => {
-        course.produits.split(', ').forEach((item) => {
+        (course.produits || '').split(', ').filter(Boolean).forEach((item) => {
           const correspondance = item.match(/^(.*) x(\d+)$/)
           const nom = correspondance ? correspondance[1] : item
           const quantite = correspondance ? parseInt(correspondance[2], 10) : 1
@@ -742,12 +748,12 @@ function App() {
   const adressesTop = (() => {
     const compteur = {}
     courses
-      .filter((course) => course.statut !== 'Annulée')
+      .filter((course) => course.statut !== 'Annulée' && course.adresse)
       .forEach((course) => {
         if (!compteur[course.adresse]) {
           compteur[course.adresse] = { adresse: course.adresse, chiffreAffaires: 0, nombre: 0 }
         }
-        compteur[course.adresse].chiffreAffaires += course.prix
+        compteur[course.adresse].chiffreAffaires += course.prix || 0
         compteur[course.adresse].nombre += 1
       })
     return Object.values(compteur)
@@ -1594,7 +1600,7 @@ function App() {
     }
     return (
       <ul className="liste-produits-commande">
-        {commande.produits.split(', ').map((item, index) => (
+        {(commande.produits || '').split(', ').filter(Boolean).map((item, index) => (
           <li key={index}>{item}</li>
         ))}
       </ul>
@@ -2075,7 +2081,7 @@ function App() {
         course.telephone || '',
         course.adresse,
         course.produits,
-        course.prix.toFixed(2),
+        (course.prix || 0).toFixed(2),
         course.statut,
         livreur ? livreur.nom : '',
         course.created_at ? new Date(course.created_at).toLocaleDateString('fr-FR') : ''
@@ -3615,7 +3621,7 @@ function App() {
                 {coursesDisponibles.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                    <span className="prix">{course.prix.toFixed(2)} CHF</span>
+                    <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
               </ul>
@@ -3628,7 +3634,7 @@ function App() {
                 {coursesMoi.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                     <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                    <span className="prix">{course.prix.toFixed(2)} CHF</span>
+                    <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
               </ul>
@@ -3643,7 +3649,7 @@ function App() {
                     {coursesLivreesMoi.map((course) => (
                       <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
                         <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
-                        <span className="prix">{course.prix.toFixed(2)} CHF</span>
+                        <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                       </li>
                     ))}
                   </ul>
@@ -3678,7 +3684,7 @@ function App() {
                   </a>
                 </p>
               )}
-              <p className="total-panier">{courses[courseSelectionnee].prix.toFixed(2)} CHF</p>
+              <p className="total-panier">{(courses[courseSelectionnee].prix || 0).toFixed(2)} CHF</p>
 
               <div className="stepper-statut">
                 <div className={`point-statut ${STATUTS.indexOf(courses[courseSelectionnee].statut) >= 0 ? 'complete' : ''}`}></div>
@@ -3903,12 +3909,12 @@ function App() {
                       <td>{course.adresse}</td>
                       <td>
                         <ul className="liste-produits-table">
-                          {course.produits.split(', ').map((item, index) => (
+                          {(course.produits || '').split(', ').filter(Boolean).map((item, index) => (
                             <li key={index}>{item}</li>
                           ))}
                         </ul>
                       </td>
-                      <td>{course.prix.toFixed(2)} CHF</td>
+                      <td>{(course.prix || 0).toFixed(2)} CHF</td>
                       <td>
                         <select
                           value={statutAffiche}
