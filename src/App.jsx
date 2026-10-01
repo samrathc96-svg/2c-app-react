@@ -57,10 +57,12 @@ const DIAMETRES_RONDS = [80, 100, 125, 160, 200, 224, 250, 280, 315, 355, 400, 4
 const TAILLES_QUADRA = ['200x100', '300x150', '400x200', '500x250', '600x300', '800x400']
 
 // Longueur maximale d'une pièce sur mesure, tous moyens de livraison
-// confondus (scooter/moto/vélo cargo) : une seule limite globale pour
-// l'instant, plutôt que de distinguer par véhicule. 2000mm (2m) est une
-// valeur de départ raisonnable pour ce que peut transporter un deux-roues
-// — à ajuster facilement ici si besoin.
+// confondus (scooter/moto/vélo cargo/petit utilitaire) : une seule limite
+// globale pour l'instant, plutôt que de distinguer par véhicule. 2000mm (2m)
+// est une valeur de départ raisonnable pour ce que peut transporter un
+// deux-roues — à ajuster facilement ici si besoin, par exemple si on veut
+// un jour autoriser des pièces plus longues spécifiquement pour les
+// livreurs en utilitaire.
 const LONGUEUR_MAX_MM = 2000
 
 // Prix de base par taille, utilisés uniquement pour ESTIMER le prix d'une
@@ -2475,7 +2477,7 @@ function App() {
                     <p className="souligne-configurateur">
                       Ton inscription sera examinée avant validation. Conditions requises : pièce
                       d'identité valide, casier judiciaire vierge, et disposer d'un moyen de livraison
-                      (scooter, moto ou vélo cargo).
+                      (scooter, moto, vélo cargo ou petit utilitaire).
                     </p>
                   )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
@@ -3258,7 +3260,7 @@ function App() {
           <div className="carte-faq">
             <strong>Comment se fait la livraison ?</strong>
             <p>
-              Selon le livreur qui prend en charge ta commande et le format de celle-ci : scooter, moto ou vélo cargo.
+              Selon le livreur qui prend en charge ta commande et le format de celle-ci : scooter, moto, vélo cargo ou petit utilitaire.
               Ce choix n'est pas fait par le client, il dépend de la disponibilité et du véhicule du livreur.
             </p>
           </div>
@@ -3302,7 +3304,7 @@ function App() {
           <div className="carte-faq">
             <strong>Notre livraison</strong>
             <p>
-              Nos livreurs se déplacent en scooter, moto ou vélo cargo pour aller vite, même en ville ou sur des accès difficiles.
+              Nos livreurs se déplacent en scooter, moto, vélo cargo ou petit utilitaire pour aller vite, même en ville ou sur des accès difficiles.
             </p>
           </div>
         </>
@@ -3497,6 +3499,7 @@ function App() {
                   <option value="scooter">Scooter</option>
                   <option value="moto">Moto</option>
                   <option value="velo_cargo">Vélo cargo</option>
+                  <option value="utilitaire">Petit utilitaire</option>
                 </select>
                 <label className="champ-fichier">
                   Pièce d'identité (carte d'identité ou passeport)
@@ -3716,7 +3719,8 @@ function App() {
                       {' · '}
                       {demande.moyen_livraison === 'moto' ? 'Moto' :
                         demande.moyen_livraison === 'velo_cargo' ? 'Vélo cargo' :
-                        demande.moyen_livraison === 'scooter' ? 'Scooter' : 'Moyen non précisé'}
+                        demande.moyen_livraison === 'scooter' ? 'Scooter' :
+                        demande.moyen_livraison === 'utilitaire' ? 'Petit utilitaire' : 'Moyen non précisé'}
                     </span>
                     <div className="boutons-demande-livreur">
                       <button className="bouton-document-livreur" onClick={() => voirDocumentLivreur(demande.document_identite_path)}>
