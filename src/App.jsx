@@ -536,6 +536,12 @@ function App() {
   const dernierStatutNotifieRef = useRef({})
   const [livreurs, setLivreurs] = useState([])
   const [demandesLivreur, setDemandesLivreur] = useState([])
+  // Avis clients, pour la moyenne affichée dans "Gérer les livreurs". Déclaré
+  // ici (et pas juste avant son useEffet de chargement plus bas) car
+  // "livreursAvecStats" l'utilise dès le rendu suivant : une "const" lue
+  // avant sa ligne de déclaration plante avec "Cannot access before
+  // initialization" dès qu'un admin a au moins un livreur dans sa liste.
+  const [avisAdmin, setAvisAdmin] = useState([])
   // Complément de candidature livreur (téléphone, moyen de livraison,
   // documents) : renseigné après confirmation du compte, tant que
   // l'admin n'a pas encore reçu de dossier complet à examiner.
@@ -980,8 +986,6 @@ function App() {
     }
   }, [role])
 
-  // Avis clients, pour la moyenne affichée dans "Gérer les livreurs".
-  const [avisAdmin, setAvisAdmin] = useState([])
   useEffect(() => {
     if (role !== 'admin') return
 
