@@ -2447,7 +2447,6 @@ function App() {
                   <h3>Inscription</h3>
                   <div className="choix-role">
                     <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
-                    <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
                     <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
                   </div>
                   <input
@@ -2482,13 +2481,6 @@ function App() {
                       identifiant pour commander (en indiquant leur nom à chaque commande).
                       Toutes les commandes livrées seront regroupées en une seule facture,
                       envoyée chaque mois.
-                    </p>
-                  )}
-                  {roleChoisi === 'livreur' && (
-                    <p className="souligne-configurateur">
-                      Ton inscription sera examinée avant validation. Conditions requises : pièce
-                      d'identité valide, casier judiciaire vierge, et disposer d'un moyen de livraison
-                      (scooter, moto, vélo cargo ou petit utilitaire).
                     </p>
                   )}
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
@@ -3185,10 +3177,6 @@ function App() {
             <button className="valider" onClick={() => setEspace('catalogue')}>
               <i className="bi bi-shop"></i> Voir le catalogue
             </button>
-            <button className="bouton-secondaire" onClick={() => { setRoleChoisi('livreur'); setAfficherAuth(true) }}>
-              <i className="bi bi-bicycle"></i> Devenir livreur
-            </button>
-            <p className="condition-livreur">Inscription soumise à validation</p>
           </div>
 
           <h3 className="titre-accueil">Comment ça marche</h3>
