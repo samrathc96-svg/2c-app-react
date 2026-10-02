@@ -1449,6 +1449,7 @@ function App() {
     await supabase.auth.signOut()
     setEmailConnexion('')
     setMotDePasseConnexion('')
+    setNomInscription('')
     setEmailInscription('')
     setMotDePasseInscription('')
     setErreurInscription('')
@@ -1458,6 +1459,7 @@ function App() {
     setMessageOubli('')
     setErreurOubli('')
     setEspace('accueil')
+    setVue('accueil')
     setAfficherAuth(false)
   }
 
