@@ -1824,28 +1824,49 @@ function App() {
   }
 
   async function annulerCommande(commande) {
-    const course = courses.find((c) => c.commande_id === commande.id)
-    if (!course) return
-
     const estProprietaireConnecte = session && commande.user_id === session.user.id
 
-    const { error } = estProprietaireConnecte
-      ? await supabase.from('courses').update({ statut: 'Annulée' }).eq('id', course.id)
-      : await supabase.rpc('annuler_commande_invite', {
-          p_commande_id: commande.id,
-          p_numero: commande.numero_suivi,
-          p_nom: commande.nom_client
-        })
+    if (estProprietaireConnecte) {
+      // Compte connecté : la ligne "courses" est déjà dans l'état local
+      // (RLS l'autorise), on l'utilise pour cibler la mise à jour.
+      const course = courses.find((c) => c.commande_id === commande.id)
+      if (!course) return
 
-    if (error) {
-      console.error("Erreur d'annulation :", error)
-      afficherNotification("L'annulation a échoué, réessaie.")
-      return
+      const { error } = await supabase.from('courses').update({ statut: 'Annulée' }).eq('id', course.id)
+      if (error) {
+        console.error("Erreur d'annulation :", error)
+        afficherNotification("L'annulation a échoué, réessaie.")
+        return
+      }
+      setCourses((precedentes) =>
+        precedentes.map((c) => (c.id === course.id ? { ...c, statut: 'Annulée' } : c))
+      )
+    } else {
+      // Sans compte : juste après la commande, "courses" ne contient pas
+      // encore la ligne correspondante (elle n'est injectée que par une
+      // recherche via rechercherCommandeInvite) — avant, le code
+      // attendait cette ligne pour TOUT le monde et quittait silencieusement
+      // si elle manquait, ce qui bloquait l'annulation juste après avoir
+      // commandé. On appelle directement le RPC dédié (seule voie possible
+      // sans compte, la table "courses" n'étant pas lisible directement),
+      // puis on force le statut local puisqu'on ne peut pas la relire.
+      const { error } = await supabase.rpc('annuler_commande_invite', {
+        p_commande_id: commande.id,
+        p_numero: commande.numero_suivi,
+        p_nom: commande.nom_client
+      })
+      if (error) {
+        console.error("Erreur d'annulation :", error)
+        afficherNotification("L'annulation a échoué, réessaie.")
+        return
+      }
+      setCourses((precedentes) =>
+        precedentes.some((c) => c.commande_id === commande.id)
+          ? precedentes.map((c) => (c.commande_id === commande.id ? { ...c, statut: 'Annulée' } : c))
+          : [...precedentes, { id: `invite-${commande.id}`, commande_id: commande.id, statut: 'Annulée' }]
+      )
     }
 
-    setCourses((precedentes) =>
-      precedentes.map((c) => (c.id === course.id ? { ...c, statut: 'Annulée' } : c))
-    )
     setConfirmationAnnulation(false)
     afficherNotification('Commande annulée.', 'info')
   }
