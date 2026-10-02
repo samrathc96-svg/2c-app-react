@@ -2008,7 +2008,26 @@ function App() {
       afficherNotification("La validation a échoué, réessaie.")
       return
     }
+    // On ajoute tout de suite le livreur à la liste locale plutôt que
+    // d'attendre le retour de l'abonnement temps réel sur "profils" (qui
+    // peut tarder, voire ne jamais arriver) : sans ça, "Gérer les livreurs"
+    // continuait d'afficher "Aucun livreur pour l'instant" juste après une
+    // validation, jusqu'au rechargement de la page.
+    const demandeApprouvee = demandesLivreur.find((d) => d.id === profilId)
     setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
+    setLivreurs((precedent) =>
+      precedent.some((l) => l.id === profilId)
+        ? precedent
+        : [
+            ...precedent,
+            {
+              id: profilId,
+              nom: demandeApprouvee ? demandeApprouvee.nom : '',
+              email: demandeApprouvee ? demandeApprouvee.email : '',
+              disponible: true
+            }
+          ]
+    )
     afficherNotification('Compte livreur validé.', 'info')
     // Les documents d'identité ne servent plus une fois la décision prise :
     // suppression automatique du stockage (pas de conservation au-delà du
