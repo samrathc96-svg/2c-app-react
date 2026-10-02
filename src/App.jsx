@@ -931,6 +931,15 @@ function App() {
         }
       } else if (error) {
         console.error('Erreur de chargement du rôle :', error)
+        // Le profil n'existe plus (ex: compte supprimé côté admin dans
+        // Supabase) alors que la session d'authentification est toujours
+        // active dans ce navigateur : sans ça, l'icône reste "connectée"
+        // mais le menu compte ne répond plus, avec des requêtes en échec
+        // en boucle. On déconnecte proprement et on prévient la personne.
+        await supabase.auth.signOut()
+        setRole(null)
+        setEspace('accueil')
+        afficherNotification('Ta session a expiré, merci de te reconnecter.', 'info')
       }
       setChargementAuth(false)
     }
