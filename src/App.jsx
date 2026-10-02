@@ -14,7 +14,7 @@ import './App.css'
 const INFOS_ENTREPRISE = {
   nom: '2C',
   adresse: "Adresse de l'entreprise — à compléter",
-  contact: 'email@exemple.ch • +41 00 000 00 00 — à compléter',
+  contact: 'contact@2cdelivery.ch • Téléphone à compléter',
   tvaNumero: null, // ex: 'CHE-123.456.789 TVA'
   tvaTaux: null,   // ex: 8.1 (en %), une fois le statut TVA connu
   donneesTest: true
@@ -3365,7 +3365,7 @@ function App() {
               2C Delivery, exploité par Samrath Chau.<br />
               Adresse : <strong>[adresse du siège à compléter]</strong><br />
               Numéro d'immatriculation (IDE / RC) : <strong>[à compléter]</strong><br />
-              Email de contact : <strong>[à compléter]</strong>
+              Email de contact : <strong>contact@2cdelivery.ch</strong>
             </p>
           </div>
 
@@ -3498,7 +3498,7 @@ function App() {
             <strong>Tes droits</strong>
             <p>
               Tu peux demander l'accès, la rectification ou la suppression de tes données en écrivant à
-              <strong> [email de contact à compléter]</strong>.
+              <strong> contact@2cdelivery.ch</strong>.
             </p>
           </div>
 
