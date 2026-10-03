@@ -2027,3 +2027,111 @@ h3 {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* ====== Habillage desktop / grand écran (page d'accueil uniquement) ======
+   Par défaut (mobile et tablette < 1024px), ces colonnes sont masquées et
+   la mise en page ne change strictement rien au comportement existant. */
+
+.mise-en-page {
+  display: block;
+}
+
+.colonne-desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .mise-en-page {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 28px;
+    width: 100%;
+  }
+
+  .colonne-desktop {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 260px;
+    flex-shrink: 0;
+  }
+}
+
+.carte-desktop {
+  background: var(--couleur-blanc);
+  border-radius: var(--rayon-l);
+  box-shadow: var(--ombre-m);
+  padding: 20px;
+  text-align: left;
+}
+
+.carte-desktop h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--couleur-accent);
+  margin: 0 0 14px;
+}
+
+.lien-categorie-desktop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--couleur-bordure);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--couleur-encre);
+  transition: color var(--transition);
+}
+
+.lien-categorie-desktop:first-of-type {
+  border-top: none;
+}
+
+.lien-categorie-desktop:hover {
+  color: var(--couleur-accent);
+}
+
+.lien-categorie-desktop i {
+  color: var(--couleur-accent);
+  font-size: 15px;
+}
+
+.ligne-info-desktop {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 8px 0;
+  border-top: 1px solid var(--couleur-bordure);
+}
+
+.ligne-info-desktop:first-of-type {
+  border-top: none;
+}
+
+.ligne-info-desktop b {
+  color: var(--couleur-encre);
+}
+
+.bouton-cta-desktop {
+  margin-top: 10px;
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--couleur-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: 'IBM Plex Sans', sans-serif;
+  transition: opacity var(--transition);
+}
+
+.bouton-cta-desktop:hover {
+  opacity: 0.9;
+}

@@ -2031,14 +2031,17 @@ function App() {
     afficherNotification('Compte livreur validé.', 'info')
     // Les documents d'identité ne servent plus une fois la décision prise :
     // suppression automatique du stockage (pas de conservation au-delà du
-    // strict nécessaire pour la vérification).
-    supabase.rpc('nettoyer_documents_livreur', { p_profil_id: profilId }).then(({ error: erreurNettoyage }) => {
-      if (erreurNettoyage) console.error('Erreur de nettoyage des documents livreur :', erreurNettoyage)
-    })
+    // strict nécessaire pour la vérification). La suppression passe par le
+    // Storage API (supabase.storage...remove), pas par une fonction SQL :
+    // Supabase refuse un DELETE direct sur les tables de stockage, même
+    // depuis une fonction SECURITY DEFINER ("Direct deletion from storage
+    // tables is not allowed. Use the Storage API instead.").
+    nettoyerDocumentsLivreur(demandeApprouvee)
   }
 
   async function refuserDemandeLivreur(profilId) {
     if (!window.confirm('Refuser cette demande de compte livreur ? Le compte redevient un compte client normal.')) return
+    const demandeRefusee = demandesLivreur.find((d) => d.id === profilId)
     const { error } = await supabase.rpc('refuser_demande_livreur', { p_profil_id: profilId })
     if (error) {
       console.error('Erreur de refus de la demande :', error)
@@ -2047,7 +2050,15 @@ function App() {
     }
     setDemandesLivreur(demandesLivreur.filter((d) => d.id !== profilId))
     afficherNotification('Demande refusée.', 'info')
-    supabase.rpc('nettoyer_documents_livreur', { p_profil_id: profilId }).then(({ error: erreurNettoyage }) => {
+    nettoyerDocumentsLivreur(demandeRefusee)
+  }
+
+  // Supprime du stockage la pièce d'identité et le casier judiciaire d'une
+  // candidature livreur une fois la décision (validation ou refus) prise.
+  function nettoyerDocumentsLivreur(demande) {
+    const chemins = [demande?.document_identite_path, demande?.document_casier_path].filter(Boolean)
+    if (chemins.length === 0) return
+    supabase.storage.from('documents-livreurs').remove(chemins).then(({ error: erreurNettoyage }) => {
       if (erreurNettoyage) console.error('Erreur de nettoyage des documents livreur :', erreurNettoyage)
     })
   }
@@ -2348,6 +2359,25 @@ function App() {
   }
 
   return (
+    <div className="mise-en-page">
+      {espace === 'accueil' && (
+        <aside className="colonne-desktop">
+          <div className="carte-desktop">
+            <h3>Accès rapide</h3>
+            {sousSectionsDisponibles.slice(0, 6).map((sousSection, index) => (
+              <div
+                key={`${sousSection.nom}-${index}`}
+                className="lien-categorie-desktop"
+                onClick={() => { setEspace('catalogue'); ouvrirSousSection(sousSection) }}
+              >
+                <i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i>
+                <span>{sousSection.nom}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
+
     <div className="app">
       {notification && (
         <div className={`notification notification-${notification.type}`}>
@@ -4309,6 +4339,24 @@ function App() {
             <p className="aucun-resultat">Aucun produit ne correspond à cette recherche.</p>
           )}
         </>
+      )}
+    </div>
+
+      {espace === 'accueil' && (
+        <aside className="colonne-desktop">
+          <div className="carte-desktop">
+            <h3>2C Delivery</h3>
+            <div className="ligne-info-desktop"><span>Zone</span><b>Genève &amp; frontière</b></div>
+            <div className="ligne-info-desktop"><span>Métier</span><b>Ventilation</b></div>
+            <div className="ligne-info-desktop"><span>Compte</span><b>Non obligatoire</b></div>
+            <button
+              className="bouton-cta-desktop"
+              onClick={() => { setRoleChoisi('entreprise'); setAfficherAuth(true) }}
+            >
+              Vous êtes une entreprise ?
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   )
