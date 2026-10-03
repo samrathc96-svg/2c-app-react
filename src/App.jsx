@@ -91,7 +91,7 @@ function DiaporamaChantier() {
   useEffect(() => {
     const minuteur = setInterval(() => {
       setIndexDiapo((precedent) => (precedent + 1) % SLIDES_DIAPORAMA.length)
-    }, 4500)
+    }, 8500)
     return () => clearInterval(minuteur)
   }, [])
 

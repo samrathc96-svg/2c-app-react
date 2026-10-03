@@ -2181,7 +2181,7 @@ h3 {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: calc(var(--rayon-l) - 4px);
   animation: apparition-fond 0.35s ease;
 }
