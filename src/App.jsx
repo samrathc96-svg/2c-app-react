@@ -100,7 +100,14 @@ function DiaporamaChantier() {
   return (
     <div className="diaporama-chantier">
       <div className="diaporama-visuel">
-        <img src={diapoActive.image} alt={diapoActive.titre} className="image-diaporama" />
+        {SLIDES_DIAPORAMA.map((slide, i) => (
+          <img
+            key={slide.image}
+            src={slide.image}
+            alt={slide.titre}
+            className={`image-diaporama ${i === indexDiapo ? 'actif' : ''}`}
+          />
+        ))}
       </div>
       <strong>{diapoActive.titre}</strong>
       <p>{diapoActive.texte}</p>

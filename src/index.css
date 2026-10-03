@@ -2168,22 +2168,28 @@ h3 {
 }
 
 .diaporama-visuel {
+  position: relative;
   background: var(--couleur-accent-clair);
   border: 1px solid rgba(255, 106, 19, 0.22);
   border-radius: var(--rayon-l);
-  padding: 6px;
   margin-bottom: 20px;
   overflow: hidden;
   aspect-ratio: 4 / 5;
 }
 
 .image-diaporama {
-  width: 100%;
-  height: 100%;
-  display: block;
+  position: absolute;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
   object-fit: contain;
   border-radius: calc(var(--rayon-l) - 4px);
-  animation: apparition-fond 0.35s ease;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+.image-diaporama.actif {
+  opacity: 1;
 }
 
 .diaporama-chantier strong {
