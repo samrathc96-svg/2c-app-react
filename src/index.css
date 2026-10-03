@@ -2174,7 +2174,7 @@ h3 {
   border-radius: var(--rayon-l);
   margin-bottom: 20px;
   overflow: hidden;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 2;
 }
 
 .image-diaporama {
