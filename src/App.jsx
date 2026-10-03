@@ -65,53 +65,25 @@ const AVANTAGES_PANNEAU_GAUCHE = [
   { icone: 'star', titre: 'Livreurs notés', texte: "Évalués par les clients à chaque livraison." }
 ]
 
-// Diaporama décoratif (colonne de droite) : illustrations génériques en
-// attendant de vraies photos/plans de chantier à intégrer.
+// Diaporama décoratif (colonne de droite) : vraies photos de chantier /
+// plans de ventilation fournies par Samrath.
 const SLIDES_DIAPORAMA = [
-  { titre: 'Pensé pour le chantier', texte: "Du matériel de ventilation livré directement là où vous travaillez." },
-  { titre: 'Gaines & conduits', texte: "Quadratique, spiro, accessoires — tout le nécessaire pour vos réseaux." },
-  { titre: 'Toujours à jour', texte: "Un catalogue mis à jour en continu avec les disponibilités réelles." }
+  {
+    image: '/diaporama/chantier-1-plan.jpg',
+    titre: 'Des plans pensés pour le bâtiment',
+    texte: "Chaque projet part d'un plan clair : gaines, conduites et diffuseurs repérés au mètre près."
+  },
+  {
+    image: '/diaporama/chantier-2-gaine.jpg',
+    titre: 'Sur le terrain, avec vous',
+    texte: "Du matériel adapté à la réalité du chantier, prêt à poser."
+  },
+  {
+    image: '/diaporama/chantier-3-livraison.jpg',
+    titre: 'Livraison durable à Genève',
+    texte: "Une livraison rapide, discrète et respectueuse de la ville."
+  }
 ]
-
-function IllustrationDiaporama({ variante }) {
-  if (variante === 1) {
-    return (
-      <svg viewBox="0 0 220 140" className="illustration-diaporama">
-        <rect x="30" y="20" width="60" height="100" rx="3" fill="none" stroke="currentColor" strokeWidth="3" />
-        <rect x="100" y="45" width="90" height="75" rx="3" fill="none" stroke="currentColor" strokeWidth="3" />
-        {[0, 1, 2].map((ligne) => (
-          <g key={`g-${ligne}`}>
-            <rect x={40} y={32 + ligne * 28} width="12" height="12" fill="currentColor" opacity="0.5" />
-            <rect x={62} y={32 + ligne * 28} width="12" height="12" fill="currentColor" opacity="0.5" />
-          </g>
-        ))}
-        <circle cx="145" cy="80" r="16" fill="none" stroke="currentColor" strokeWidth="3" />
-        <path d="M145 64 V58 M145 96 V102 M129 80 H123 M161 80 H167" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (variante === 2) {
-    return (
-      <svg viewBox="0 0 220 140" className="illustration-diaporama">
-        <rect x="14" y="14" width="192" height="112" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.4" />
-        {[1, 2, 3, 4].map((i) => (
-          <line key={`v-${i}`} x1={14 + i * 38} y1="14" x2={14 + i * 38} y2="126" stroke="currentColor" strokeWidth="1" opacity="0.25" />
-        ))}
-        <path d="M34 100 L34 60 L110 60 L110 40 L186 40" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M100 52 L110 40 L100 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <line x1="34" y1="112" x2="110" y2="112" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" />
-      </svg>
-    )
-  }
-  return (
-    <svg viewBox="0 0 220 140" className="illustration-diaporama">
-      <circle cx="110" cy="70" r="48" fill="none" stroke="currentColor" strokeWidth="3" />
-      <circle cx="110" cy="70" r="30" fill="none" stroke="currentColor" strokeWidth="3" />
-      <circle cx="110" cy="70" r="6" fill="currentColor" />
-      <path d="M110 22 V4 M110 136 V118 M158 70 H176 M44 70 H62" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  )
-}
 
 function DiaporamaChantier() {
   const [indexDiapo, setIndexDiapo] = useState(0)
@@ -128,7 +100,7 @@ function DiaporamaChantier() {
   return (
     <div className="diaporama-chantier">
       <div className="diaporama-visuel">
-        <IllustrationDiaporama variante={indexDiapo} />
+        <img src={diapoActive.image} alt={diapoActive.titre} className="image-diaporama" />
       </div>
       <strong>{diapoActive.titre}</strong>
       <p>{diapoActive.texte}</p>
@@ -2467,7 +2439,9 @@ function App() {
             <h3>Pourquoi 2C</h3>
             {AVANTAGES_PANNEAU_GAUCHE.map((avantage) => (
               <div key={avantage.titre} className="banniere-avantage">
-                <i className={`bi bi-${avantage.icone}`}></i>
+                <span className="badge-avantage">
+                  <i className={`bi bi-${avantage.icone}`}></i>
+                </span>
                 <div>
                   <strong>{avantage.titre}</strong>
                   <p>{avantage.texte}</p>

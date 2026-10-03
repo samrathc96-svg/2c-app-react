@@ -2028,9 +2028,10 @@ h3 {
   flex-shrink: 0;
 }
 
-/* ====== Habillage desktop / grand écran (page d'accueil uniquement) ======
-   Par défaut (mobile et tablette < 1024px), ces colonnes sont masquées et
-   la mise en page ne change strictement rien au comportement existant. */
+/* ====== Habillage desktop / grand écran (pages publiques uniquement) ======
+   Par défaut (mobile, tablette, et petit écran d'ordinateur < 1120px), ces
+   colonnes sont masquées et la mise en page ne change strictement rien au
+   comportement existant. */
 
 .mise-en-page {
   display: block;
@@ -2040,91 +2041,120 @@ h3 {
   display: none;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1120px) {
   .mise-en-page {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    gap: 28px;
+    gap: 32px;
     width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  .mise-en-page .app {
+    margin: 0;
+    flex-shrink: 0;
   }
 
   .colonne-desktop {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    width: 260px;
-    flex-shrink: 0;
+    gap: 20px;
+    flex: 1 1 320px;
+    min-width: 260px;
+    max-width: 400px;
   }
 }
 
 .carte-desktop {
+  position: relative;
   background: var(--couleur-blanc);
-  border-radius: var(--rayon-l);
+  border: 1px solid rgba(30, 27, 23, 0.07);
+  border-radius: var(--rayon-xl);
   box-shadow: var(--ombre-m);
-  padding: 20px;
+  padding: 28px 26px 24px;
   text-align: left;
+  overflow: hidden;
+}
+
+.carte-desktop::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--couleur-accent), #ffb787, var(--couleur-accent));
 }
 
 .carte-desktop h3 {
-  font-size: 13px;
+  font-size: 14px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--couleur-accent);
-  margin: 0 0 14px;
+  margin: 0 0 20px;
 }
 
 .bouton-cta-desktop {
-  margin-top: 10px;
+  margin-top: 14px;
   display: block;
   width: 100%;
   text-align: center;
   background: var(--couleur-accent);
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 10px;
+  padding: 13px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   font-family: 'IBM Plex Sans', sans-serif;
-  transition: opacity var(--transition);
+  transition: opacity var(--transition), transform var(--transition);
 }
 
 .bouton-cta-desktop:hover {
-  opacity: 0.9;
+  opacity: 0.92;
+  transform: translateY(-1px);
 }
 
 .banniere-avantage {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 14px;
+  padding: 14px 0;
   border-top: 1px solid var(--couleur-bordure);
 }
 
 .banniere-avantage:first-of-type {
   border-top: none;
+  padding-top: 0;
 }
 
-.banniere-avantage i {
+.banniere-avantage .badge-avantage {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--couleur-accent-clair);
   color: var(--couleur-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 17px;
-  margin-top: 2px;
   flex-shrink: 0;
 }
 
 .banniere-avantage strong {
   display: block;
-  font-size: 13px;
-  margin-bottom: 2px;
+  font-size: 14.5px;
+  margin-bottom: 4px;
 }
 
 .banniere-avantage p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--couleur-muted);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .carte-diaporama {
@@ -2133,48 +2163,53 @@ h3 {
 }
 
 .diaporama-chantier {
-  padding: 22px 20px 16px;
+  padding: 30px 26px 22px;
   text-align: center;
 }
 
 .diaporama-visuel {
-  color: var(--couleur-accent);
   background: var(--couleur-accent-clair);
-  border-radius: var(--rayon-m);
-  padding: 10px;
-  margin-bottom: 14px;
+  border: 1px solid rgba(255, 106, 19, 0.22);
+  border-radius: var(--rayon-l);
+  padding: 6px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
 }
 
-.illustration-diaporama {
+.image-diaporama {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
+  object-fit: cover;
+  border-radius: calc(var(--rayon-l) - 4px);
+  animation: apparition-fond 0.35s ease;
 }
 
 .diaporama-chantier strong {
   display: block;
-  font-size: 14px;
-  margin-bottom: 4px;
+  font-size: 16px;
+  margin-bottom: 6px;
 }
 
 .diaporama-chantier p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--couleur-muted);
-  line-height: 1.5;
-  min-height: 48px;
+  line-height: 1.55;
+  min-height: 56px;
 }
 
 .diaporama-puces {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 7px;
+  margin-top: 16px;
 }
 
 .puce-diaporama {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--couleur-bordure);
   cursor: pointer;
@@ -2183,10 +2218,10 @@ h3 {
 
 .puce-diaporama.actif {
   background: var(--couleur-accent);
-  transform: scale(1.2);
+  transform: scale(1.25);
 }
 
 .carte-diaporama .bouton-cta-desktop {
-  margin: 0 20px 20px;
-  width: calc(100% - 40px);
+  margin: 4px 26px 26px;
+  width: calc(100% - 52px);
 }
