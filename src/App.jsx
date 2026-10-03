@@ -45,6 +45,107 @@ const iconsParSousSection = {
 }
 
 // =========================================================
+// Habillage desktop / grand écran (colonnes latérales, hors accueil admin/livreur)
+// =========================================================
+// Espaces de gestion interne : on n'affiche jamais les colonnes là-dessus,
+// l'admin et le livreur ont besoin de toute la largeur pour travailler.
+const ESPACES_SANS_PANNEAUX_DESKTOP = [
+  'admin',
+  'catalogueAdmin',
+  'facturationEntreprises',
+  'livreur',
+  'livreurEnAttente',
+  'livreursListe'
+]
+
+const AVANTAGES_PANNEAU_GAUCHE = [
+  { icone: 'lightning-charge', titre: 'Livraison rapide', texte: "Directement sur chantier, sans détour par un dépôt." },
+  { icone: 'wind', titre: 'Spécialiste ventilation', texte: "Des consommables sélectionnés pour les pros du métier." },
+  { icone: 'person-check', titre: 'Sans compte', texte: "Commande en quelques clics, sans inscription obligatoire." },
+  { icone: 'star', titre: 'Livreurs notés', texte: "Évalués par les clients à chaque livraison." }
+]
+
+// Diaporama décoratif (colonne de droite) : illustrations génériques en
+// attendant de vraies photos/plans de chantier à intégrer.
+const SLIDES_DIAPORAMA = [
+  { titre: 'Pensé pour le chantier', texte: "Du matériel de ventilation livré directement là où vous travaillez." },
+  { titre: 'Gaines & conduits', texte: "Quadratique, spiro, accessoires — tout le nécessaire pour vos réseaux." },
+  { titre: 'Toujours à jour', texte: "Un catalogue mis à jour en continu avec les disponibilités réelles." }
+]
+
+function IllustrationDiaporama({ variante }) {
+  if (variante === 1) {
+    return (
+      <svg viewBox="0 0 220 140" className="illustration-diaporama">
+        <rect x="30" y="20" width="60" height="100" rx="3" fill="none" stroke="currentColor" strokeWidth="3" />
+        <rect x="100" y="45" width="90" height="75" rx="3" fill="none" stroke="currentColor" strokeWidth="3" />
+        {[0, 1, 2].map((ligne) => (
+          <g key={`g-${ligne}`}>
+            <rect x={40} y={32 + ligne * 28} width="12" height="12" fill="currentColor" opacity="0.5" />
+            <rect x={62} y={32 + ligne * 28} width="12" height="12" fill="currentColor" opacity="0.5" />
+          </g>
+        ))}
+        <circle cx="145" cy="80" r="16" fill="none" stroke="currentColor" strokeWidth="3" />
+        <path d="M145 64 V58 M145 96 V102 M129 80 H123 M161 80 H167" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (variante === 2) {
+    return (
+      <svg viewBox="0 0 220 140" className="illustration-diaporama">
+        <rect x="14" y="14" width="192" height="112" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.4" />
+        {[1, 2, 3, 4].map((i) => (
+          <line key={`v-${i}`} x1={14 + i * 38} y1="14" x2={14 + i * 38} y2="126" stroke="currentColor" strokeWidth="1" opacity="0.25" />
+        ))}
+        <path d="M34 100 L34 60 L110 60 L110 40 L186 40" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M100 52 L110 40 L100 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="34" y1="112" x2="110" y2="112" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 220 140" className="illustration-diaporama">
+      <circle cx="110" cy="70" r="48" fill="none" stroke="currentColor" strokeWidth="3" />
+      <circle cx="110" cy="70" r="30" fill="none" stroke="currentColor" strokeWidth="3" />
+      <circle cx="110" cy="70" r="6" fill="currentColor" />
+      <path d="M110 22 V4 M110 136 V118 M158 70 H176 M44 70 H62" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function DiaporamaChantier() {
+  const [indexDiapo, setIndexDiapo] = useState(0)
+
+  useEffect(() => {
+    const minuteur = setInterval(() => {
+      setIndexDiapo((precedent) => (precedent + 1) % SLIDES_DIAPORAMA.length)
+    }, 4500)
+    return () => clearInterval(minuteur)
+  }, [])
+
+  const diapoActive = SLIDES_DIAPORAMA[indexDiapo]
+
+  return (
+    <div className="diaporama-chantier">
+      <div className="diaporama-visuel">
+        <IllustrationDiaporama variante={indexDiapo} />
+      </div>
+      <strong>{diapoActive.titre}</strong>
+      <p>{diapoActive.texte}</p>
+      <div className="diaporama-puces">
+        {SLIDES_DIAPORAMA.map((_, i) => (
+          <span
+            key={i}
+            className={`puce-diaporama ${i === indexDiapo ? 'actif' : ''}`}
+            onClick={() => setIndexDiapo(i)}
+          ></span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// =========================================================
 // Configurateur de transformation sur mesure (Gaines Quadratique)
 // =========================================================
 // Le catalogue ne liste que des transformations toutes faites (tailles
@@ -2360,18 +2461,17 @@ function App() {
 
   return (
     <div className="mise-en-page">
-      {espace === 'accueil' && (
+      {!ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace) && (
         <aside className="colonne-desktop">
           <div className="carte-desktop">
-            <h3>Accès rapide</h3>
-            {sousSectionsDisponibles.slice(0, 6).map((sousSection, index) => (
-              <div
-                key={`${sousSection.nom}-${index}`}
-                className="lien-categorie-desktop"
-                onClick={() => { setEspace('catalogue'); ouvrirSousSection(sousSection) }}
-              >
-                <i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i>
-                <span>{sousSection.nom}</span>
+            <h3>Pourquoi 2C</h3>
+            {AVANTAGES_PANNEAU_GAUCHE.map((avantage) => (
+              <div key={avantage.titre} className="banniere-avantage">
+                <i className={`bi bi-${avantage.icone}`}></i>
+                <div>
+                  <strong>{avantage.titre}</strong>
+                  <p>{avantage.texte}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -4342,13 +4442,10 @@ function App() {
       )}
     </div>
 
-      {espace === 'accueil' && (
+      {!ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace) && (
         <aside className="colonne-desktop">
-          <div className="carte-desktop">
-            <h3>2C Delivery</h3>
-            <div className="ligne-info-desktop"><span>Zone</span><b>Genève &amp; frontière</b></div>
-            <div className="ligne-info-desktop"><span>Métier</span><b>Ventilation</b></div>
-            <div className="ligne-info-desktop"><span>Compte</span><b>Non obligatoire</b></div>
+          <div className="carte-desktop carte-diaporama">
+            <DiaporamaChantier />
             <button
               className="bouton-cta-desktop"
               onClick={() => { setRoleChoisi('entreprise'); setAfficherAuth(true) }}

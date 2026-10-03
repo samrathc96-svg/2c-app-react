@@ -2074,47 +2074,6 @@ h3 {
   margin: 0 0 14px;
 }
 
-.lien-categorie-desktop {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-top: 1px solid var(--couleur-bordure);
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--couleur-encre);
-  transition: color var(--transition);
-}
-
-.lien-categorie-desktop:first-of-type {
-  border-top: none;
-}
-
-.lien-categorie-desktop:hover {
-  color: var(--couleur-accent);
-}
-
-.lien-categorie-desktop i {
-  color: var(--couleur-accent);
-  font-size: 15px;
-}
-
-.ligne-info-desktop {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  padding: 8px 0;
-  border-top: 1px solid var(--couleur-bordure);
-}
-
-.ligne-info-desktop:first-of-type {
-  border-top: none;
-}
-
-.ligne-info-desktop b {
-  color: var(--couleur-encre);
-}
-
 .bouton-cta-desktop {
   margin-top: 10px;
   display: block;
@@ -2134,4 +2093,100 @@ h3 {
 
 .bouton-cta-desktop:hover {
   opacity: 0.9;
+}
+
+.banniere-avantage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--couleur-bordure);
+}
+
+.banniere-avantage:first-of-type {
+  border-top: none;
+}
+
+.banniere-avantage i {
+  color: var(--couleur-accent);
+  font-size: 17px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.banniere-avantage strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.banniere-avantage p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--couleur-muted);
+  line-height: 1.4;
+}
+
+.carte-diaporama {
+  padding: 0;
+  overflow: hidden;
+}
+
+.diaporama-chantier {
+  padding: 22px 20px 16px;
+  text-align: center;
+}
+
+.diaporama-visuel {
+  color: var(--couleur-accent);
+  background: var(--couleur-accent-clair);
+  border-radius: var(--rayon-m);
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.illustration-diaporama {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.diaporama-chantier strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.diaporama-chantier p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--couleur-muted);
+  line-height: 1.5;
+  min-height: 48px;
+}
+
+.diaporama-puces {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.puce-diaporama {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--couleur-bordure);
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.puce-diaporama.actif {
+  background: var(--couleur-accent);
+  transform: scale(1.2);
+}
+
+.carte-diaporama .bouton-cta-desktop {
+  margin: 0 20px 20px;
+  width: calc(100% - 40px);
 }
