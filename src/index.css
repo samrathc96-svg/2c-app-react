@@ -2172,9 +2172,12 @@ h3 {
   background: var(--couleur-accent-clair);
   border: 1px solid rgba(255, 106, 19, 0.22);
   border-radius: var(--rayon-l);
-  margin-bottom: 20px;
+  margin: 0 auto 20px;
   overflow: hidden;
-  aspect-ratio: 3 / 5;
+  height: 300px;
+  width: auto;
+  aspect-ratio: 487 / 1000;
+  max-width: 100%;
 }
 
 .image-diaporama {
@@ -2182,7 +2185,7 @@ h3 {
   inset: 6px;
   width: calc(100% - 12px);
   height: calc(100% - 12px);
-  object-fit: cover;
+  object-fit: contain;
   border-radius: calc(var(--rayon-l) - 4px);
   opacity: 0;
   transition: opacity 1s ease;
