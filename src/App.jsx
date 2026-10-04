@@ -20,6 +20,12 @@ const INFOS_ENTREPRISE = {
   donneesTest: true
 }
 
+// Paiement en ligne (Stripe). Laisser à false tant que les fonctions
+// serveur Stripe ne sont pas déployées dans Supabase : l'application
+// continue alors de fonctionner exactement comme avant (commande sans
+// paiement). Passer à true une fois tout en place, puis redéployer.
+const PAIEMENT_EN_LIGNE_ACTIF = false
+
 const iconsParMetier = {
   'Maçonnerie & Gros œuvre': 'bricks',
   'Plâtrerie & Cloisons': 'layers',
@@ -986,6 +992,40 @@ function App() {
     }
   }, [])
 
+  // Retour depuis la page de paiement Stripe (?paiement=ok ou ?paiement=annule).
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    const retour = parametres.get('paiement')
+    if (!retour) return
+    const identifiantSession = parametres.get('session_id')
+    window.history.replaceState({}, document.title, window.location.pathname)
+
+    if (retour === 'annule') {
+      // Le client a quitté la page de paiement : rien n'a été débité ni
+      // enregistré, on lui rend son panier et ses coordonnées.
+      try {
+        const brut = window.localStorage.getItem('panierEnAttente2C')
+        if (brut) {
+          const sauvegarde = JSON.parse(brut)
+          setPanier(sauvegarde.panier || [])
+          setNomClient(sauvegarde.nomClient || '')
+          setAdresseClient(sauvegarde.adresseClient || '')
+          setTelephoneClient(sauvegarde.telephoneClient || '')
+          setEmailClient(sauvegarde.emailClient || '')
+          setVue('panier')
+        }
+      } catch (e) {
+        // stockage indisponible - on ignore silencieusement
+      }
+      afficherNotification("Paiement annulé : ta commande n'a pas été enregistrée, ton panier est conservé.", 'info')
+      return
+    }
+
+    if (retour === 'ok' && identifiantSession) {
+      confirmerRetourPaiement(identifiantSession)
+    }
+  }, [])
+
   useEffect(() => {
     async function chargerRole() {
       if (!session) return
@@ -1702,6 +1742,119 @@ function App() {
     )
   }
 
+  // Lance le paiement en ligne : le serveur recalcule le prix, met le panier
+  // de côté et renvoie l'adresse de la page de paiement Stripe. La commande
+  // n'est créée qu'une fois le paiement confirmé par Stripe.
+  async function payerEnLigne() {
+    setEnvoiEnCours(true)
+
+    try {
+      window.localStorage.setItem(
+        'panierEnAttente2C',
+        JSON.stringify({ panier, nomClient, adresseClient, telephoneClient, emailClient })
+      )
+    } catch (e) {
+      // stockage indisponible - le paiement fonctionne quand même
+    }
+
+    const { data, error } = await supabase.functions.invoke('creer-paiement', {
+      body: {
+        panier: panier.map((produit) => ({
+          id: produit.id,
+          nom: produit.nom,
+          prix: produit.prix,
+          quantite: produit.quantite
+        })),
+        nomClient,
+        adresse: adresseClient,
+        telephone: telephoneClient,
+        email: emailClient
+      }
+    })
+
+    if (error || !data || !data.url) {
+      setEnvoiEnCours(false)
+      let message = "Le paiement n'a pas pu être lancé, réessaie."
+      try {
+        const corps = await error.context.json()
+        if (corps && corps.error) message = corps.error
+      } catch (e) {
+        // on garde le message par défaut
+      }
+      afficherNotification(message)
+      return
+    }
+
+    window.location.href = data.url
+  }
+
+  // Au retour du paiement : on attend que la commande soit créée côté
+  // serveur (quelques secondes au plus), puis on affiche la confirmation.
+  async function confirmerRetourPaiement(identifiantSession) {
+    setEnvoiEnCours(true)
+    let commande = null
+    for (let essai = 0; essai < 15 && !commande; essai++) {
+      const { data, error } = await supabase.rpc('commande_apres_paiement', {
+        p_session_id: identifiantSession
+      })
+      if (!error && data && data.length > 0) {
+        commande = data[0]
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+    }
+    setEnvoiEnCours(false)
+
+    try {
+      window.localStorage.removeItem('panierEnAttente2C')
+    } catch (e) {
+      // stockage indisponible - on ignore silencieusement
+    }
+    setPanier([])
+
+    if (!commande) {
+      afficherNotification(
+        'Paiement reçu : ta commande est en cours de validation. Tu vas recevoir un email de confirmation dans quelques instants.',
+        'info'
+      )
+      return
+    }
+
+    setMesCommandes((precedentes) =>
+      precedentes.some((c) => c.id === commande.id) ? precedentes : [commande, ...precedentes]
+    )
+    setCommandeInvite(commande)
+    sauvegarderCommandeLocale(commande)
+
+    const articles = (commande.produits_detail || []).reduce(
+      (somme, ligne) => somme + Number(ligne.quantite || 1),
+      0
+    )
+    setRecapCommande(articles + ' article(s) pour un total de ' + Number(commande.total).toFixed(2) + ' CHF')
+    setVue('commande')
+    mettreAJourCreneau()
+  }
+
+  // Après une annulation, rembourse automatiquement si la commande avait
+  // été payée en ligne (le serveur vérifie tout : payée, bien annulée, pas
+  // déjà remboursée). Sans effet pour une commande non payée en ligne.
+  async function demanderRemboursement(commandeId) {
+    if (!PAIEMENT_EN_LIGNE_ACTIF) return
+    try {
+      const { data } = await supabase.functions.invoke('rembourser-commande', {
+        body: { commande_id: commandeId }
+      })
+      if (data && data.rembourse) {
+        afficherNotification(
+          'Commande annulée. Le remboursement est lancé (quelques jours selon ta banque).',
+          'info'
+        )
+      }
+    } catch (e) {
+      console.error('Erreur de remboursement :', e)
+    }
+  }
+
   async function validerCommande() {
     if (panier.length === 0) {
       afficherNotification('Votre panier est vide.')
@@ -1718,6 +1871,13 @@ function App() {
     }
     if (role === 'entreprise' && (technicienCommande.trim() === '' || chantierCommande.trim() === '')) {
       afficherNotification("Merci de renseigner le nom du chantier et le nom de l'employé qui commande.")
+      return
+    }
+
+    // Particuliers et invités : paiement en ligne. Les comptes entreprise
+    // continuent sans paiement (facture mensuelle).
+    if (PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise') {
+      await payerEnLigne()
       return
     }
 
@@ -1951,6 +2111,7 @@ function App() {
 
     setConfirmationAnnulation(false)
     afficherNotification('Commande annulée.', 'info')
+    demanderRemboursement(commande.id)
   }
 
   async function rechercherCommandeInvite(numero = numeroSuiviInvite, nom = nomSuiviInvite) {
@@ -2052,6 +2213,13 @@ function App() {
     }
 
     setCourses(courses.map((c) => (c.id === courseId ? { ...c, statut: nouveauStatut } : c)))
+
+    if (nouveauStatut === 'Annulée') {
+      const courseAnnulee = courses.find((c) => c.id === courseId)
+      if (courseAnnulee && courseAnnulee.commande_id) {
+        demanderRemboursement(courseAnnulee.commande_id)
+      }
+    }
 
     if (nouveauStatut === 'Livrée') {
       const course = courses.find((c) => c.id === courseId)
@@ -2993,8 +3161,15 @@ function App() {
                 />
               </div>
               <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
+              {PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise' && (
+                <p className="souligne">Paiement sécurisé en ligne (carte, TWINT) sur la page de notre partenaire Stripe.</p>
+              )}
               <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
-                {envoiEnCours ? 'Envoi en cours...' : 'Valider la commande'}
+                {envoiEnCours
+                  ? 'Envoi en cours...'
+                  : PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise'
+                    ? 'Payer et commander'
+                    : 'Valider la commande'}
               </button>
             </>
           )}
