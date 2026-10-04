@@ -24,7 +24,7 @@ const INFOS_ENTREPRISE = {
 // serveur Stripe ne sont pas déployées dans Supabase : l'application
 // continue alors de fonctionner exactement comme avant (commande sans
 // paiement). Passer à true une fois tout en place, puis redéployer.
-const PAIEMENT_EN_LIGNE_ACTIF = false
+const PAIEMENT_EN_LIGNE_ACTIF = true
 
 const iconsParMetier = {
   'Maçonnerie & Gros œuvre': 'bricks',
