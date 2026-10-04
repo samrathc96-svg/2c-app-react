@@ -1841,7 +1841,9 @@ function App() {
   async function demanderRemboursement(commandeId) {
     if (!PAIEMENT_EN_LIGNE_ACTIF) return
     try {
-      const { data } = await supabase.functions.invoke('rembourser-commande', {
+      // Attention : la fonction a été déployée sous le nom "rembouser-commande"
+      // (un seul "r" avant le "s") — son nom ne peut plus être modifié.
+      const { data } = await supabase.functions.invoke('rembouser-commande', {
         body: { commande_id: commandeId }
       })
       if (data && data.rembourse) {
