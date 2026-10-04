@@ -2169,24 +2169,24 @@ h3 {
 
 .diaporama-visuel {
   position: relative;
-  background: var(--couleur-accent-clair);
-  border: 1px solid rgba(255, 106, 19, 0.22);
-  border-radius: var(--rayon-l);
-  margin: 0 auto 20px;
+  margin-bottom: 20px;
   overflow: hidden;
-  height: 300px;
-  width: auto;
-  aspect-ratio: 487 / 1000;
-  max-width: 100%;
+  aspect-ratio: 4 / 5;
 }
 
 .image-diaporama {
   position: absolute;
-  inset: 6px;
-  width: calc(100% - 12px);
-  height: calc(100% - 12px);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: auto;
+  box-sizing: border-box;
+  padding: 5px;
   object-fit: contain;
-  border-radius: calc(var(--rayon-l) - 4px);
+  background: var(--couleur-accent-clair);
+  border: 1px solid rgba(255, 106, 19, 0.22);
+  border-radius: var(--rayon-l);
   opacity: 0;
   transition: opacity 1s ease;
 }
