@@ -3517,16 +3517,18 @@ function App() {
           <h3>Mentions légales</h3>
 
           <p className="aucun-resultat">
-            L'immatriculation de l'entreprise est en cours de finalisation. Les informations marquées
+            La structure juridique de l'entreprise est en cours de finalisation. Les informations marquées
             <strong> [à compléter]</strong> seront mises à jour dès que la raison sociale sera enregistrée.
           </p>
 
           <div className="carte-faq">
             <strong>Éditeur du site</strong>
             <p>
-              2C Delivery, exploité par Samrath Chau.<br />
-              Adresse : <strong>[adresse du siège à compléter]</strong><br />
-              Numéro d'immatriculation (IDE / RC) : <strong>[à compléter]</strong><br />
+              2C Delivery, service de livraison de petits consommables pour les métiers du bâtiment, exploité par
+              Samrath Chau. Activité exercée en Suisse (Genève).<br />
+              Adresse : <strong>[adresse du siège en Suisse à compléter]</strong><br />
+              Numéro d'identification des entreprises (IDE) : <strong>[à compléter]</strong><br />
+              Numéro de TVA : <strong>[à compléter, si l'entreprise y est assujettie]</strong><br />
               Email de contact : <strong>contact@2cdelivery.ch</strong>
             </p>
           </div>
@@ -3537,11 +3539,27 @@ function App() {
           </div>
 
           <div className="carte-faq">
-            <strong>Hébergement</strong>
+            <strong>Hébergement et prestataires techniques</strong>
             <p>
               Site hébergé par Vercel Inc. (vercel.com).<br />
               Base de données et authentification hébergées par Supabase Inc. (supabase.com).<br />
               Suivi technique des erreurs assuré par Sentry (sentry.io) — aucune donnée de paiement n'y transite.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Propriété intellectuelle</strong>
+            <p>
+              Les textes, le logo et les visuels du site sont la propriété de 2C Delivery ou utilisés avec
+              autorisation. Toute reproduction sans accord préalable est interdite.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Droit applicable</strong>
+            <p>
+              Le présent site est soumis au droit suisse. For juridique : <strong>[à compléter, par exemple
+              Genève]</strong>.
             </p>
           </div>
         </>
@@ -3553,24 +3571,46 @@ function App() {
           <h3>Conditions générales</h3>
 
           <p className="aucun-resultat">
-            Version provisoire, à faire valider par un professionnel avant la mise en ligne définitive du service
-            — notamment les points marqués <strong>[à compléter]</strong>.
+            Version provisoire, à faire valider par un professionnel du droit suisse avant la mise en ligne
+            définitive du service — notamment les points marqués <strong>[à compléter]</strong>.
           </p>
 
           <div className="carte-faq">
-            <strong>Objet</strong>
+            <strong>Objet et champ d'application</strong>
             <p>
-              2C Delivery propose un service de commande et de livraison de petits consommables pour les
-              métiers du bâtiment, directement sur chantier.
+              2C Delivery propose un service de commande et de livraison de petits consommables pour les métiers
+              du bâtiment, directement sur chantier, à Genève et dans les environs. Les présentes conditions
+              s'appliquent à toute commande passée sur le site, par un particulier comme par une entreprise.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Commande</strong>
             <p>
-              La commande se fait depuis le catalogue, avec ou sans compte. Un numéro de suivi est fourni à la
-              validation. Le client peut annuler sa commande tant qu'elle est au statut "À livrer" ; l'annulation
-              n'est plus possible une fois la commande "En cours".
+              La commande se fait depuis le catalogue, avec ou sans compte. Le contrat est conclu lorsque la
+              commande est confirmée par 2C Delivery ; un numéro de suivi et un email de confirmation sont fournis
+              à la validation. Le client peut annuler sa commande tant qu'elle est au statut "À livrer" ;
+              l'annulation n'est plus possible une fois la commande "En cours".
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Prix</strong>
+            <p>
+              Les prix sont indiqués en francs suisses (CHF) et incluent la livraison. Ils sont susceptibles
+              d'évoluer ; le prix applicable est celui affiché au moment de la validation de la commande.
+              <strong> [TVA : mention à compléter selon le statut de l'entreprise]</strong>
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Paiement</strong>
+            <p>
+              Pour les clients sans compte et les particuliers, le paiement s'effectue en ligne au moment de la
+              commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe.
+              2C Delivery ne conserve aucune donnée de carte bancaire. Pour les comptes entreprise, les commandes
+              livrées sont facturées une fois par mois, payable sous <strong>[délai à compléter, par exemple
+              30 jours]</strong>.
             </p>
           </div>
 
@@ -3583,13 +3623,23 @@ function App() {
           </div>
 
           <div className="carte-faq">
-            <strong>Prix et paiement</strong>
-            <p><strong>[Modalités de paiement à compléter]</strong></p>
+            <strong>Annulation, retour et pièces sur mesure</strong>
+            <p>
+              Le droit suisse ne prévoit pas de droit de rétractation légal pour les achats effectués en ligne.
+              2C Delivery permet toutefois d'annuler une commande tant qu'elle n'est pas prise en charge (voir
+              "Commande"). Les pièces découpées ou configurées sur mesure ne peuvent ni être annulées une fois la
+              commande en cours, ni être reprises.
+            </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Droit de rétractation</strong>
-            <p><strong>[À compléter avec un professionnel, selon le droit applicable]</strong></p>
+            <strong>Garantie et défauts</strong>
+            <p>
+              Le client vérifie la marchandise à la livraison et signale tout défaut ou erreur dès sa découverte,
+              par email à contact@2cdelivery.ch, en joignant si possible une photo. La garantie légale suisse en
+              cas de défaut s'applique. <strong>[Limitations éventuelles pour la clientèle professionnelle à
+              valider avec un juriste]</strong>
+            </p>
           </div>
 
           <div className="carte-faq">
@@ -3597,17 +3647,17 @@ function App() {
             <p>
               2C Delivery met tout en œuvre pour livrer les commandes dans les meilleurs délais, sans garantir
               un horaire précis. La responsabilité de 2C Delivery ne saurait être engagée en cas de retard dû à
-              des circonstances hors de son contrôle (météo, trafic, indisponibilité temporaire d'un livreur).
+              des circonstances hors de son contrôle (météo, trafic, indisponibilité temporaire d'un livreur),
+              dans les limites permises par le droit suisse.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Droit applicable et litiges</strong>
             <p>
-              2C Delivery est basée en France ; le droit français est applicable, sous réserve des dispositions
-              impératives protégeant les consommateurs dans leur pays de résidence (notamment pour la clientèle
-              basée en Suisse, à Genève notamment). <strong>[Point à faire valider avec un professionnel du droit
-              compte tenu de la vente transfrontalière France–Suisse]</strong>
+              Les présentes conditions sont soumises au droit suisse. En cas de litige, les parties cherchent
+              d'abord une solution amiable ; à défaut, les tribunaux compétents sont ceux du lieu prévu par la
+              loi ou, pour les clients professionnels, <strong>[for à compléter, par exemple Genève]</strong>.
             </p>
           </div>
         </>
@@ -3618,20 +3668,34 @@ function App() {
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
           <h3>Politique de confidentialité</h3>
 
+          <p className="aucun-resultat">
+            Cette politique est rédigée selon la loi fédérale suisse sur la protection des données (LPD).
+            Version provisoire, à faire valider par un professionnel.
+          </p>
+
+          <div className="carte-faq">
+            <strong>Responsable du traitement</strong>
+            <p>
+              2C Delivery, exploité par Samrath Chau — <strong>contact@2cdelivery.ch</strong>.
+            </p>
+          </div>
+
           <div className="carte-faq">
             <strong>Données collectées</strong>
             <p>
               Nom, adresse de livraison, numéro de téléphone, email, et historique des commandes. Pour les
               comptes créés, le mot de passe est stocké de façon sécurisée (haché) via Supabase Auth et n'est
-              jamais visible par 2C Delivery.
+              jamais visible par 2C Delivery. Les données de carte bancaire sont saisies directement chez Stripe
+              et ne sont jamais enregistrées par 2C Delivery.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Pourquoi ces données</strong>
             <p>
-              Uniquement pour traiter et livrer la commande, contacter le client si besoin, envoyer la
-              confirmation de commande, et — pour les comptes entreprise — établir la facturation mensuelle.
+              Uniquement pour traiter et livrer la commande, encaisser le paiement, contacter le client si
+              besoin, envoyer la confirmation de commande, et — pour les comptes entreprise — établir la
+              facturation mensuelle.
             </p>
           </div>
 
@@ -3644,23 +3708,29 @@ function App() {
           </div>
 
           <div className="carte-faq">
-            <strong>Prestataires techniques</strong>
+            <strong>Prestataires techniques et transfert à l'étranger</strong>
             <p>
-              Supabase (hébergement de la base de données), Vercel (hébergement du site), Sentry (détection
-              d'erreurs techniques, sans donnée de paiement).
+              Supabase (base de données), Vercel (hébergement du site), Sentry (détection d'erreurs techniques)
+              et Stripe (paiement en ligne). Ces prestataires peuvent traiter des données hors de Suisse, par
+              exemple dans l'Union européenne ou aux États-Unis, avec des garanties contractuelles appropriées.
+              <strong> [Région d'hébergement exacte à confirmer]</strong>
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Durée de conservation</strong>
-            <p><strong>[À compléter — durée légale de conservation à valider]</strong></p>
+            <p>
+              Les commandes et factures sont conservées 10 ans, conformément aux obligations comptables suisses.
+              Les autres données du compte sont conservées tant que le compte existe, puis supprimées sur demande.
+            </p>
           </div>
 
           <div className="carte-faq">
             <strong>Tes droits</strong>
             <p>
-              Tu peux demander l'accès, la rectification ou la suppression de tes données en écrivant à
-              <strong> contact@2cdelivery.ch</strong>.
+              Tu peux demander l'accès, la rectification ou la suppression de tes données, ou t'opposer à leur
+              traitement, en écrivant à <strong>contact@2cdelivery.ch</strong>. Tu peux aussi t'adresser au
+              Préposé fédéral à la protection des données et à la transparence (PFPDT).
             </p>
           </div>
 
