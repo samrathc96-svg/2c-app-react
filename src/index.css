@@ -679,10 +679,41 @@ h3 {
   top: 0;
 }
 
+/* Colonnes Client, Adresse et Produits : le texte peut passer à la ligne
+   (la colonne 1 est la Date de commande, qui reste sur une seule ligne). */
 .tableau-admin td:nth-child(2),
-.tableau-admin td:nth-child(3) {
+.tableau-admin td:nth-child(3),
+.tableau-admin td:nth-child(4) {
   white-space: normal;
   max-width: 200px;
+}
+
+/* Espace admin sur ordinateur / grand écran : on élargit la carte pour que
+   le tableau des commandes tienne en entier, sans défilement horizontal. */
+@media (min-width: 700px) {
+  .app.app-large {
+    max-width: min(1240px, 100%);
+  }
+
+  .mise-en-page .app.app-large {
+    width: 100%;
+    flex-shrink: 1;
+  }
+
+  .app-large .tableau-scroll {
+    max-width: 100%;
+  }
+
+  .app-large .tableau-admin {
+    min-width: 100%;
+    font-size: 13px;
+  }
+
+  .app-large .tableau-admin td:nth-child(2),
+  .app-large .tableau-admin td:nth-child(3),
+  .app-large .tableau-admin td:nth-child(4) {
+    max-width: 280px;
+  }
 }
 
 .liste-produits-table {
@@ -1802,7 +1833,8 @@ h3 {
   }
 
   .tableau-admin td:nth-child(2),
-  .tableau-admin td:nth-child(3) {
+  .tableau-admin td:nth-child(3),
+  .tableau-admin td:nth-child(4) {
     max-width: 130px;
   }
 

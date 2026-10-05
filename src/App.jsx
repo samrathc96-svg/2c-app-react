@@ -2638,7 +2638,7 @@ function App() {
         </aside>
       )}
 
-    <div className="app">
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
