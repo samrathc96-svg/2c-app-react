@@ -749,10 +749,19 @@ function App() {
   const coursesLivreesMoi = session ? coursesLivrees.filter((course) => course.livreur_id === session.user.id) : []
 
   const coursesFiltreesStatut = filtreAdmin === 'toutes' ? courses : courses.filter((course) => course.statut === filtreAdmin)
+  // Date de prise de commande affichée dans le tableau admin (ex. "05/10/2026")
+  // et heure associée (ex. "14:32"), pour retrouver une commande facilement.
+  const dateCommandeAdmin = (course) =>
+    course.created_at ? new Date(course.created_at).toLocaleDateString('fr-FR') : ''
+  const heureCommandeAdmin = (course) =>
+    course.created_at
+      ? new Date(course.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      : ''
+
   const coursesFiltreesAdmin = rechercheAdmin.trim() === ''
     ? coursesFiltreesStatut
     : coursesFiltreesStatut.filter((course) => {
-        const cible = retirerAccents(`${course.client || ''} ${course.adresse || ''} ${course.produits || ''} ${course.telephone || ''}`.toLowerCase())
+        const cible = retirerAccents(`${course.client || ''} ${course.adresse || ''} ${course.produits || ''} ${course.telephone || ''} ${dateCommandeAdmin(course)}`.toLowerCase())
         return cible.includes(retirerAccents(rechercheAdmin.toLowerCase()))
       })
   const statsAdmin = {
@@ -3705,7 +3714,7 @@ function App() {
               Samrath Chau. Activité exercée en Suisse (Genève).<br />
               Adresse : <strong>[adresse du siège en Suisse à compléter]</strong><br />
               Numéro d'identification des entreprises (IDE) : <strong>[à compléter]</strong><br />
-              Numéro de TVA : <strong>[à compléter, si l'entreprise y est assujettie]</strong><br />
+              Numéro de TVA : entreprise non assujettie à la TVA à ce jour (chiffre d'affaires inférieur au seuil légal).<br />
               Email de contact : <strong>contact@2cdelivery.ch</strong>
             </p>
           </div>
@@ -3735,8 +3744,8 @@ function App() {
           <div className="carte-faq">
             <strong>Droit applicable</strong>
             <p>
-              Le présent site est soumis au droit suisse. For juridique : <strong>[à compléter, par exemple
-              Genève]</strong>.
+              Le présent site est soumis au droit suisse. For juridique : Genève, sous réserve des règles
+              impératives de protection des consommateurs.
             </p>
           </div>
         </>
@@ -3776,7 +3785,7 @@ function App() {
             <p>
               Les prix sont indiqués en francs suisses (CHF) et incluent la livraison. Ils sont susceptibles
               d'évoluer ; le prix applicable est celui affiché au moment de la validation de la commande.
-              <strong> [TVA : mention à compléter selon le statut de l'entreprise]</strong>
+              2C Delivery n'étant pas assujettie à la TVA à ce jour, les prix sont affichés sans TVA.
             </p>
           </div>
 
@@ -3786,8 +3795,7 @@ function App() {
               Pour les clients sans compte et les particuliers, le paiement s'effectue en ligne au moment de la
               commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe.
               2C Delivery ne conserve aucune donnée de carte bancaire. Pour les comptes entreprise, les commandes
-              livrées sont facturées une fois par mois, payable sous <strong>[délai à compléter, par exemple
-              30 jours]</strong>.
+              livrées sont facturées une fois par mois, payable à 30 jours dès réception de la facture.
             </p>
           </div>
 
@@ -3804,8 +3812,10 @@ function App() {
             <p>
               Le droit suisse ne prévoit pas de droit de rétractation légal pour les achats effectués en ligne.
               2C Delivery permet toutefois d'annuler une commande tant qu'elle n'est pas prise en charge (voir
-              "Commande"). Les pièces découpées ou configurées sur mesure ne peuvent ni être annulées une fois la
-              commande en cours, ni être reprises.
+              "Commande"). Lorsqu'une commande payée en ligne est annulée dans ces conditions, le montant payé est
+              remboursé automatiquement par le même moyen de paiement ; le délai de réception dépend de la banque
+              ou de l'émetteur de la carte. Les pièces découpées ou configurées sur mesure ne peuvent ni être
+              annulées une fois la commande en cours, ni être reprises.
             </p>
           </div>
 
@@ -3834,7 +3844,7 @@ function App() {
             <p>
               Les présentes conditions sont soumises au droit suisse. En cas de litige, les parties cherchent
               d'abord une solution amiable ; à défaut, les tribunaux compétents sont ceux du lieu prévu par la
-              loi ou, pour les clients professionnels, <strong>[for à compléter, par exemple Genève]</strong>.
+              loi ou, pour les clients professionnels, ceux de Genève.
             </p>
           </div>
         </>
@@ -4261,7 +4271,7 @@ function App() {
           <input
             type="text"
             className="barre-recherche"
-            placeholder="Rechercher un client, une adresse, un produit..."
+            placeholder="Rechercher un client, une adresse, un produit, une date (ex. 05/10)..."
             value={rechercheAdmin}
             onChange={(e) => setRechercheAdmin(e.target.value)}
           />
@@ -4297,6 +4307,7 @@ function App() {
               <table className="tableau-admin">
                 <thead>
                   <tr>
+                    <th>Date</th>
                     <th>Client</th>
                     <th>Adresse</th>
                     <th>Produits</th>
@@ -4315,6 +4326,10 @@ function App() {
 
                     return (
                     <tr key={course.id} className={modifie ? 'ligne-modifiee' : ''}>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {dateCommandeAdmin(course)}
+                        {heureCommandeAdmin(course) && <><br /><span className="souligne">{heureCommandeAdmin(course)}</span></>}
+                      </td>
                       <td>
                         {course.client}
                         {course.telephone && <><br /><span className="souligne">{course.telephone}</span></>}
