@@ -35,8 +35,22 @@ const iconsParMetier = {
   'Menuiserie & Serrurerie': 'wrench',
   'Carrelage & Revêtements': 'grid-3x3',
   'Couverture & Étanchéité': 'house',
-  'Chauffage & Climatisation': 'fan'
+  'Chauffage & Climatisation': 'fan',
+  'Ventilation': 'wind'
 }
+
+// Nom affiché pour les produits qui n'ont pas (encore) de fournisseur
+// renseigné dans le catalogue admin.
+const FOURNISSEUR_PAR_DEFAUT = '2C Delivery'
+
+// Métiers annoncés sur l'accueil mais pas encore ouverts (aucun produit).
+const METIERS_A_VENIR = [
+  { nom: 'Plomberie', icone: 'droplet' },
+  { nom: 'Électricité', icone: 'lightning-charge' },
+  { nom: 'Chauffage', icone: 'fire' },
+  { nom: 'Outillage', icone: 'wrench' },
+  { nom: 'Fixation', icone: 'tools' }
+]
 
 const iconsParSousSection = {
   'Visserie & Fixation': 'tools',
@@ -555,7 +569,8 @@ function grouperProduits(lignes) {
       nom: ligne.nom,
       prix: ligne.prix,
       image_url: ligne.image_url,
-      quantite_stock: ligne.quantite_stock
+      quantite_stock: ligne.quantite_stock,
+      fournisseur: ligne.fournisseur || null
     })
   })
 
@@ -657,6 +672,8 @@ function App() {
   const [recherche, setRecherche] = useState('')
   const [triCatalogue, setTriCatalogue] = useState('defaut')
 
+  const [nouveauFournisseur, setNouveauFournisseur] = useState('')
+  const [editionFournisseur, setEditionFournisseur] = useState('')
   const [nouveauSousSection, setNouveauSousSection] = useState('')
   const [nouveauNomProduit, setNouveauNomProduit] = useState('')
   const [nouveauPrixProduit, setNouveauPrixProduit] = useState('')
@@ -674,6 +691,11 @@ function App() {
 
   const [vue, setVue] = useState('accueil')
   const [sousSectionActive, setSousSectionActive] = useState(null)
+  // Nouvelle navigation : bascule Fournisseurs / Produits, filtre par
+  // métier et fournisseur ouvert (null = on est sur l'accueil).
+  const [modeAccueil, setModeAccueil] = useState('fournisseurs')
+  const [metierFiltre, setMetierFiltre] = useState(null)
+  const [fournisseurActif, setFournisseurActif] = useState(null)
   const [panier, setPanier] = useState([])
   const [configFormeEntree, setConfigFormeEntree] = useState('rond')
   const [configTailleEntree, setConfigTailleEntree] = useState(DIAMETRES_RONDS[0])
@@ -725,6 +747,65 @@ function App() {
 
   const sousSectionsDisponibles = metiers.flatMap((metier) => metier.sousSections)
 
+  // Liste à plat de tous les produits, avec leur métier, leur sous-section
+  // et leur fournisseur (FOURNISSEUR_PAR_DEFAUT si non renseigné).
+  const produitsTous = metiers.flatMap((metier) =>
+    metier.sousSections.flatMap((sousSection) =>
+      sousSection.produits.map((produit) => ({
+        ...produit,
+        metier: metier.nom,
+        sousSection: sousSection.nom,
+        fournisseur: produit.fournisseur || FOURNISSEUR_PAR_DEFAUT
+      }))
+    )
+  )
+
+  const sousSectionsAffichees = metiers
+    .filter((metier) => !metierFiltre || metier.nom === metierFiltre)
+    .flatMap((metier) => metier.sousSections)
+
+  // Fournisseurs, avec leurs produits (filtrés par métier si besoin).
+  const fournisseursListe = Object.values(
+    produitsTous
+      .filter((produit) => !metierFiltre || produit.metier === metierFiltre)
+      .reduce((acc, produit) => {
+        if (!acc[produit.fournisseur]) {
+          acc[produit.fournisseur] = { nom: produit.fournisseur, produits: [], categories: [] }
+        }
+        acc[produit.fournisseur].produits.push(produit)
+        if (!acc[produit.fournisseur].categories.includes(produit.sousSection)) {
+          acc[produit.fournisseur].categories.push(produit.sousSection)
+        }
+        return acc
+      }, {})
+  ).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+
+  const nombreFournisseursTotal = new Set(produitsTous.map((produit) => produit.fournisseur)).size
+
+  // Sous-sections du fournisseur ouvert.
+  const sousSectionsFournisseur = fournisseurActif
+    ? Object.values(
+        produitsTous
+          .filter((produit) => produit.fournisseur === fournisseurActif)
+          .reduce((acc, produit) => {
+            if (!acc[produit.sousSection]) acc[produit.sousSection] = { nom: produit.sousSection, produits: [] }
+            acc[produit.sousSection].produits.push(produit)
+            return acc
+          }, {})
+      )
+    : []
+
+  // Panier regroupé par fournisseur (on garde l'index d'origine pour les
+  // boutons + / −).
+  const groupesPanier = Object.values(
+    panier.reduce((acc, produit, index) => {
+      const nom = produit.fournisseur || FOURNISSEUR_PAR_DEFAUT
+      if (!acc[nom]) acc[nom] = { nom, lignes: [] }
+      acc[nom].lignes.push({ produit, index })
+      return acc
+    }, {})
+  )
+
   // Recherche transversale : cherche directement dans les produits de
   // toutes les catégories, plutôt que de se limiter aux noms de catégories.
   const rechercheNormalisee = retirerAccents(recherche.trim().toLowerCase())
@@ -733,7 +814,7 @@ function App() {
     : sousSectionsDisponibles.flatMap((sousSection) =>
         sousSection.produits
           .filter((produit) => retirerAccents(produit.nom.toLowerCase()).includes(rechercheNormalisee))
-          .map((produit) => ({ ...produit, sousSection: sousSection.nom }))
+          .map((produit) => ({ ...produit, sousSection: sousSection.nom, fournisseur: produit.fournisseur || FOURNISSEUR_PAR_DEFAUT }))
       )
 
   const produitsFiltresAdmin = produitsBruts.filter((produit) => {
@@ -1597,6 +1678,32 @@ function App() {
     setVue('sousSection')
   }
 
+  function ouvrirFournisseur(nom) {
+    setFournisseurActif(nom)
+    setVue('fournisseur')
+    window.scrollTo({ top: 0 })
+  }
+
+  // Depuis une catégorie : retour au fournisseur si on en vient, sinon à l'accueil.
+  function retourDeSousSection() {
+    if (fournisseurActif) {
+      setSousSectionActive(null)
+      setVue('fournisseur')
+    } else {
+      retourAccueil()
+    }
+  }
+
+  // Onglet "Commandes" de la barre du bas : selon le rôle.
+  function ouvrirOngletCommandes() {
+    setCommandeSelectionnee(null)
+    if (role === 'client' || role === 'entreprise') setEspace('mesCommandes')
+    else if (role === 'livreur') setEspace('livreur')
+    else if (role === 'livreur_en_attente') setEspace('livreurEnAttente')
+    else if (role === 'admin') setEspace('admin')
+    else setEspace('suivi')
+  }
+
   function ajouterAuPanier(produit) {
     if (produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 0) {
       afficherNotification('Ce produit est en rupture de stock.')
@@ -1609,7 +1716,7 @@ function App() {
           i === indexExistant ? { ...item, quantite: item.quantite + 1 } : item
         )
       }
-      return [...precedent, { id: produit.id, nom: produit.nom, prix: produit.prix, quantite: 1 }]
+      return [...precedent, { id: produit.id, nom: produit.nom, prix: produit.prix, quantite: 1, fournisseur: produit.fournisseur || null }]
     })
   }
 
@@ -1977,6 +2084,7 @@ function App() {
   function retourAccueil() {
     setVue('accueil')
     setSousSectionActive(null)
+    setFournisseurActif(null)
   }
 
   // Envoie automatiquement la facture par email au client dès que sa
@@ -2516,7 +2624,10 @@ function App() {
         nom: nouveauNomProduit.trim(),
         prix: prixNombre,
         image_url: nouveauImageProduit.trim() || null,
-        quantite_stock: stockNombre
+        quantite_stock: stockNombre,
+        // Colonne "fournisseur" à créer une fois dans Supabase (voir
+        // l'instruction SQL) : on ne l'envoie que si elle est renseignée.
+        ...(nouveauFournisseur.trim() !== '' ? { fournisseur: nouveauFournisseur.trim() } : {})
       })
       .select()
       .single()
@@ -2531,6 +2642,7 @@ function App() {
     setProduitsBruts(nouveauxProduits)
     setMetiers(grouperProduits(nouveauxProduits))
     setNouveauSousSection('')
+    setNouveauFournisseur('')
     setNouveauNomProduit('')
     setNouveauPrixProduit('')
     setNouveauImageProduit('')
@@ -2541,6 +2653,7 @@ function App() {
   function commencerEditionProduit(produit) {
     setEditionProduitId(produit.id)
     setEditionSousSection(produit.sous_section)
+    setEditionFournisseur(produit.fournisseur || '')
     setEditionNomProduit(produit.nom)
     setEditionPrixProduit(String(produit.prix))
     setEditionImageProduit(produit.image_url || '')
@@ -2572,7 +2685,11 @@ function App() {
         nom: editionNomProduit.trim(),
         prix: prixNombre,
         image_url: editionImageProduit.trim() || null,
-        quantite_stock: stockNombre
+        quantite_stock: stockNombre,
+        // N'écrit la colonne fournisseur que si elle existe déjà en base.
+        ...('fournisseur' in (produitsBruts.find((p) => p.id === id) || {})
+          ? { fournisseur: editionFournisseur.trim() || null }
+          : {})
       })
       .eq('id', id)
 
@@ -2590,7 +2707,8 @@ function App() {
             nom: editionNomProduit.trim(),
             prix: prixNombre,
             image_url: editionImageProduit.trim() || null,
-            quantite_stock: stockNombre
+            quantite_stock: stockNombre,
+            ...('fournisseur' in p ? { fournisseur: editionFournisseur.trim() || null } : {})
           }
         : p
     )
@@ -2933,7 +3051,25 @@ function App() {
 
           {!chargement && vue === 'accueil' && (
             <>
-              <h3 className="titre-accueil">Nos catégories</h3>
+              <div className="bascule-accueil" role="tablist" aria-label="Parcourir par">
+                <button
+                  role="tab"
+                  aria-selected={modeAccueil === 'fournisseurs'}
+                  className={modeAccueil === 'fournisseurs' ? 'actif' : ''}
+                  onClick={() => setModeAccueil('fournisseurs')}
+                >
+                  Fournisseurs
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={modeAccueil === 'produits'}
+                  className={modeAccueil === 'produits' ? 'actif' : ''}
+                  onClick={() => setModeAccueil('produits')}
+                >
+                  Produits
+                </button>
+              </div>
+
               <input
                 type="text"
                 className="barre-recherche"
@@ -2943,14 +3079,75 @@ function App() {
               />
 
               {rechercheNormalisee === '' && (
-                <div className="grille-categories">
-                  {sousSectionsDisponibles.map((sousSection, index) => (
-                    <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
-                      <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
-                      <span>{sousSection.nom}</span>
-                    </div>
+                <div className="rangee-metiers">
+                  {metiers.map((metier) => (
+                    <button
+                      key={metier.nom}
+                      className={`puce-metier${metierFiltre === metier.nom ? ' actif' : ''}`}
+                      aria-pressed={metierFiltre === metier.nom}
+                      onClick={() => setMetierFiltre(metierFiltre === metier.nom ? null : metier.nom)}
+                    >
+                      <span className="rond-metier"><i className={`bi bi-${metier.icone}`}></i></span>
+                      <span>{metier.nom}</span>
+                    </button>
                   ))}
+                  {METIERS_A_VENIR
+                    .filter((a) => !metiers.some((m) => retirerAccents(m.nom.toLowerCase()).includes(retirerAccents(a.nom.toLowerCase()))))
+                    .map((a) => (
+                      <div key={a.nom} className="puce-metier a-venir" aria-label={`${a.nom}, bientôt disponible`}>
+                        <span className="rond-metier"><i className={`bi bi-${a.icone}`}></i></span>
+                        <span>{a.nom}</span>
+                        <span className="etiquette-bientot">Bientôt</span>
+                      </div>
+                    ))}
                 </div>
+              )}
+
+              {rechercheNormalisee === '' && modeAccueil === 'fournisseurs' && (
+                <>
+                  {nombreFournisseursTotal > 1 && (
+                    <div className="bandeau-multi">
+                      <strong>Plusieurs fournisseurs, un seul livreur</strong>
+                      <span>Remplis un seul panier avec les produits de plusieurs fournisseurs.</span>
+                      <button onClick={() => setModeAccueil('produits')}>Voir tous les produits</button>
+                    </div>
+                  )}
+                  <h3 className="titre-accueil">Fournisseurs</h3>
+                  {fournisseursListe.length === 0 && (
+                    <p className="aucun-resultat">Aucun fournisseur pour ce métier pour le moment.</p>
+                  )}
+                  <div className="liste-fournisseurs">
+                    {fournisseursListe.map((fournisseur) => (
+                      <button
+                        key={fournisseur.nom}
+                        className="carte-fournisseur"
+                        onClick={() => ouvrirFournisseur(fournisseur.nom)}
+                      >
+                        <span className="visuel-fournisseur"><i className="bi bi-shop"></i></span>
+                        <span className="texte-fournisseur">
+                          <span className="nom-fournisseur">{fournisseur.nom}</span>
+                          <span className="detail-fournisseur">{fournisseur.categories.slice(0, 3).join(', ')}</span>
+                          <span className="detail-fournisseur">{fournisseur.produits.length} produit(s)</span>
+                        </span>
+                        <i className="bi bi-chevron-right"></i>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {rechercheNormalisee === '' && modeAccueil === 'produits' && (
+                <>
+                  <h3 className="titre-accueil">Nos catégories</h3>
+                  <div className="grille-categories">
+                    {sousSectionsAffichees.map((sousSection, index) => (
+                      <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
+                        <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
+                        <span>{sousSection.nom}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               {rechercheNormalisee !== '' && produitsRecherches.length > 0 && (
@@ -2972,7 +3169,10 @@ function App() {
                       <span>
                         {produit.nom}
                         <br />
-                        <span className="souligne">{produit.sousSection}</span>
+                        <span className="souligne">
+                          {produit.sousSection}
+                          {nombreFournisseursTotal > 1 ? ` · ${produit.fournisseur}` : ''}
+                        </span>
                       </span>
                       <span className="prix">{produit.prix.toFixed(2)} CHF</span>
                       {estEnRupture(produit) ? (
@@ -2996,12 +3196,45 @@ function App() {
             </>
           )}
 
-          {vue === 'sousSection' && (
+          {vue === 'fournisseur' && fournisseurActif && (
             <>
               <p className="retour" onClick={retourAccueil}>← Retour</p>
+              <div className="entete-fournisseur">
+                <span className="visuel-fournisseur grand"><i className="bi bi-shop"></i></span>
+                <h3>{fournisseurActif}</h3>
+                <p className="souligne">
+                  {sousSectionsFournisseur.reduce((somme, ss) => somme + ss.produits.length, 0)} produit(s) · {sousSectionsFournisseur.length} catégorie(s)
+                </p>
+              </div>
+              {nombreFournisseursTotal > 1 && (
+                <div className="note-fournisseur">
+                  <span>Tu peux ajouter des produits d'autres fournisseurs : tout reste dans le même panier.</span>
+                  <button onClick={retourAccueil}>Voir les autres fournisseurs</button>
+                </div>
+              )}
+              <div className="grille-categories">
+                {sousSectionsFournisseur.map((sousSection) => (
+                  <div key={sousSection.nom} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
+                    <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
+                    <span>{sousSection.nom}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {vue === 'sousSection' && (
+            <>
+              <p className="retour" onClick={retourDeSousSection}>← Retour</p>
               <div className="fil-ariane">
                 <span onClick={retourAccueil}>Accueil</span>
                 <span className="separateur-fil">›</span>
+                {fournisseurActif && (
+                  <>
+                    <span onClick={retourDeSousSection}>{fournisseurActif}</span>
+                    <span className="separateur-fil">›</span>
+                  </>
+                )}
                 <span className="actif">{sousSectionActive.nom}</span>
               </div>
               <h3>{sousSectionActive.nom}</h3>
@@ -3117,18 +3350,35 @@ function App() {
             <>
               <p className="retour" onClick={retourAccueil}>← Retour</p>
               <h3>Mon panier</h3>
-              <ul className="liste-produits">
-                {panier.map((produit, index) => (
-                  <li key={index}>
-                    <span>{produit.nom} — {produit.prix.toFixed(2)} CHF</span>
-                    <div className="quantite-controle">
-                      <button onClick={() => diminuerQuantite(index)}>−</button>
-                      <span>{produit.quantite}</span>
-                      <button onClick={() => augmenterQuantite(index)}>+</button>
+              {groupesPanier.map((groupe) => (
+                <div key={groupe.nom} className="groupe-panier">
+                  {groupesPanier.length > 1 && (
+                    <div className="entete-groupe-panier">
+                      <strong>{groupe.nom}</strong>
+                      <span className="souligne">
+                        Arrêt {groupesPanier.indexOf(groupe) + 1} · {groupe.lignes.reduce((somme, l) => somme + l.produit.quantite, 0)} article(s)
+                      </span>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  )}
+                  <ul className="liste-produits">
+                    {groupe.lignes.map(({ produit, index }) => (
+                      <li key={index}>
+                        <span>{produit.nom} — {produit.prix.toFixed(2)} CHF</span>
+                        <div className="quantite-controle">
+                          <button onClick={() => diminuerQuantite(index)}>−</button>
+                          <span>{produit.quantite}</span>
+                          <button onClick={() => augmenterQuantite(index)}>+</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {groupesPanier.length > 1 && (
+                <p className="souligne">
+                  Ta commande contient des produits de {groupesPanier.length} fournisseurs : un seul livreur les récupère et te livre en une fois.
+                </p>
+              )}
               <div className="champ-livraison">
                 <input
                   type="text"
@@ -3215,11 +3465,44 @@ function App() {
             </>
           )}
 
-          {vue !== 'panier' && vue !== 'commande' && (
-            <div className="barre-panier" onClick={() => setVue('panier')}>
+          {vue !== 'panier' && vue !== 'commande' && nombreArticles > 0 && (
+            <div className="barre-panier au-dessus-onglets" onClick={() => setVue('panier')}>
               Panier : {nombreArticles} article(s) — {total.toFixed(2)} CHF
             </div>
           )}
+        </>
+      )}
+
+      {espace === 'catalogue' && (
+        <>
+          <div className="espace-onglets" aria-hidden="true"></div>
+          <nav className="barre-onglets" aria-label="Navigation principale">
+            <button
+              className={vue === 'accueil' || vue === 'fournisseur' || vue === 'sousSection' ? 'actif' : ''}
+              onClick={() => { retourAccueil(); window.scrollTo({ top: 0 }) }}
+            >
+              <i className="bi bi-house"></i>
+              <span>Accueil</span>
+            </button>
+            <button
+              className={vue === 'panier' ? 'actif' : ''}
+              onClick={() => setVue('panier')}
+            >
+              <span className="icone-onglet">
+                <i className="bi bi-cart3"></i>
+                {nombreArticles > 0 && <span className="pastille-onglet">{nombreArticles}</span>}
+              </span>
+              <span>Panier</span>
+            </button>
+            <button onClick={ouvrirOngletCommandes}>
+              <i className="bi bi-box-seam"></i>
+              <span>Commandes</span>
+            </button>
+            <button onClick={() => setAfficherAuth(true)}>
+              <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person'}`}></i>
+              <span>Compte</span>
+            </button>
+          </nav>
         </>
       )}
 
@@ -4501,6 +4784,12 @@ function App() {
             <h3>Ajouter un produit</h3>
             <input
               type="text"
+              placeholder="Fournisseur (facultatif, ex: Ventilation Léman)"
+              value={nouveauFournisseur}
+              onChange={(e) => setNouveauFournisseur(e.target.value)}
+            />
+            <input
+              type="text"
               placeholder="Sous-section (ex: Supportage)"
               value={nouveauSousSection}
               onChange={(e) => setNouveauSousSection(e.target.value)}
@@ -4566,6 +4855,7 @@ function App() {
               <table className="tableau-admin">
                 <thead>
                   <tr>
+                    <th>Fournisseur</th>
                     <th>Sous-section</th>
                     <th>Nom</th>
                     <th>Prix</th>
@@ -4579,6 +4869,14 @@ function App() {
                     <tr key={produit.id}>
                       {editionProduitId === produit.id ? (
                         <>
+                          <td>
+                            <input
+                              type="text"
+                              placeholder="Fournisseur"
+                              value={editionFournisseur}
+                              onChange={(e) => setEditionFournisseur(e.target.value)}
+                            />
+                          </td>
                           <td>
                             <input
                               type="text"
@@ -4643,6 +4941,7 @@ function App() {
                         </>
                       ) : (
                         <>
+                          <td>{produit.fournisseur || <span className="souligne">{FOURNISSEUR_PAR_DEFAUT}</span>}</td>
                           <td>{produit.sous_section}</td>
                           <td>{produit.nom}</td>
                           <td>{produit.prix.toFixed(2)} CHF</td>
