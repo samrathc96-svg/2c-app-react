@@ -591,6 +591,8 @@ function App() {
   const [role, setRole] = useState(null)
   const [chargementAuth, setChargementAuth] = useState(true)
   const [afficherAuth, setAfficherAuth] = useState(false)
+  // Une seule fenêtre à la fois : 'connexion' ou 'inscription'.
+  const [modeAuth, setModeAuth] = useState('connexion')
   const [afficherMenu, setAfficherMenu] = useState(false)
   const [espace, setEspace] = useState('catalogue')
 
@@ -1078,6 +1080,7 @@ function App() {
     if (parametres.has('livreur')) {
       setAccesRecrutementLivreur(true)
       setRoleChoisi('livreur')
+      setModeAuth('inscription')
       setAfficherAuth(true)
       window.history.replaceState({}, document.title, window.location.pathname)
     }
@@ -2941,10 +2944,10 @@ function App() {
               </button>
             ) : (
               <>
-                <button className="entete-bouton-contour entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
+                <button className="entete-bouton-contour entete-libelle-desktop" onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
                   Connexion
                 </button>
-                <button className="entete-bouton-accent entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
+                <button className="entete-bouton-accent entete-libelle-desktop" onClick={() => { setModeAuth('inscription'); setAfficherAuth(true) }}>
                   Inscription
                 </button>
               </>
@@ -2966,10 +2969,10 @@ function App() {
           </div>
 
           <div className="barre-compte-haut">
-            <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
+            <button className="lien-compte" onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
               {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
             </button>
-            <button className="icone-compte" onClick={() => setAfficherAuth(true)}>
+            <button className="icone-compte" onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
               <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person-circle'}`}></i>
             </button>
           </div>
@@ -3077,6 +3080,7 @@ function App() {
 
             {!modeReinitialisation && !chargementAuth && !session && (
               <div className="cartes-auth">
+                {modeAuth === 'connexion' && (
                 <div className="carte-auth">
                   <h3>Connexion</h3>
                   {!afficherMotDePasseOublie ? (
@@ -3123,8 +3127,16 @@ function App() {
                       </p>
                     </>
                   )}
+                  {!afficherMotDePasseOublie && (
+                    <p className="lien-bascule-auth">
+                      Pas encore de compte ?{' '}
+                      <button onClick={() => { setModeAuth('inscription'); setErreurConnexion('') }}>Créer un compte</button>
+                    </p>
+                  )}
                 </div>
+                )}
 
+                {modeAuth === 'inscription' && (
                 <div className="carte-auth">
                   <h3>Inscription</h3>
                   <div className="choix-role">
@@ -3178,7 +3190,12 @@ function App() {
                   {erreurInscription && <p className="souligne">{erreurInscription}</p>}
                   {messageInscription && <p className="souligne">{messageInscription}</p>}
                   <button className="valider" disabled={motDePasseInscription.length > 0 && motDePasseInscription.length < 8} onClick={inscription}>S'inscrire</button>
+                  <p className="lien-bascule-auth">
+                    Déjà un compte ?{' '}
+                    <button onClick={() => { setModeAuth('connexion'); setAfficherMotDePasseOublie(false) }}>Se connecter</button>
+                  </p>
                 </div>
+                )}
               </div>
             )}
 
@@ -3262,7 +3279,7 @@ function App() {
             <i className="bi bi-truck"></i>
             <span>Suivre ma commande</span>
           </button>
-          <button className="item-lateral" onClick={() => { setRoleChoisi('entreprise'); setAfficherAuth(true) }}>
+          <button className="item-lateral" onClick={() => { setRoleChoisi('entreprise'); setModeAuth('inscription'); setAfficherAuth(true) }}>
             <i className="bi bi-building"></i>
             <span>Vous êtes une entreprise ?</span>
           </button>
@@ -3696,7 +3713,7 @@ function App() {
               <i className="bi bi-box-seam"></i>
               <span>Commandes</span>
             </button>
-            <button onClick={() => setAfficherAuth(true)}>
+            <button onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
               <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person'}`}></i>
               <span>Compte</span>
             </button>

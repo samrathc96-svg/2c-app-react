@@ -3314,3 +3314,23 @@ body.marketplace {
 .vue-panier .souligne {
   text-align: left;
 }
+
+.lien-bascule-auth {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--couleur-muted);
+  text-align: center;
+}
+
+.lien-bascule-auth button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--couleur-encre);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
