@@ -3858,3 +3858,218 @@ body.marketplace {
   border: 1px solid var(--couleur-bordure);
   border-radius: 16px;
 }
+
+/* Menu latéral façon tiroir (gauche) */
+.overlay-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(30, 27, 23, 0.55);
+  animation: apparition-fond 0.18s ease;
+}
+
+.tiroir-menu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(320px, 88vw);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px 20px;
+  background: #FFFFFF;
+  overflow-y: auto;
+  box-shadow: 8px 0 32px rgba(30, 27, 23, 0.18);
+  animation: tiroir-entree 0.22s ease;
+  font-family: 'IBM Plex Sans', sans-serif;
+  color: var(--couleur-encre);
+}
+
+@keyframes tiroir-entree {
+  from { transform: translateX(-24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.tiroir-fermer {
+  align-self: flex-end;
+  width: 40px;
+  height: 40px;
+  margin: 0 -10px 8px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--couleur-encre);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.tiroir-fermer:hover {
+  background: #F1EEE8;
+}
+
+.tiroir-compte {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tiroir-avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #F1EEE8;
+  font-size: 22px;
+}
+
+.tiroir-compte-texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tiroir-compte-texte strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tiroir-compte-texte small {
+  font-size: 12.5px;
+  color: var(--couleur-muted);
+}
+
+.tiroir-boutons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tiroir-bouton {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 12px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.tiroir-bouton-principal {
+  background: var(--couleur-encre);
+  color: #FFFFFF;
+}
+
+.tiroir-bouton-principal:hover {
+  opacity: 0.88;
+}
+
+.tiroir-bouton-secondaire {
+  background: #F1EEE8;
+  color: var(--couleur-encre);
+}
+
+.tiroir-bouton-secondaire:hover {
+  background: #E8E3DA;
+}
+
+.tiroir-liens-compte,
+.tiroir-liens {
+  display: flex;
+  flex-direction: column;
+}
+
+.tiroir-liens-compte {
+  margin-top: 18px;
+}
+
+.tiroir-liens-compte button,
+.tiroir-liens button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--couleur-encre);
+  cursor: pointer;
+}
+
+.tiroir-liens-compte button:hover,
+.tiroir-liens button:hover {
+  color: var(--couleur-accent);
+}
+
+.tiroir-liens button i {
+  width: 20px;
+  font-size: 17px;
+  color: var(--couleur-muted);
+}
+
+.tiroir-liens button:hover i {
+  color: var(--couleur-accent);
+}
+
+.tiroir-separateur {
+  height: 1px;
+  margin: 14px 0;
+  background: var(--couleur-bordure);
+}
+
+.tiroir-titre-groupe {
+  margin: 12px 0 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--couleur-muted);
+}
+
+.tiroir-liens-legaux button {
+  padding: 8px 0;
+  font-size: 13.5px;
+  color: var(--couleur-muted);
+}
+
+.tiroir-pied {
+  margin-top: auto;
+  padding-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.tiroir-pied-logo {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--couleur-encre);
+}
+
+.tiroir-pied-logo span {
+  color: var(--couleur-accent);
+  font-size: 18px;
+  font-weight: 700;
+}

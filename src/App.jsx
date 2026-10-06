@@ -3203,51 +3203,120 @@ function App() {
       )}
 
       {afficherMenu && (
-        <div className="overlay-auth" onClick={() => setAfficherMenu(false)}>
-          <div className="panneau-auth" onClick={(e) => e.stopPropagation()}>
-            <button className="fermer-auth" onClick={() => setAfficherMenu(false)}>✕</button>
-            <h3>Menu</h3>
-            <nav className="liste-menu">
+        <div className="overlay-menu" onClick={() => setAfficherMenu(false)}>
+          <aside className="tiroir-menu" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
+            <button className="tiroir-fermer" aria-label="Fermer le menu" onClick={() => setAfficherMenu(false)}>
+              <i className="bi bi-x-lg"></i>
+            </button>
+
+            {session ? (
+              <div className="tiroir-compte">
+                <span className="tiroir-avatar"><i className="bi bi-person"></i></span>
+                <span className="tiroir-compte-texte">
+                  <strong>{nomUtilisateur || session.user.email}</strong>
+                  <small>
+                    {role === 'livreur' ? 'Livreur' :
+                      role === 'livreur_en_attente' ? 'Livreur (en attente)' :
+                      role === 'admin' ? 'Admin' :
+                      role === 'entreprise' ? 'Entreprise' :
+                      'Client'}
+                  </small>
+                </span>
+              </div>
+            ) : null}
+
+            <div className="tiroir-boutons">
+              {session ? (
+                <>
+                  <button className="tiroir-bouton tiroir-bouton-principal" onClick={() => { setAfficherMenu(false); setAfficherAuth(true) }}>
+                    Mon compte
+                  </button>
+                  <button className="tiroir-bouton tiroir-bouton-secondaire" onClick={() => { setAfficherMenu(false); deconnexion() }}>
+                    Se déconnecter
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="tiroir-bouton tiroir-bouton-principal" onClick={() => { setModeAuth('inscription'); setAfficherMenu(false); setAfficherAuth(true) }}>
+                    Inscription
+                  </button>
+                  <button className="tiroir-bouton tiroir-bouton-secondaire" onClick={() => { setModeAuth('connexion'); setAfficherMenu(false); setAfficherAuth(true) }}>
+                    Connexion
+                  </button>
+                </>
+              )}
+            </div>
+
+            {!session && (
+              <nav className="tiroir-liens-compte" aria-label="Comptes">
+                <button onClick={() => { setRoleChoisi('entreprise'); setModeAuth('inscription'); setAfficherMenu(false); setAfficherAuth(true) }}>
+                  Créez un compte professionnel
+                </button>
+                {accesRecrutementLivreur && (
+                  <button onClick={() => { setRoleChoisi('livreur'); setModeAuth('inscription'); setAfficherMenu(false); setAfficherAuth(true) }}>
+                    Devenez livreur-partenaire
+                  </button>
+                )}
+              </nav>
+            )}
+
+            <div className="tiroir-separateur"></div>
+
+            <nav className="tiroir-liens" aria-label="Navigation">
+              {espace !== 'catalogue' && (
+                <button onClick={() => { setEspace('catalogue'); setAfficherMenu(false) }}>
+                  <i className="bi bi-shop"></i> Catalogue
+                </button>
+              )}
               <button onClick={() => { setEspace('suivi'); setAfficherMenu(false) }}>
                 <i className="bi bi-truck"></i> Suivre ma commande
               </button>
+              {session && (
+                <button onClick={() => { setEspace('mesCommandes'); setCommandeSelectionnee(null); setAfficherMenu(false) }}>
+                  <i className="bi bi-box-seam"></i> Mes commandes
+                </button>
+              )}
               <button onClick={() => { setEspace('faq'); setAfficherMenu(false) }}>
                 <i className="bi bi-question-circle"></i> FAQ
               </button>
               <button onClick={() => { setEspace('apropos'); setAfficherMenu(false) }}>
                 <i className="bi bi-info-circle"></i> Qui sommes-nous
               </button>
-              {espace !== 'catalogue' && (
-                <button onClick={() => { setEspace('catalogue'); setAfficherMenu(false) }}>
-                  <i className="bi bi-shop"></i> Catalogue
-                </button>
-              )}
               {role === 'admin' && (
-                <button onClick={() => { setEspace('catalogueAdmin'); setAfficherMenu(false) }}>
-                  <i className="bi bi-box-seam"></i> Gérer le catalogue
-                </button>
+                <>
+                  <div className="tiroir-titre-groupe">Administration</div>
+                  <button onClick={() => { setEspace('catalogueAdmin'); setAfficherMenu(false) }}>
+                    <i className="bi bi-box-seam"></i> Gérer le catalogue
+                  </button>
+                  <button onClick={() => { setEspace('fournisseursAdmin'); setAfficherMenu(false) }}>
+                    <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
+                  </button>
+                  <button onClick={() => { setEspace('facturationEntreprises'); setAfficherMenu(false) }}>
+                    <i className="bi bi-building"></i> Facturation entreprises
+                  </button>
+                </>
               )}
-              {role === 'admin' && (
-                <button onClick={() => { setEspace('fournisseursAdmin'); setAfficherMenu(false) }}>
-                  <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
-                </button>
-              )}
-              {role === 'admin' && (
-                <button onClick={() => { setEspace('facturationEntreprises'); setAfficherMenu(false) }}>
-                  <i className="bi bi-building"></i> Facturation entreprises
-                </button>
-              )}
+            </nav>
+
+            <div className="tiroir-separateur"></div>
+
+            <nav className="tiroir-liens tiroir-liens-legaux" aria-label="Informations légales">
               <button onClick={() => { setEspace('mentionsLegales'); setAfficherMenu(false) }}>
-                <i className="bi bi-file-earmark-text"></i> Mentions légales
+                Mentions légales
               </button>
               <button onClick={() => { setEspace('cgv'); setAfficherMenu(false) }}>
-                <i className="bi bi-file-earmark-text"></i> Conditions générales
+                Conditions générales
               </button>
               <button onClick={() => { setEspace('confidentialite'); setAfficherMenu(false) }}>
-                <i className="bi bi-shield-lock"></i> Confidentialité
+                Confidentialité
               </button>
             </nav>
-          </div>
+
+            <div className="tiroir-pied">
+              <span className="tiroir-pied-logo"><span>2C</span></span>
+              <span>Livraison de petits consommables pour le BTP, directement sur chantier.</span>
+            </div>
+          </aside>
         </div>
       )}
 
