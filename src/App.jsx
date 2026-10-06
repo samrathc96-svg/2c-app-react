@@ -72,6 +72,7 @@ const iconsParSousSection = {
 const ESPACES_SANS_PANNEAUX_DESKTOP = [
   'admin',
   'catalogueAdmin',
+  'fournisseursAdmin',
   'facturationEntreprises',
   'livreur',
   'livreurEnAttente',
@@ -104,6 +105,121 @@ const SLIDES_DIAPORAMA = [
     texte: "Une livraison rapide, discrète et respectueuse de la ville."
   }
 ]
+
+// =========================================================
+// Carte interactive des fournisseurs (Leaflet + OpenStreetMap)
+// =========================================================
+// Leaflet est chargé à la demande depuis un CDN, uniquement quand le
+// client ouvre l'onglet "Carte" : aucune installation supplémentaire.
+function chargerLeaflet() {
+  if (window.L) return Promise.resolve(window.L)
+  if (window.__promesseLeaflet) return window.__promesseLeaflet
+  window.__promesseLeaflet = new Promise((resolve, reject) => {
+    const lien = document.createElement('link')
+    lien.rel = 'stylesheet'
+    lien.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+    document.head.appendChild(lien)
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    script.async = true
+    script.onload = () => resolve(window.L)
+    script.onerror = () => {
+      window.__promesseLeaflet = null
+      reject(new Error('Leaflet indisponible'))
+    }
+    document.head.appendChild(script)
+  })
+  return window.__promesseLeaflet
+}
+
+// Centre par défaut : Genève (utilisé tant qu'aucun fournisseur n'est placé).
+const CENTRE_CARTE_DEFAUT = [46.2044, 6.1432]
+
+function CarteFournisseurs({ points, surOuvrir }) {
+  const conteneur = useRef(null)
+  const carte = useRef(null)
+  const couche = useRef(null)
+  const rappel = useRef(surOuvrir)
+  rappel.current = surOuvrir
+  const [version, setVersion] = useState(0)
+  const [erreur, setErreur] = useState(false)
+  const signature = JSON.stringify(points)
+
+  useEffect(() => {
+    let annule = false
+    chargerLeaflet()
+      .then((L) => {
+        if (annule || !conteneur.current) return
+        if (!carte.current) {
+          carte.current = L.map(conteneur.current).setView(CENTRE_CARTE_DEFAUT, 11)
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
+          }).addTo(carte.current)
+          couche.current = L.layerGroup().addTo(carte.current)
+          setTimeout(() => { if (carte.current) carte.current.invalidateSize() }, 150)
+        }
+        setVersion((v) => v + 1)
+      })
+      .catch(() => { if (!annule) setErreur(true) })
+    return () => {
+      annule = true
+      if (carte.current) {
+        carte.current.remove()
+        carte.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!carte.current || !couche.current || !window.L) return
+    const L = window.L
+    couche.current.clearLayers()
+    const coordonnees = []
+    points.forEach((point) => {
+      const icone = L.divIcon({
+        className: '',
+        html: `<span class="repere-carte${point.actif ? ' actif' : ''}"></span>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -26]
+      })
+      const contenu = document.createElement('div')
+      contenu.className = 'popup-carte'
+      const titre = document.createElement('strong')
+      titre.textContent = point.nom
+      contenu.appendChild(titre)
+      if (point.metier || point.adresse) {
+        const detail = document.createElement('span')
+        detail.textContent = [point.metier, point.adresse].filter(Boolean).join(' · ')
+        contenu.appendChild(detail)
+      }
+      if (point.actif) {
+        const bouton = document.createElement('button')
+        bouton.type = 'button'
+        bouton.textContent = 'Voir les produits'
+        bouton.addEventListener('click', () => rappel.current(point.nomCatalogue))
+        contenu.appendChild(bouton)
+      } else {
+        const bientot = document.createElement('em')
+        bientot.textContent = 'Bientôt disponible sur 2C Delivery'
+        contenu.appendChild(bientot)
+      }
+      L.marker([point.lat, point.lng], { icon: icone, title: point.nom }).bindPopup(contenu).addTo(couche.current)
+      coordonnees.push([point.lat, point.lng])
+    })
+    if (coordonnees.length === 1) {
+      carte.current.setView(coordonnees[0], 13)
+    } else if (coordonnees.length > 1) {
+      carte.current.fitBounds(coordonnees, { padding: [40, 40], maxZoom: 14 })
+    }
+  }, [version, signature]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (erreur) {
+    return <div className="carte-indisponible">La carte n'a pas pu se charger. Vérifie ta connexion et réessaie.</div>
+  }
+  return <div ref={conteneur} className="carte-leaflet" role="region" aria-label="Carte des fournisseurs"></div>
+}
 
 function DiaporamaChantier() {
   const [indexDiapo, setIndexDiapo] = useState(0)
@@ -699,6 +815,13 @@ function App() {
   const [metierFiltre, setMetierFiltre] = useState(null)
   const [fournisseurActif, setFournisseurActif] = useState(null)
   const [categorieFournisseur, setCategorieFournisseur] = useState(null)
+  // Fournisseurs placés sur la carte (table "fournisseurs" de Supabase)
+  const [fournisseursCarte, setFournisseursCarte] = useState([])
+  const [nouveauNomFournisseur, setNouveauNomFournisseur] = useState('')
+  const [nouvelleAdresseFournisseur, setNouvelleAdresseFournisseur] = useState('')
+  const [nouveauMetierFournisseur, setNouveauMetierFournisseur] = useState('Ventilation')
+  const [erreurFournisseurAdmin, setErreurFournisseurAdmin] = useState('')
+  const [envoiFournisseurEnCours, setEnvoiFournisseurEnCours] = useState(false)
   const [panier, setPanier] = useState([])
   const [configFormeEntree, setConfigFormeEntree] = useState('rond')
   const [configTailleEntree, setConfigTailleEntree] = useState(DIAMETRES_RONDS[0])
@@ -1244,6 +1367,19 @@ function App() {
       setChargement(false)
     }
     chargerProduits()
+  }, [])
+
+  useEffect(() => {
+    async function chargerFournisseursCarte() {
+      const { data, error } = await supabase.from('fournisseurs').select('*')
+      if (error) {
+        // La table n'existe peut-être pas encore : la carte reste simplement vide.
+        console.error('Chargement des fournisseurs de la carte :', error)
+        return
+      }
+      setFournisseursCarte(data || [])
+    }
+    chargerFournisseursCarte()
   }, [])
 
   useEffect(() => {
@@ -2723,6 +2859,63 @@ function App() {
     afficherNotification('Produit modifié.', 'info')
   }
 
+  async function ajouterFournisseurCarte() {
+    const nom = nouveauNomFournisseur.trim()
+    const adresse = nouvelleAdresseFournisseur.trim()
+    if (nom === '' || adresse === '') {
+      setErreurFournisseurAdmin("Merci de remplir le nom et l'adresse (avec la ville).")
+      return
+    }
+    setErreurFournisseurAdmin('')
+    setEnvoiFournisseurEnCours(true)
+    try {
+      // On transforme l'adresse en coordonnées avec le service gratuit OpenStreetMap.
+      const reponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(adresse)}`,
+        { headers: { 'Accept-Language': 'fr' } }
+      )
+      const resultats = await reponse.json()
+      if (!Array.isArray(resultats) || resultats.length === 0) {
+        setErreurFournisseurAdmin("Adresse introuvable. Précise la rue, le code postal et la ville.")
+        setEnvoiFournisseurEnCours(false)
+        return
+      }
+      const latitude = parseFloat(resultats[0].lat)
+      const longitude = parseFloat(resultats[0].lon)
+      const { data, error } = await supabase
+        .from('fournisseurs')
+        .insert({ nom, adresse, metier: nouveauMetierFournisseur.trim() || null, latitude, longitude })
+        .select()
+        .single()
+      if (error) {
+        console.error("Erreur d'ajout du fournisseur :", error)
+        setErreurFournisseurAdmin("L'ajout a échoué (la table 'fournisseurs' existe-t-elle dans Supabase ?).")
+        setEnvoiFournisseurEnCours(false)
+        return
+      }
+      setFournisseursCarte((precedent) => [...precedent, data])
+      setNouveauNomFournisseur('')
+      setNouvelleAdresseFournisseur('')
+      afficherNotification('Fournisseur ajouté à la carte.', 'info')
+    } catch (e) {
+      console.error('Erreur de localisation :', e)
+      setErreurFournisseurAdmin("La localisation de l'adresse a échoué, réessaie dans un instant.")
+    }
+    setEnvoiFournisseurEnCours(false)
+  }
+
+  async function supprimerFournisseurCarte(id) {
+    if (!window.confirm('Retirer ce fournisseur de la carte ?')) return
+    const { error } = await supabase.from('fournisseurs').delete().eq('id', id)
+    if (error) {
+      console.error('Erreur de suppression du fournisseur :', error)
+      afficherNotification('La suppression a échoué, réessaie.')
+      return
+    }
+    setFournisseursCarte((precedent) => precedent.filter((f) => f.id !== id))
+    afficherNotification('Fournisseur retiré de la carte.', 'info')
+  }
+
   async function supprimerProduit(id) {
     if (!window.confirm('Supprimer définitivement ce produit du catalogue ?')) return
 
@@ -2871,6 +3064,32 @@ function App() {
 
   const modeMarketplace = !ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace)
 
+  // Points de la carte : un fournisseur est "actif" (cliquable) dès qu'il a
+  // des produits au catalogue sous le même nom, sinon il est "bientôt".
+  const nomsCatalogue = {}
+  produitsTous.forEach((produit) => {
+    nomsCatalogue[produit.fournisseur.trim().toLowerCase()] = produit.fournisseur
+  })
+  const pointsCarte = fournisseursCarte
+    .filter((f) => typeof f.latitude === 'number' && typeof f.longitude === 'number')
+    .map((f) => {
+      const nomCatalogue = nomsCatalogue[(f.nom || '').trim().toLowerCase()]
+      return {
+        id: f.id,
+        nom: f.nom,
+        adresse: f.adresse || '',
+        metier: f.metier || '',
+        lat: f.latitude,
+        lng: f.longitude,
+        actif: Boolean(nomCatalogue),
+        nomCatalogue: nomCatalogue || null
+      }
+    })
+
+  function ouvrirFournisseurDepuisCarte(nomCatalogue) {
+    if (nomCatalogue) ouvrirFournisseur(nomCatalogue)
+  }
+
   useEffect(() => {
     document.body.classList.toggle('marketplace', modeMarketplace)
     return () => document.body.classList.remove('marketplace')
@@ -2882,7 +3101,7 @@ function App() {
 
   return (
     <div className="mise-en-page">
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
@@ -2912,11 +3131,11 @@ function App() {
                 </button>
                 <button
                   role="tab"
-                  aria-selected={modeAccueil === 'produits'}
-                  className={modeAccueil === 'produits' ? 'actif' : ''}
-                  onClick={() => changerModeAccueil('produits')}
+                  aria-selected={modeAccueil === 'carte'}
+                  className={modeAccueil === 'carte' ? 'actif' : ''}
+                  onClick={() => changerModeAccueil('carte')}
                 >
-                  Produits
+                  Carte
                 </button>
               </div>
               <div className="recherche-entete">
@@ -3002,6 +3221,11 @@ function App() {
               {role === 'admin' && (
                 <button onClick={() => { setEspace('catalogueAdmin'); setAfficherMenu(false) }}>
                   <i className="bi bi-box-seam"></i> Gérer le catalogue
+                </button>
+              )}
+              {role === 'admin' && (
+                <button onClick={() => { setEspace('fournisseursAdmin'); setAfficherMenu(false) }}>
+                  <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
                 </button>
               )}
               {role === 'admin' && (
@@ -3311,11 +3535,11 @@ function App() {
                 </button>
                 <button
                   role="tab"
-                  aria-selected={modeAccueil === 'produits'}
-                  className={modeAccueil === 'produits' ? 'actif' : ''}
-                  onClick={() => setModeAccueil('produits')}
+                  aria-selected={modeAccueil === 'carte'}
+                  className={modeAccueil === 'carte' ? 'actif' : ''}
+                  onClick={() => setModeAccueil('carte')}
                 >
-                  Produits
+                  Carte
                 </button>
               </div>
 
@@ -3358,7 +3582,7 @@ function App() {
                     <div className="bandeau-multi">
                       <strong>Plusieurs fournisseurs, un seul livreur</strong>
                       <span>Remplis un seul panier avec les produits de plusieurs fournisseurs.</span>
-                      <button onClick={() => setModeAccueil('produits')}>Voir tous les produits</button>
+                      <button onClick={() => setModeAccueil('carte')}>Voir la carte</button>
                     </div>
                   )}
                   <h3 className="titre-accueil">Fournisseurs</h3>
@@ -3409,18 +3633,35 @@ function App() {
                 </>
               )}
 
-              {rechercheNormalisee === '' && modeAccueil === 'produits' && (
-                <>
-                  <h3 className="titre-accueil">Nos catégories</h3>
-                  <div className="grille-categories">
-                    {sousSectionsAffichees.map((sousSection, index) => (
-                      <div key={`${sousSection.nom}-${index}`} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
-                        <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
-                        <span>{sousSection.nom}</span>
-                      </div>
+              {rechercheNormalisee === '' && modeAccueil === 'carte' && (
+                <div className="vue-carte">
+                  <div className="zone-carte">
+                    <CarteFournisseurs points={pointsCarte} surOuvrir={ouvrirFournisseurDepuisCarte} />
+                  </div>
+                  <div className="liste-carte">
+                    <h3 className="titre-accueil">Fournisseurs sur la carte</h3>
+                    {pointsCarte.length === 0 && (
+                      <p className="souligne">
+                        Les fournisseurs partenaires apparaîtront ici dès qu'ils rejoindront 2C Delivery.
+                      </p>
+                    )}
+                    {pointsCarte.map((point) => (
+                      <button
+                        key={point.id}
+                        className={`ligne-carte${point.actif ? '' : ' a-venir'}`}
+                        disabled={!point.actif}
+                        onClick={() => ouvrirFournisseurDepuisCarte(point.nomCatalogue)}
+                      >
+                        <span className={`repere-carte petit${point.actif ? ' actif' : ''}`}></span>
+                        <span className="texte-ligne-carte">
+                          <strong>{point.nom}</strong>
+                          <span>{[point.metier, point.adresse].filter(Boolean).join(' · ')}</span>
+                        </span>
+                        {!point.actif && <span className="etiquette-bientot">Bientôt</span>}
+                      </button>
                     ))}
                   </div>
-                </>
+                </div>
               )}
 
               {rechercheNormalisee !== '' && produitsRecherches.length > 0 && (
@@ -4595,6 +4836,9 @@ function App() {
           <button className="bouton-petit" onClick={() => setEspace('catalogueAdmin')}>
             <i className="bi bi-box-seam"></i> Gérer le catalogue
           </button>
+          <button className="bouton-petit" onClick={() => setEspace('fournisseursAdmin')}>
+            <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
+          </button>
           <button className="bouton-petit" onClick={() => setEspace('facturationEntreprises')}>
             <i className="bi bi-building"></i> Facturation entreprises
           </button>
@@ -4925,6 +5169,76 @@ function App() {
                 </tbody>
               </table>
             </div>
+          )}
+        </>
+      )}
+
+      {espace === 'fournisseursAdmin' && role === 'admin' && (
+        <>
+          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <h3>Gérer les fournisseurs</h3>
+          <p className="souligne">
+            Les fournisseurs ajoutés ici apparaissent sur la carte. Ils deviennent cliquables dès que des
+            produits du catalogue portent exactement le même nom de fournisseur.
+          </p>
+
+          <div className="carte-auth">
+            <h3>Ajouter un fournisseur</h3>
+            <input
+              type="text"
+              placeholder="Nom du fournisseur (ex: Ventilation Léman)"
+              value={nouveauNomFournisseur}
+              onChange={(e) => setNouveauNomFournisseur(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Adresse complète (rue, code postal, ville)"
+              value={nouvelleAdresseFournisseur}
+              onChange={(e) => setNouvelleAdresseFournisseur(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Métier (ex: Ventilation)"
+              value={nouveauMetierFournisseur}
+              onChange={(e) => setNouveauMetierFournisseur(e.target.value)}
+            />
+            {erreurFournisseurAdmin && <p className="souligne">{erreurFournisseurAdmin}</p>}
+            <button className="valider" disabled={envoiFournisseurEnCours} onClick={ajouterFournisseurCarte}>
+              {envoiFournisseurEnCours ? 'Localisation en cours...' : 'Ajouter à la carte'}
+            </button>
+          </div>
+
+          {fournisseursCarte.length > 0 ? (
+            <div className="tableau-scroll">
+              <table className="tableau-admin">
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>Adresse</th>
+                    <th>Métier</th>
+                    <th>Sur le site</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fournisseursCarte.map((f) => (
+                    <tr key={f.id}>
+                      <td>{f.nom}</td>
+                      <td>{f.adresse}</td>
+                      <td>{f.metier}</td>
+                      <td>{nomsCatalogue[(f.nom || '').trim().toLowerCase()] ? 'Oui' : 'Bientôt'}</td>
+                      <td>
+                        <button onClick={() => supprimerFournisseurCarte(f.id)} title="Retirer de la carte">
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="aucun-resultat">Aucun fournisseur sur la carte pour le moment.</p>
           )}
         </>
       )}
