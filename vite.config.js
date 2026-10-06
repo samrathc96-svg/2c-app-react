@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: '2C - Livraison BTP',
+        name: '2C Delivery',
         short_name: '2C',
-        description: 'Commande et livraison de matériel pour le bâtiment',
+        description: 'Commandez chez des fournisseurs de plusieurs métiers et faites-vous livrer',
         lang: 'fr',
         start_url: '/',
         display: 'standalone',
