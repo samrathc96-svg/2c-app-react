@@ -92,7 +92,6 @@ const ESPACES_SANS_PANNEAUX_DESKTOP = [
   'admin',
   'catalogueAdmin',
   'fournisseursAdmin',
-  'facturationEntreprises',
   'livreur',
   'livreurEnAttente',
   'livreursListe'
@@ -525,137 +524,6 @@ function construireFacturePDF(commande) {
   return { doc, numeroFacture }
 }
 
-// Facture groupée mensuelle pour un compte entreprise : une seule facture
-// listant toutes les commandes livrées du mois, chacune avec son chantier
-// et l'employé qui l'a passée, plus un total général en bas. Générée
-// depuis l'admin (genererFactureMensuelle), jamais automatiquement.
-function construireFactureGroupeePDF(entreprise, commandes, periodeLabel) {
-  const doc = new jsPDF()
-  const accent = [255, 106, 19]
-  const encre = [30, 27, 23]
-  const muted = [121, 112, 95]
-
-  const numeroFacture = `2C-${entreprise.id.slice(0, 8).toUpperCase()}-${periodeLabel.replace('-', '')}`
-  const totalGeneral = commandes.reduce((somme, commande) => somme + commande.total, 0)
-
-  let y = 20
-
-  function nouvellePage() {
-    doc.addPage()
-    y = 20
-  }
-
-  function enteteFacture() {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(20)
-    doc.setTextColor(...encre)
-    doc.text(INFOS_ENTREPRISE.nom, 15, y)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(...muted)
-    doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
-    doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.setTextColor(...accent)
-    doc.text('FACTURE MENSUELLE', 195, y, { align: 'right' })
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(...encre)
-    doc.text(`N° ${numeroFacture}`, 195, y + 7, { align: 'right' })
-    doc.text(`Période : ${periodeLabel}`, 195, y + 13, { align: 'right' })
-
-    y += 30
-    doc.setDrawColor(...accent)
-    doc.setLineWidth(0.6)
-    doc.line(15, y, 195, y)
-    y += 10
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(...encre)
-    doc.text('Facturé à', 15, y)
-    y += 6
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text(entreprise.nom || '—', 15, y)
-    y += 5
-    if (entreprise.email) { doc.text(entreprise.email, 15, y); y += 5 }
-    y += 6
-  }
-
-  enteteFacture()
-
-  commandes.forEach((commande, indexCommande) => {
-    if (y > 245) nouvellePage()
-
-    const dateCommande = new Date(commande.created_at).toLocaleDateString('fr-FR', {
-      day: '2-digit', month: '2-digit', year: 'numeric'
-    })
-
-    doc.setFillColor(245, 242, 235)
-    doc.rect(15, y - 5, 180, 7, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
-    doc.setTextColor(...encre)
-    doc.text(`Chantier : ${commande.chantier || '—'}   •   Technicien : ${commande.technicien || '—'}   •   ${dateCommande}`, 17, y)
-    y += 9
-
-    const lignes = commande.produits_detail && commande.produits_detail.length > 0
-      ? commande.produits_detail
-      : [{ nom: commande.produits, prix: null, quantite: null }]
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    lignes.forEach((ligne) => {
-      if (y > 270) nouvellePage()
-      const nomAffiche = doc.splitTextToSize(ligne.nom, 110)
-      doc.text(nomAffiche, 20, y)
-      if (ligne.prix !== null) {
-        doc.text(`${ligne.quantite} x ${ligne.prix.toFixed(2)} CHF`, 160, y, { align: 'right' })
-      }
-      y += Math.max(5, nomAffiche.length * 5)
-    })
-
-    doc.setFont('helvetica', 'bold')
-    doc.text(`Sous-total : ${commande.total.toFixed(2)} CHF`, 195, y, { align: 'right' })
-    y += 4
-    doc.setDrawColor(...muted)
-    doc.setLineWidth(0.15)
-    doc.line(15, y, 195, y)
-    y += 8
-
-    if (indexCommande === commandes.length - 1 && y > 260) nouvellePage()
-  })
-
-  if (y > 265) nouvellePage()
-
-  doc.setDrawColor(...accent)
-  doc.setLineWidth(0.6)
-  doc.line(15, y, 195, y)
-  y += 10
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(...encre)
-  doc.text('Total à payer', 140, y)
-  doc.text(`${totalGeneral.toFixed(2)} CHF`, 195, y, { align: 'right' })
-
-  if (INFOS_ENTREPRISE.donneesTest) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...muted)
-    doc.text(
-      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
-      15, 290
-    )
-  }
-
-  return { doc, numeroFacture, totalGeneral }
-}
-
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -720,6 +588,80 @@ function grouperProduits(lignes) {
 }
 
 const STATUTS = ['À livrer', 'En cours', 'Livrée']
+
+const lienItineraire = (destination, etapes = []) => {
+  const base = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
+  return etapes.length > 0 ? `${base}&waypoints=${encodeURIComponent(etapes.join('|'))}` : base
+}
+
+// Retrouve les fournisseurs à passer pour une course, à partir du texte
+// de la commande (les noms de produits les plus longs sont cherchés en
+// premier pour éviter qu'un nom court ne "mange" un nom plus long).
+function fournisseursDeLaCourse(course, produits, fournisseursCarte) {
+  let texte = course.produits || ''
+  const noms = []
+  ;[...produits]
+    .sort((a, b) => b.nom.length - a.nom.length)
+    .forEach((produit) => {
+      if (produit.nom && texte.includes(produit.nom)) {
+        texte = texte.replace(produit.nom, '')
+        const nom = produit.fournisseur || FOURNISSEUR_PAR_DEFAUT
+        if (!noms.includes(nom)) noms.push(nom)
+      }
+    })
+  return noms.map((nom) => {
+    const fiche = fournisseursCarte.find((f) => f.nom === nom)
+    return { nom, adresse: fiche && fiche.adresse ? fiche.adresse : null }
+  })
+}
+
+// Code de livraison à 4 chiffres : le client le donne au livreur à la
+// remise de la commande. Le code est lu via une fonction sécurisée de la
+// base (le livreur ne peut jamais le lire). Si la fonction n'existe pas
+// encore (SQL pas exécuté), rien ne s'affiche.
+function BlocCodeLivraison({ numero, nom, statut }) {
+  const [info, setInfo] = useState(null)
+
+  useEffect(() => {
+    let annule = false
+    if (!numero) return undefined
+    supabase
+      .rpc('obtenir_code_livraison', { p_numero: numero, p_nom: nom || null })
+      .then(({ data, error }) => {
+        if (annule) return
+        setInfo(!error && data && data.length > 0 ? data[0] : null)
+      })
+    return () => {
+      annule = true
+    }
+  }, [numero, nom, statut])
+
+  if (!info) return null
+
+  if (info.valide) {
+    return (
+      <div className="code-livraison code-livraison-ok">
+        <i className="bi bi-patch-check"></i>
+        <span>
+          Livraison confirmée{info.recu_par ? ` — reçue par ${info.recu_par}` : ''}
+          {info.valide_le ? ` le ${new Date(info.valide_le).toLocaleDateString('fr-CH')} à ${new Date(info.valide_le).toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}` : ''}
+        </span>
+      </div>
+    )
+  }
+
+  if (!info.code) return null
+
+  return (
+    <div className="code-livraison">
+      <span className="code-livraison-titre"><i className="bi bi-shield-lock"></i> Code de livraison</span>
+      <span className="code-livraison-chiffres" aria-label={`Code ${info.code.split('').join(' ')}`}>{info.code}</span>
+      <span className="code-livraison-aide">
+        Donnez ce code au livreur uniquement quand vous avez votre commande en main. Ne le communiquez à personne d'autre.
+      </span>
+    </div>
+  )
+}
 
 function App() {
   const [session, setSession] = useState(null)
@@ -790,9 +732,6 @@ function App() {
   const [fichierCasier, setFichierCasier] = useState(null)
   const [erreurCandidature, setErreurCandidature] = useState('')
   const [envoiCandidatureEnCours, setEnvoiCandidatureEnCours] = useState(false)
-  const [entreprises, setEntreprises] = useState([])
-  const [moisFacturationParEntreprise, setMoisFacturationParEntreprise] = useState({})
-  const [facturationEnCoursId, setFacturationEnCoursId] = useState(null)
   // Modifications de statut/livreur pas encore validées dans le tableau
   // admin : { [courseId]: { statut, livreurId } }. Rien n'est envoyé à la
   // base tant que l'admin n'a pas cliqué sur "Valider" pour cette ligne —
@@ -860,6 +799,11 @@ function App() {
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
   const [courseSelectionnee, setCourseSelectionnee] = useState(null)
+  const [formulaireLivraisonOuvert, setFormulaireLivraisonOuvert] = useState(false)
+  const [codeSaisi, setCodeSaisi] = useState('')
+  const [recuParSaisi, setRecuParSaisi] = useState('')
+  const [erreurCodeLivraison, setErreurCodeLivraison] = useState('')
+  const [validationLivraisonEnCours, setValidationLivraisonEnCours] = useState(false)
 
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
@@ -1313,13 +1257,6 @@ function App() {
       }
     }
 
-    async function chargerEntreprises() {
-      const { data, error } = await supabase.from('profils').select('id, nom, email').eq('role', 'entreprise')
-      if (!error && data) {
-        setEntreprises(data)
-      }
-    }
-
     async function chargerDemandesLivreur() {
       // Seules les candidatures complètes (téléphone, moyen de livraison et
       // documents fournis) remontent ici : tant que le candidat n'a pas
@@ -1335,15 +1272,13 @@ function App() {
     }
 
     chargerLivreurs()
-    chargerEntreprises()
     chargerDemandesLivreur()
 
     const canal = supabase
       .channel('profils-en-direct')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profils' }, () => {
         chargerLivreurs()
-        chargerEntreprises()
-        chargerDemandesLivreur()
+            chargerDemandesLivreur()
       })
       .subscribe()
 
@@ -2045,7 +1980,9 @@ function App() {
         nomClient,
         adresse: adresseClient,
         telephone: telephoneClient,
-        email: emailClient
+        email: emailClient,
+        chantier: role === 'entreprise' ? chantierCommande.trim() : null,
+        technicien: role === 'entreprise' ? technicienCommande.trim() : null
       }
     })
 
@@ -2153,9 +2090,8 @@ function App() {
       return
     }
 
-    // Particuliers et invités : paiement en ligne. Les comptes entreprise
-    // continuent sans paiement (facture mensuelle).
-    if (PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise') {
+    // Tous les clients (particuliers, invités, entreprises) paient en ligne.
+    if (PAIEMENT_EN_LIGNE_ACTIF) {
       await payerEnLigne()
       return
     }
@@ -2254,9 +2190,9 @@ function App() {
   // cours ou annulée. Se déroule en arrière-plan : si ça échoue (pas
   // d'email renseigné, souci réseau...), ça n'empêche jamais de valider
   // la livraison elle-même.
-  // Exception : les commandes d'un compte entreprise (facturation_mensuelle)
-  // ne partent jamais individuellement — elles sont regroupées dans la
-  // facture mensuelle générée depuis l'admin (genererFactureMensuelle).
+  // Exception : les anciennes commandes d'entreprise (facturation_mensuelle,
+  // avant l'arrêt de la facturation mensuelle) ne reçoivent pas de facture
+  // individuelle.
   // Sauvegarde une facture déjà générée (PDF) dans le Storage et dans la
   // table "factures", pour qu'elle reste consultable dans "Mes factures"
   // même après l'envoi de l'email. N'empêche jamais l'envoi de la facture
@@ -2328,6 +2264,12 @@ function App() {
     }
     const nouveauStatut = STATUTS[indexStatut + 1]
 
+    // La livraison se valide avec le code du client (voir validerLivraison).
+    if (nouveauStatut === 'Livrée') {
+      setFormulaireLivraisonOuvert(true)
+      return
+    }
+
     const { error } = await supabase
       .from('courses')
       .update({ statut: nouveauStatut })
@@ -2392,6 +2334,45 @@ function App() {
     setConfirmationAnnulation(false)
     afficherNotification('Commande annulée.', 'info')
     demanderRemboursement(commande.id)
+  }
+
+  async function validerLivraison(index) {
+    const course = courses[index]
+    if (!/^\d{4}$/.test(codeSaisi.trim())) {
+      setErreurCodeLivraison('Le code comporte 4 chiffres.')
+      return
+    }
+    setErreurCodeLivraison('')
+    setValidationLivraisonEnCours(true)
+    const { data, error } = await supabase.rpc('valider_livraison', {
+      p_course_id: String(course.id),
+      p_code: codeSaisi.trim(),
+      p_recu_par: recuParSaisi.trim() || null
+    })
+    setValidationLivraisonEnCours(false)
+
+    if (error) {
+      console.error('Erreur de validation de la livraison :', error)
+      setErreurCodeLivraison(
+        error.message && error.message.includes('Code de livraison requis')
+          ? 'Code de livraison requis.'
+          : "La validation a échoué, réessaie."
+      )
+      return
+    }
+    if (!data || !data.ok) {
+      setErreurCodeLivraison((data && data.message) || 'Code incorrect.')
+      return
+    }
+
+    setCourses(courses.map((c, i) => (i === index ? { ...c, statut: 'Livrée' } : c)))
+    setFormulaireLivraisonOuvert(false)
+    setCodeSaisi('')
+    setRecuParSaisi('')
+    afficherNotification('Livraison validée.', 'info')
+    if (course.commande_id) {
+      envoyerFactureAutomatique(course.commande_id)
+    }
   }
 
   async function rechercherCommandeInvite(numero = numeroSuiviInvite, nom = nomSuiviInvite) {
@@ -2696,65 +2677,6 @@ function App() {
     lien.click()
     document.body.removeChild(lien)
     URL.revokeObjectURL(url)
-  }
-
-  // Génère et envoie la facture mensuelle groupée d'un compte entreprise,
-  // pour le mois choisi (format "YYYY-MM", ex: "2026-09"). Regroupe toutes
-  // ses commandes livrées sur ce mois en une seule facture PDF.
-  async function genererFactureMensuelle(entreprise, moisValeur) {
-    if (!moisValeur) {
-      afficherNotification('Choisis un mois avant de générer la facture.')
-      return
-    }
-
-    setFacturationEnCoursId(entreprise.id)
-
-    const [annee, mois] = moisValeur.split('-').map(Number)
-    const debut = new Date(Date.UTC(annee, mois - 1, 1)).toISOString()
-    const fin = new Date(Date.UTC(mois === 12 ? annee + 1 : annee, mois === 12 ? 0 : mois, 1)).toISOString()
-
-    const { data, error } = await supabase.rpc('obtenir_commandes_entreprise_periode', {
-      p_entreprise_id: entreprise.id,
-      p_debut: debut,
-      p_fin: fin
-    })
-
-    setFacturationEnCoursId(null)
-
-    if (error) {
-      console.error('Erreur de récupération des commandes entreprise :', error)
-      afficherNotification('Impossible de récupérer les commandes de cette entreprise, réessaie.')
-      return
-    }
-
-    if (!data || data.length === 0) {
-      afficherNotification('Aucune commande livrée pour cette entreprise sur ce mois.', 'info')
-      return
-    }
-
-    const { doc, numeroFacture, totalGeneral } = construireFactureGroupeePDF(entreprise, data, moisValeur)
-    const pdfBase64 = doc.output('datauristring').split(',')[1]
-
-    const { error: erreurEnvoi } = await supabase.functions.invoke('envoyer-facture-email', {
-      body: { email: entreprise.email, nomClient: entreprise.nom, numeroFacture, pdfBase64 }
-    })
-
-    if (erreurEnvoi) {
-      console.error("Erreur d'envoi de la facture mensuelle :", erreurEnvoi)
-      afficherNotification("L'envoi a échoué, réessaie.")
-      return
-    }
-
-    enregistrerFacture({
-      numeroFacture,
-      userId: entreprise.id,
-      periodeDebut: debut,
-      periodeFin: fin,
-      montant: totalGeneral,
-      doc
-    })
-
-    afficherNotification(`Facture mensuelle envoyée à ${entreprise.nom} (${data.length} commande(s)).`, 'info')
   }
 
   async function ajouterProduit() {
@@ -3094,8 +3016,7 @@ function App() {
           { cle: 'admin', icone: 'speedometer2', libelle: 'Tableau de bord', court: 'Tableau' },
           { cle: 'catalogueAdmin', icone: 'box-seam', libelle: 'Catalogue', court: 'Catalogue' },
           { cle: 'fournisseursAdmin', icone: 'geo-alt', libelle: 'Fournisseurs', court: 'Carte' },
-          { cle: 'livreursListe', icone: 'people', libelle: 'Livreurs', court: 'Livreurs' },
-          { cle: 'facturationEntreprises', icone: 'building', libelle: 'Facturation entreprises', court: 'Facturation' }
+          { cle: 'livreursListe', icone: 'people', libelle: 'Livreurs', court: 'Livreurs' }
         ]
       : [
           { cle: role === 'livreur' ? 'livreur' : 'livreurEnAttente', icone: 'bicycle', libelle: 'Mes courses', court: 'Mes courses' }
@@ -3138,7 +3059,7 @@ function App() {
 
   return (
     <div className="mise-en-page">
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
@@ -3310,9 +3231,6 @@ function App() {
                   </button>
                   <button onClick={() => { setEspace('fournisseursAdmin'); setAfficherMenu(false) }}>
                     <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
-                  </button>
-                  <button onClick={() => { setEspace('facturationEntreprises'); setAfficherMenu(false) }}>
-                    <i className="bi bi-building"></i> Facturation entreprises
                   </button>
                 </>
               )}
@@ -3983,11 +3901,6 @@ function App() {
               <p>{recapCommande}</p>
               <p className="slogan">Merci, votre commande a bien été enregistrée.</p>
               <p className="souligne">Un email de confirmation vient de t'être envoyé.</p>
-              {role === 'entreprise' && (
-                <p className="souligne">
-                  Cette commande sera incluse dans la facture mensuelle de l'entreprise, une fois livrée.
-                </p>
-              )}
               {creneauLivraison && (
                 <p className="creneau-estime">
                   <i className="bi bi-clock"></i> Livraison estimée sous {creneauLivraison.min} à {creneauLivraison.max} min
@@ -3999,6 +3912,9 @@ function App() {
                   <br />
                   <span className="souligne">Note-le pour suivre ta commande, même sans compte.</span>
                 </p>
+              )}
+              {commandeInvite && commandeInvite.numero_suivi && (
+                <BlocCodeLivraison numero={commandeInvite.numero_suivi} nom={commandeInvite.nom_client || nomClient} statut="" />
               )}
               <button className="valider" onClick={() => { setEspace('suivi'); setVue('accueil') }}>
                 Suivre ma commande
@@ -4097,6 +4013,13 @@ function App() {
               <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} CHF</p>
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
+              )}
+              {statutCommande(mesCommandes[commandeSelectionnee].id) !== 'Annulée' && (
+                <BlocCodeLivraison
+                  numero={mesCommandes[commandeSelectionnee].numero_suivi}
+                  nom={mesCommandes[commandeSelectionnee].nom_client}
+                  statut={statutCommande(mesCommandes[commandeSelectionnee].id)}
+                />
               )}
               {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
@@ -4215,7 +4138,7 @@ function App() {
 
           {!chargementFactures && mesFactures.length === 0 && (
             <p className="aucun-resultat">
-              Aucune facture pour l'instant{role === 'entreprise' ? " — elles apparaîtront ici une fois la première facture mensuelle envoyée." : '.'}
+              Aucune facture pour l'instant.
             </p>
           )}
 
@@ -4300,6 +4223,13 @@ function App() {
                 <p className="souligne">Livraison : {commandeInvite.adresse}</p>
               )}
               <p className="total-panier">{commandeInvite.total.toFixed(2)} CHF</p>
+              {statutCommande(commandeInvite.id) !== 'Annulée' && (
+                <BlocCodeLivraison
+                  numero={commandeInvite.numero_suivi}
+                  nom={commandeInvite.nom_client}
+                  statut={statutCommande(commandeInvite.id)}
+                />
+              )}
               {statutCommande(commandeInvite.id) === 'Annulée' ? (
                 <p className="aucun-resultat">Cette commande a été annulée.</p>
               ) : (
@@ -4386,7 +4316,7 @@ function App() {
           <div className="carte-faq">
             <strong>Dois-je créer un compte pour commander ?</strong>
             <p>
-              Non, vous pouvez commander sans compte : un numéro de suivi vous est remis à la fin de la commande. Un compte vous permet de retrouver automatiquement votre historique dans « Mes commandes ». Les entreprises peuvent ouvrir un compte entreprise avec facturation mensuelle groupée.
+              Non, vous pouvez commander sans compte : un numéro de suivi vous est remis à la fin de la commande. Un compte vous permet de retrouver automatiquement votre historique dans « Mes commandes ». Les entreprises peuvent ouvrir un compte entreprise pour indiquer le chantier et le collaborateur sur chaque commande.
             </p>
           </div>
 
@@ -4400,7 +4330,7 @@ function App() {
           <div className="carte-faq">
             <strong>Comment payer ?</strong>
             <p>
-              Les particuliers et les clients sans compte paient en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. Les comptes entreprise reçoivent une facture mensuelle, payable à 30 jours.
+              Le paiement se fait en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. C'est le cas pour tous les clients : avec ou sans compte, particuliers comme entreprises.
             </p>
           </div>
 
@@ -4415,6 +4345,13 @@ function App() {
             <strong>Comment se fait la livraison ?</strong>
             <p>
               Un livreur partenaire récupère votre commande chez le fournisseur puis vous la livre à l'adresse indiquée (chantier, atelier, domicile), à scooter, moto, vélo cargo ou en petit utilitaire selon le format de la commande. Ce choix n'est pas fait par le client : il dépend de la disponibilité et du véhicule du livreur. Les délais affichés sont estimatifs.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Comment est sécurisée la remise de ma commande ?</strong>
+            <p>
+              Chaque commande a un code de livraison à 4 chiffres, visible dans « Suivre ma commande » ou « Mes commandes ». Vous le donnez au livreur uniquement quand vous avez votre commande en main : il doit le saisir pour confirmer la livraison, avec le nom de la personne qui a réceptionné. Ne communiquez ce code à personne d'autre.
             </p>
           </div>
 
@@ -4596,13 +4533,10 @@ function App() {
           <div className="carte-faq">
             <strong>4. Paiement</strong>
             <p>
-              Pour les clients sans compte et les particuliers, le paiement s'effectue en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. 2C Delivery ne conserve aucune donnée de carte bancaire.
+              Pour tous les clients (avec ou sans compte, particuliers comme entreprises), le paiement s'effectue en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. 2C Delivery ne conserve aucune donnée de carte bancaire.
             </p>
             <p>
               2C Delivery encaisse le paiement de la commande, y compris le prix des produits, pour le compte du fournisseur concerné, puis le lui reverse. Le paiement effectué auprès de 2C Delivery libère le client envers le fournisseur. <strong>[Mandat d'encaissement à valider]</strong>
-            </p>
-            <p>
-              Pour les comptes entreprise, les commandes livrées sont facturées une fois par mois, payable à 30 jours dès réception de la facture.
             </p>
           </div>
 
@@ -4612,7 +4546,10 @@ function App() {
               Un livreur partenaire récupère la commande chez le ou les fournisseurs, puis la livre à l'adresse indiquée. Le moyen de transport (scooter, moto, vélo cargo, petit utilitaire) dépend du livreur assigné et du format de la commande ; il n'est pas choisi par le client.
             </p>
             <p>
-              Les créneaux affichés sont estimatifs et dépendent de la préparation chez le fournisseur et du nombre de courses en attente. Ils ne constituent pas un engagement horaire ferme. Le client veille à être joignable et à permettre la remise de la commande ; en cas d'impossibilité de livrer par sa faute, la livraison peut être facturée de nouveau ou la commande considérée comme remise.
+              Les créneaux affichés sont estimatifs et dépendent de la préparation chez le fournisseur et du nombre de courses en attente. Ils ne constituent pas un engagement horaire ferme.
+            </p>
+            <p>
+              Pour sécuriser la remise, un code de livraison à 4 chiffres est attribué à chaque commande et affiché dans l'espace de suivi du client. Le livreur confirme la livraison en saisissant ce code ; la livraison est alors réputée effectuée à la personne qui l'a communiqué. Le client ne doit pas transmettre ce code avant d'avoir sa commande en main. Le client veille à être joignable et à permettre la remise de la commande ; en cas d'impossibilité de livrer par sa faute, la livraison peut être facturée de nouveau ou la commande considérée comme remise.
             </p>
           </div>
 
@@ -4702,7 +4639,7 @@ function App() {
           <div className="carte-faq">
             <strong>Pourquoi ces données</strong>
             <p>
-              Uniquement pour traiter la commande avec les fournisseurs, la faire livrer, encaisser le paiement et reverser les fournisseurs, vous contacter si besoin, envoyer la confirmation de commande et — pour les comptes entreprise — établir la facturation mensuelle.
+              Uniquement pour traiter la commande avec les fournisseurs, la faire livrer, encaisser le paiement et reverser les fournisseurs, vous contacter si besoin et envoyer la confirmation de commande.
             </p>
           </div>
 
@@ -4902,17 +4839,67 @@ function App() {
 
           {!chargementCourses && courseSelectionnee !== null && (
             <>
-              <p className="retour" onClick={() => setCourseSelectionnee(null)}>← Retour</p>
+              <p className="retour" onClick={() => { setCourseSelectionnee(null); setFormulaireLivraisonOuvert(false); setErreurCodeLivraison('') }}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
-              <a
-                className="bouton-petit"
-                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(courses[courseSelectionnee].adresse)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <i className="bi bi-signpost-2"></i> Itinéraire
-              </a>
+              {(() => {
+                const course = courses[courseSelectionnee]
+                const retraits = fournisseursDeLaCourse(course, produitsTous, fournisseursCarte)
+                const adressesRetrait = retraits.filter((r) => r.adresse).map((r) => r.adresse)
+                return (
+                  <div className="tournee-livreur">
+                    <h4>Tournée</h4>
+                    <ol>
+                      {retraits.map((retrait) => (
+                        <li key={retrait.nom}>
+                          <span className="tournee-pastille tournee-retrait"><i className="bi bi-box-seam"></i></span>
+                          <span className="tournee-texte">
+                            <strong>Retrait chez {retrait.nom}</strong>
+                            <small>{retrait.adresse || 'Adresse du fournisseur non renseignée'}</small>
+                          </span>
+                          {retrait.adresse && (
+                            <a
+                              className="tournee-lien"
+                              href={lienItineraire(retrait.adresse)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Itinéraire vers ${retrait.nom}`}
+                            >
+                              <i className="bi bi-signpost-2"></i> Itinéraire
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                      <li>
+                        <span className="tournee-pastille tournee-livraison"><i className="bi bi-geo-alt"></i></span>
+                        <span className="tournee-texte">
+                          <strong>Livraison chez {course.client}</strong>
+                          <small>{course.adresse}</small>
+                        </span>
+                        <a
+                          className="tournee-lien"
+                          href={lienItineraire(course.adresse)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Itinéraire vers l'adresse de livraison"
+                        >
+                          <i className="bi bi-signpost-2"></i> Itinéraire
+                        </a>
+                      </li>
+                    </ol>
+                    {adressesRetrait.length > 0 && (
+                      <a
+                        className="bouton-petit tournee-complete"
+                        href={lienItineraire(course.adresse, adressesRetrait)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <i className="bi bi-signpost-split"></i> Itinéraire complet de la tournée
+                      </a>
+                    )}
+                  </div>
+                )
+              })()}
               {courses[courseSelectionnee].chantier && (
                 <p className="souligne">Chantier : {courses[courseSelectionnee].chantier}</p>
               )}
@@ -4948,15 +4935,62 @@ function App() {
                 </button>
               )}
 
-              {courses[courseSelectionnee].livreur_id === session.user.id && (
-                <button
-                  className="valider"
-                  disabled={courses[courseSelectionnee].statut === 'Livrée'}
-                  onClick={() => avancerStatut(courseSelectionnee)}
-                >
-                  {courses[courseSelectionnee].statut === 'Livrée' ? 'Course livrée' : 'Faire avancer le statut'}
-                </button>
-              )}
+              {courses[courseSelectionnee].livreur_id === session.user.id &&
+                courses[courseSelectionnee].statut !== 'En cours' && (
+                  <button
+                    className="valider"
+                    disabled={courses[courseSelectionnee].statut === 'Livrée'}
+                    onClick={() => avancerStatut(courseSelectionnee)}
+                  >
+                    {courses[courseSelectionnee].statut === 'Livrée' ? 'Course livrée' : 'Commande récupérée : démarrer la livraison'}
+                  </button>
+                )}
+
+              {courses[courseSelectionnee].livreur_id === session.user.id &&
+                courses[courseSelectionnee].statut === 'En cours' && (
+                  formulaireLivraisonOuvert ? (
+                    <div className="carte-auth bloc-validation-livraison">
+                      <h3>Valider la livraison</h3>
+                      <p className="souligne">
+                        Demandez au client son code de livraison à 4 chiffres, uniquement quand il a sa commande en main.
+                      </p>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={4}
+                        className="champ-code-livraison"
+                        placeholder="Code à 4 chiffres"
+                        value={codeSaisi}
+                        onChange={(e) => setCodeSaisi(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reçu par (nom de la personne)"
+                        value={recuParSaisi}
+                        onChange={(e) => setRecuParSaisi(e.target.value)}
+                      />
+                      {erreurCodeLivraison && <p className="erreur-code-livraison">{erreurCodeLivraison}</p>}
+                      <button
+                        className="valider"
+                        disabled={validationLivraisonEnCours}
+                        onClick={() => validerLivraison(courseSelectionnee)}
+                      >
+                        {validationLivraisonEnCours ? 'Vérification...' : 'Confirmer la livraison'}
+                      </button>
+                      <p
+                        className="retour"
+                        onClick={() => { setFormulaireLivraisonOuvert(false); setErreurCodeLivraison(''); setCodeSaisi('') }}
+                      >
+                        Annuler
+                      </p>
+                    </div>
+                  ) : (
+                    <button className="valider" onClick={() => setFormulaireLivraisonOuvert(true)}>
+                      Valider la livraison
+                    </button>
+                  )
+                )}
 
               {courses[courseSelectionnee].livreur_id === session.user.id &&
                 courses[courseSelectionnee].statut === 'À livrer' && (
@@ -5221,43 +5255,6 @@ function App() {
             <p className="aucun-resultat">Aucune commande pour ce filtre.</p>
           )}
           </section>
-        </>
-      )}
-
-      {espace === 'facturationEntreprises' && role === 'admin' && (
-        <>
-          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
-          <h3>Facturation entreprises</h3>
-          <p className="souligne-configurateur">
-            Une facture par mois, regroupant toutes les commandes livrées sur la période choisie.
-          </p>
-
-          {entreprises.length === 0 && (
-            <p className="aucun-resultat">Aucun compte entreprise inscrit pour l'instant.</p>
-          )}
-
-          {entreprises.map((entreprise) => (
-            <div key={entreprise.id} className="carte-faq carte-entreprise">
-              <strong>{entreprise.nom || 'Entreprise sans nom'}</strong>
-              <p className="souligne">{entreprise.email}</p>
-              <div className="ligne-configurateur">
-                <input
-                  type="month"
-                  value={moisFacturationParEntreprise[entreprise.id] || ''}
-                  onChange={(e) =>
-                    setMoisFacturationParEntreprise((precedent) => ({ ...precedent, [entreprise.id]: e.target.value }))
-                  }
-                />
-                <button
-                  className="valider"
-                  disabled={facturationEnCoursId === entreprise.id}
-                  onClick={() => genererFactureMensuelle(entreprise, moisFacturationParEntreprise[entreprise.id])}
-                >
-                  {facturationEnCoursId === entreprise.id ? 'Envoi en cours...' : 'Générer et envoyer'}
-                </button>
-              </div>
-            </div>
-          ))}
         </>
       )}
 

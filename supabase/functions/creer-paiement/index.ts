@@ -52,13 +52,17 @@ Deno.serve(async (req) => {
   try {
     if (!STRIPE_KEY) return reponse({ error: 'Paiement non configuré.' }, 500)
 
-    const { panier, nomClient, adresse, telephone, email } = await req.json()
+    const { panier, nomClient, adresse, telephone, email, chantier, technicien } = await req.json()
 
     const texte = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
     const nom = texte(nomClient, 120)
     const adr = texte(adresse, 250)
     const tel = texte(telephone, 40)
     const mail = texte(email, 200)
+    // Comptes entreprise : chantier et collaborateur qui commande (facultatifs ici,
+    // exigés par l'application pour ces comptes).
+    const chantierTexte = texte(chantier, 160) || null
+    const technicienTexte = texte(technicien, 120) || null
 
     if (!nom || !adr || !tel || !mail || !/^\S+@\S+\.\S+$/.test(mail)) {
       return reponse({ error: "Merci de renseigner le nom, l'adresse, le téléphone et un email valide." }, 400)
@@ -67,15 +71,8 @@ Deno.serve(async (req) => {
       return reponse({ error: 'Panier invalide.' }, 400)
     }
 
-    // Les comptes entreprise ne paient pas en ligne (facture mensuelle).
+    // Tous les clients (y compris les comptes entreprise) paient en ligne.
     const userId = await utilisateurConnecte(req)
-    if (userId) {
-      const rp = await rest(`profils?id=eq.${userId}&select=role`)
-      const profils = rp.ok ? await rp.json() : []
-      if (profils[0]?.role === 'entreprise') {
-        return reponse({ error: 'Les comptes entreprise sont facturés chaque mois, sans paiement en ligne.' }, 400)
-      }
-    }
 
     // Prix du catalogue pour les produits connus (id numérique).
     const idsCatalogue = panier
@@ -137,7 +134,9 @@ Deno.serve(async (req) => {
           nom_client: nom,
           adresse: adr,
           telephone: tel,
-          email: mail
+          email: mail,
+          chantier: chantierTexte,
+          technicien: technicienTexte
         }
       })
     })

@@ -4073,3 +4073,181 @@ body.marketplace {
   font-size: 18px;
   font-weight: 700;
 }
+
+/* Pages d'information : gras en ligne dans les paragraphes, paragraphes espacés */
+.carte-faq p strong {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  color: var(--couleur-encre);
+}
+
+.carte-faq p + p {
+  margin-top: 10px;
+}
+
+/* Code de livraison (client) et validation (livreur) */
+.code-livraison {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 14px 0;
+  padding: 16px 18px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--couleur-accent);
+  border-radius: 16px;
+}
+
+.code-livraison-titre {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--couleur-muted);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.code-livraison-chiffres {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 10px;
+  color: var(--couleur-encre);
+  line-height: 1.1;
+}
+
+.code-livraison-aide {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--couleur-muted);
+}
+
+.code-livraison-ok {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  border-left-color: #1e7d3c;
+  color: var(--couleur-encre);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.code-livraison-ok i {
+  font-size: 22px;
+  color: #1e7d3c;
+}
+
+.bloc-validation-livraison {
+  margin-top: 14px;
+}
+
+.champ-code-livraison {
+  text-align: center;
+  font-size: 26px !important;
+  font-weight: 700;
+  letter-spacing: 12px;
+}
+
+.erreur-code-livraison {
+  margin: 4px 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #b3261e;
+}
+
+/* Tournée du livreur : retraits chez les fournisseurs puis livraison */
+.tournee-livreur {
+  margin: 14px 0;
+  padding: 16px 18px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 16px;
+}
+
+.tournee-livreur h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--couleur-encre);
+}
+
+.tournee-livreur ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tournee-livreur li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tournee-pastille {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 17px;
+}
+
+.tournee-retrait {
+  background: #F1EEE8;
+  color: var(--couleur-encre);
+}
+
+.tournee-livraison {
+  background: var(--couleur-accent);
+  color: var(--couleur-encre);
+}
+
+.tournee-texte {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.tournee-texte strong {
+  font-size: 14.5px;
+  color: var(--couleur-encre);
+}
+
+.tournee-texte small {
+  font-size: 13px;
+  color: var(--couleur-muted);
+}
+
+.tournee-lien {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--couleur-encre);
+  text-decoration: none;
+}
+
+.tournee-lien:hover {
+  border-color: var(--couleur-accent);
+}
+
+.tournee-complete {
+  margin-top: 14px;
+  text-decoration: none;
+}
