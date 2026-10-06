@@ -2590,3 +2590,727 @@ h3 {
     z-index: 39;
   }
 }
+
+/* =========================================================
+   REFONTE "marketplace" : en-tête, accueil direct, mise en page
+   téléphone + ordinateur pleine largeur
+   ========================================================= */
+body.marketplace {
+  background-color: #FAF7F2;
+  background-image: none;
+  padding: 0;
+  text-align: left;
+}
+
+.app.app-marketplace {
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #FAF7F2;
+  overflow: visible;
+  text-align: left;
+}
+
+.app-marketplace::before {
+  display: none;
+}
+
+/* En-tête */
+.entete-site {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 0 12px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--couleur-bordure);
+}
+
+.entete-bouton-icone,
+.entete-panier {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--couleur-encre);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.entete-bouton-icone i,
+.entete-panier i {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.entete-logo {
+  justify-self: center;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--couleur-encre);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  cursor: pointer;
+}
+
+.entete-logo-accent {
+  color: var(--couleur-accent);
+}
+
+.entete-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entete-pastille {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--couleur-accent);
+  color: var(--couleur-encre);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entete-bouton-contour,
+.entete-bouton-accent {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.entete-bouton-contour {
+  border: 1px solid var(--couleur-encre);
+  background: transparent;
+  color: var(--couleur-encre);
+}
+
+.entete-bouton-accent {
+  border: 0;
+  background: var(--couleur-accent);
+  color: var(--couleur-encre);
+  font-weight: 700;
+}
+
+.entete-controles,
+.entete-libelle-desktop,
+.menu-lateral {
+  display: none;
+}
+
+.recherche-entete {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background: #FAF7F2;
+  color: var(--couleur-muted);
+}
+
+.recherche-entete input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  color: var(--couleur-encre);
+}
+
+.contenu-marketplace {
+  min-width: 0;
+  padding: 12px 16px 24px;
+}
+
+.contenu-marketplace.catalogue {
+  text-align: left;
+}
+
+.contenu-marketplace.etroit {
+  text-align: center;
+}
+
+/* Cartes fournisseurs : visuel au-dessus, grille */
+.liste-fournisseurs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.carte-fournisseur {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--rayon-l);
+}
+
+.carte-fournisseur:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.carte-fournisseur:hover .visuel-fournisseur {
+  filter: brightness(0.97);
+}
+
+.carte-fournisseur .visuel-fournisseur {
+  width: 100%;
+  height: 130px;
+  font-size: 46px;
+  border-radius: var(--rayon-l);
+}
+
+.carte-fournisseur .texte-fournisseur {
+  padding: 0 2px;
+}
+
+/* Page fournisseur */
+.cover-fournisseur {
+  position: relative;
+  height: 150px;
+  margin: -12px -16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFE0CC;
+  color: var(--couleur-encre);
+  font-size: 64px;
+}
+
+.retour-rond {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #FFFFFF;
+  color: var(--couleur-encre);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.entete-fournisseur {
+  margin: 14px 0 10px;
+}
+
+.entete-fournisseur h3 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  letter-spacing: -0.4px;
+}
+
+.pastilles-categories {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 4px -16px 6px;
+  padding: 6px 16px 10px;
+  border-bottom: 1px solid var(--couleur-bordure);
+  scrollbar-width: none;
+}
+
+.pastilles-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.pastilles-categories button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #EFE9DE;
+  color: var(--couleur-encre);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pastilles-categories button.actif {
+  background: var(--couleur-encre);
+  color: #FFFFFF;
+}
+
+.titre-categorie {
+  margin: 16px 0 4px;
+  font-size: 18px;
+}
+
+/* Lignes de produits */
+.liste-lignes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ligne-produit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--couleur-bordure);
+  text-align: left;
+}
+
+.texte-ligne-produit {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nom-ligne-produit {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.detail-ligne-produit {
+  font-size: 13px;
+  color: var(--couleur-muted);
+}
+
+.prix-ligne-produit {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.vignette-ligne-produit {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: var(--rayon-m);
+  object-fit: cover;
+  background: #EFE9DE;
+}
+
+.bouton-plus {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 50%;
+  background: #FFFFFF;
+  color: var(--couleur-encre);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.bouton-plus:hover {
+  background: var(--couleur-accent);
+  border-color: var(--couleur-accent);
+}
+
+/* Panier */
+.groupe-panier {
+  background: #FFFFFF;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-l);
+  padding: 12px 14px;
+}
+
+.groupe-panier .liste-produits {
+  margin-top: 4px;
+}
+
+.panier-vide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0;
+  color: var(--couleur-muted);
+}
+
+.panier-vide i {
+  font-size: 40px;
+}
+
+.choix-livraison h4 {
+  margin: 4px 0 8px;
+  font-size: 16px;
+}
+
+.option-livraison {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 2px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+  background: #FFFFFF;
+  text-align: left;
+}
+
+.option-livraison p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--couleur-muted);
+  line-height: 1.35;
+}
+
+.option-livraison.actif {
+  border-color: var(--couleur-accent);
+  background: var(--couleur-accent-clair);
+}
+
+.option-livraison.desactive {
+  opacity: 0.6;
+}
+
+.radio-livraison {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border: 2px solid var(--couleur-encre);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radio-livraison span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--couleur-encre);
+}
+
+/* Barre panier façon maquette */
+.barre-panier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  left: 0;
+  right: 0;
+  padding: 14px 18px;
+  border-radius: 14px;
+}
+
+.barre-panier-gauche {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.barre-panier-compte {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 13px;
+  background: var(--couleur-accent);
+  color: var(--couleur-encre);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 699px) {
+  .barre-panier.au-dessus-onglets {
+    bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Ordinateur : pleine largeur, barre du haut complète, colonne des métiers */
+@media (min-width: 900px) {
+  .mise-en-page .app.app-marketplace {
+    width: 100%;
+    max-width: 1360px;
+    margin: 0 auto;
+    flex-shrink: 1;
+  }
+
+  .entete-site {
+    display: flex;
+    gap: 16px;
+    padding: 10px 32px;
+  }
+
+  .entete-logo {
+    justify-self: auto;
+    font-size: 22px;
+  }
+
+  .entete-controles {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .bascule-entete {
+    flex-shrink: 0;
+    margin: 0;
+  }
+
+  .bascule-entete button {
+    padding: 0 20px;
+  }
+
+  .entete-libelle-desktop {
+    display: inline;
+  }
+
+  .entete-actions {
+    margin-left: auto;
+  }
+
+  .entete-bouton-contour.entete-libelle-desktop,
+  .entete-bouton-accent.entete-libelle-desktop {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .entete-panier {
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--couleur-encre);
+    color: #FFFFFF;
+  }
+
+  .entete-pastille {
+    position: static;
+  }
+
+  .corps-marketplace {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+    padding: 28px 32px 48px;
+  }
+
+  .menu-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 230px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 92px;
+  }
+
+  .titre-menu-lateral {
+    padding: 0 12px 6px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--couleur-muted);
+  }
+
+  .item-lateral {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--rayon-m);
+    background: transparent;
+    color: var(--couleur-encre);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .item-lateral i {
+    font-size: 20px;
+  }
+
+  .item-lateral:hover {
+    background: rgba(30, 27, 23, 0.05);
+  }
+
+  .item-lateral.actif {
+    background: var(--couleur-accent-clair);
+  }
+
+  .item-lateral.a-venir {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .item-lateral.a-venir:hover {
+    background: transparent;
+  }
+
+  .separateur-lateral {
+    height: 1px;
+    margin: 12px 0;
+    background: var(--couleur-bordure);
+  }
+
+  .contenu-marketplace {
+    flex: 1;
+    padding: 0;
+  }
+
+  .contenu-marketplace.etroit {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 0 48px;
+  }
+
+  .app-marketplace .corps-marketplace:not(:has(.menu-lateral)) {
+    justify-content: center;
+  }
+
+  .bascule-contenu,
+  .recherche-contenu,
+  .rangee-metiers,
+  .barre-onglets,
+  .espace-onglets {
+    display: none;
+  }
+
+  .barre-panier {
+    display: none;
+  }
+
+  .cover-fournisseur {
+    margin: 0;
+    border-radius: var(--rayon-l);
+    height: 200px;
+  }
+
+  .pastilles-categories {
+    margin: 4px 0 6px;
+    padding: 6px 0 10px;
+  }
+
+  .liste-lignes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+  }
+
+  .titre-accueil {
+    font-size: 22px;
+  }
+}
+
+/* Titres du catalogue : style sobre, aligné à gauche */
+.contenu-marketplace.catalogue h3,
+.contenu-marketplace.catalogue .titre-accueil {
+  text-transform: none;
+  letter-spacing: -0.2px;
+  text-align: left;
+  color: var(--couleur-encre);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 18px 0 10px;
+}
+
+.contenu-marketplace.catalogue .entete-fournisseur h3 {
+  font-size: 24px;
+  margin: 0 0 4px;
+  letter-spacing: -0.4px;
+}
+
+.contenu-marketplace.catalogue .lien-carte {
+  text-align: left;
+}
+
+.contenu-marketplace.catalogue .retour {
+  text-align: left;
+  margin: 14px 0 4px;
+}
+
+.contenu-marketplace.catalogue .grille-etapes {
+  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.groupe-panier .liste-produits li {
+  background: transparent;
+  box-shadow: none;
+  padding: 8px 0;
+}
+
+.groupe-panier .liste-produits li:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.groupe-panier .liste-produits li {
+  justify-content: space-between;
+  text-align: left;
+}
+
+@media (min-width: 900px) {
+  .vue-panier {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+
+.groupe-panier .liste-produits {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.vue-panier .total-panier,
+.vue-panier .souligne {
+  text-align: left;
+}

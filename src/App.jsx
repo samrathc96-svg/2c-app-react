@@ -592,7 +592,7 @@ function App() {
   const [chargementAuth, setChargementAuth] = useState(true)
   const [afficherAuth, setAfficherAuth] = useState(false)
   const [afficherMenu, setAfficherMenu] = useState(false)
-  const [espace, setEspace] = useState('accueil')
+  const [espace, setEspace] = useState('catalogue')
 
   const [emailConnexion, setEmailConnexion] = useState('')
   const [motDePasseConnexion, setMotDePasseConnexion] = useState('')
@@ -696,6 +696,7 @@ function App() {
   const [modeAccueil, setModeAccueil] = useState('fournisseurs')
   const [metierFiltre, setMetierFiltre] = useState(null)
   const [fournisseurActif, setFournisseurActif] = useState(null)
+  const [categorieFournisseur, setCategorieFournisseur] = useState(null)
   const [panier, setPanier] = useState([])
   const [configFormeEntree, setConfigFormeEntree] = useState('rond')
   const [configTailleEntree, setConfigTailleEntree] = useState(DIAMETRES_RONDS[0])
@@ -1148,7 +1149,7 @@ function App() {
         // en boucle. On déconnecte proprement et on prévient la personne.
         await supabase.auth.signOut()
         setRole(null)
-        setEspace('accueil')
+        setEspace('catalogue')
         afficherNotification('Ta session a expiré, merci de te reconnecter.', 'info')
       }
       setChargementAuth(false)
@@ -1668,7 +1669,7 @@ function App() {
     setEmailOubli('')
     setMessageOubli('')
     setErreurOubli('')
-    setEspace('accueil')
+    setEspace('catalogue')
     setVue('accueil')
     setAfficherAuth(false)
   }
@@ -1680,6 +1681,7 @@ function App() {
 
   function ouvrirFournisseur(nom) {
     setFournisseurActif(nom)
+    setCategorieFournisseur(null)
     setVue('fournisseur')
     window.scrollTo({ top: 0 })
   }
@@ -2735,52 +2737,244 @@ function App() {
     afficherNotification('Produit supprimé.', 'info')
   }
 
+  // ------------------------------------------------------------
+  // Éléments d'interface partagés (nouvelle navigation)
+  // ------------------------------------------------------------
+  const blocConfigurateur = (
+    <div className="carte-faq carte-configurateur">
+                    <strong>Composer ma pièce sur mesure</strong>
+                    <p className="souligne-configurateur">
+                      Transformation, réduction... choisis directement l'entrée et la sortie de ta pièce,
+                      sans chercher si la combinaison existe déjà ci-dessous.
+                    </p>
+  
+                    <div className="ligne-configurateur">
+                      <span className="etiquette-configurateur">Entrée</span>
+                      <select value={configFormeEntree} onChange={(e) => changerFormeEntree(e.target.value)}>
+                        <option value="rond">Rond</option>
+                        <option value="carre">Carré / rectangulaire</option>
+                      </select>
+                      <select value={configTailleEntree} onChange={(e) => setConfigTailleEntree(e.target.value)}>
+                        {(configFormeEntree === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
+                          <option key={taille} value={taille}>
+                            {configFormeEntree === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+  
+                    <div className="ligne-configurateur">
+                      <span className="etiquette-configurateur">Sortie</span>
+                      <select value={configFormeSortie} onChange={(e) => changerFormeSortie(e.target.value)}>
+                        <option value="rond">Rond</option>
+                        <option value="carre">Carré / rectangulaire</option>
+                      </select>
+                      <select value={configTailleSortie} onChange={(e) => setConfigTailleSortie(e.target.value)}>
+                        {(configFormeSortie === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
+                          <option key={taille} value={taille}>
+                            {configFormeSortie === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+  
+                    <div className="ligne-configurateur">
+                      <span className="etiquette-configurateur">Longueur</span>
+                      <input
+                        type="number"
+                        min="50"
+                        max={LONGUEUR_MAX_MM}
+                        step="10"
+                        value={configLongueur}
+                        onChange={(e) => setConfigLongueur(e.target.value)}
+                      />
+                      <span className="souligne">mm</span>
+                    </div>
+  
+                    {Number(configLongueur) > LONGUEUR_MAX_MM && (
+                      <p className="avertissement-configurateur">
+                        La longueur maximale pour une pièce sur mesure est de {LONGUEUR_MAX_MM}mm.
+                      </p>
+                    )}
+  
+                    <div className="pied-configurateur">
+                      <span className="prix-configurateur">
+                        ≈ {(estimerPrixTransformation(configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur) || 0).toFixed(2)} CHF
+                      </span>
+                      <button
+                        onClick={ajouterTransformationAuPanier}
+                        disabled={Number(configLongueur) > LONGUEUR_MAX_MM}
+                      >
+                        Ajouter
+                      </button>
+                    </div>
+                    <p className="souligne-configurateur">
+                      Prix estimé, ajusté si besoin après validation. Longueur maximale : {LONGUEUR_MAX_MM}mm.
+                    </p>
+                  </div>
+  )
+
+  function choisirMetier(nom) {
+    setMetierFiltre((precedent) => (precedent === nom ? null : nom))
+    if (vue !== 'accueil') retourAccueil()
+  }
+
+  function changerModeAccueil(mode) {
+    setModeAccueil(mode)
+    if (vue !== 'accueil') retourAccueil()
+  }
+
+  function changerRechercheEntete(valeur) {
+    setRecherche(valeur)
+    if (valeur !== '' && vue !== 'accueil') retourAccueil()
+  }
+
+  function ouvrirPanier() {
+    setEspace('catalogue')
+    setVue('panier')
+    window.scrollTo({ top: 0 })
+  }
+
+  function ouvrirCatalogue() {
+    setEspace('catalogue')
+    retourAccueil()
+    setAfficherAuth(false)
+    setAfficherMenu(false)
+    window.scrollTo({ top: 0 })
+  }
+
+  // Une ligne de produit : nom, détail, prix, vignette et bouton +.
+  function ligneProduit(produit, cle, detail) {
+    const rupture = estEnRupture(produit)
+    const stockFaible = !rupture && produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3
+    return (
+      <li key={cle} className="ligne-produit">
+        <div className="texte-ligne-produit">
+          <span className="nom-ligne-produit">{produit.nom}</span>
+          {detail && <span className="detail-ligne-produit">{detail}</span>}
+          <span className="prix-ligne-produit">{produit.prix.toFixed(2)} CHF</span>
+          {rupture && <span className="rupture-stock">Rupture de stock</span>}
+          {stockFaible && <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>}
+        </div>
+        {produit.image_url && <img src={produit.image_url} alt="" className="vignette-ligne-produit" />}
+        {!rupture && (
+          <button className="bouton-plus" aria-label={`Ajouter ${produit.nom} au panier`} onClick={() => ajouterAuPanier(produit)}>
+            <i className="bi bi-plus-lg"></i>
+          </button>
+        )}
+      </li>
+    )
+  }
+
+  const modeMarketplace = !ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace)
+
+  useEffect(() => {
+    document.body.classList.toggle('marketplace', modeMarketplace)
+    return () => document.body.classList.remove('marketplace')
+  }, [modeMarketplace])
+
+  const metiersAVenirAffiches = METIERS_A_VENIR.filter(
+    (a) => !metiers.some((m) => retirerAccents(m.nom.toLowerCase()).includes(retirerAccents(a.nom.toLowerCase())))
+  )
+
   return (
     <div className="mise-en-page">
-      {!ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace) && (
-        <aside className="colonne-desktop">
-          <div className="carte-desktop">
-            <h3>Pourquoi 2C</h3>
-            {AVANTAGES_PANNEAU_GAUCHE.map((avantage) => (
-              <div key={avantage.titre} className="banniere-avantage">
-                <span className="badge-avantage">
-                  <i className={`bi bi-${avantage.icone}`}></i>
-                </span>
-                <div>
-                  <strong>{avantage.titre}</strong>
-                  <p>{avantage.texte}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-      )}
-
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
         </div>
       )}
 
-      <div className="barre-menu-haut">
-        <button
-          className="icone-compte"
-          title="Menu"
-          onClick={() => setAfficherMenu(true)}
-        >
-          <i className="bi bi-list"></i>
-        </button>
-      </div>
+      {modeMarketplace && (
+        <header className="entete-site">
+          <button className="entete-bouton-icone" aria-label="Menu" onClick={() => setAfficherMenu(true)}>
+            <i className="bi bi-list"></i>
+          </button>
 
-      <div className="barre-compte-haut">
-        <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
-          {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
-        </button>
-        <button className="icone-compte" onClick={() => setAfficherAuth(true)}>
-          <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person-circle'}`}></i>
-        </button>
-      </div>
+          <button className="entete-logo" aria-label="2C Delivery, retour au catalogue" onClick={ouvrirCatalogue}>
+            <span className="entete-logo-accent">2C</span> Delivery
+          </button>
+
+          {espace === 'catalogue' && (
+            <div className="entete-controles">
+              <div className="bascule-accueil bascule-entete" role="tablist" aria-label="Parcourir par">
+                <button
+                  role="tab"
+                  aria-selected={modeAccueil === 'fournisseurs'}
+                  className={modeAccueil === 'fournisseurs' ? 'actif' : ''}
+                  onClick={() => changerModeAccueil('fournisseurs')}
+                >
+                  Fournisseurs
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={modeAccueil === 'produits'}
+                  className={modeAccueil === 'produits' ? 'actif' : ''}
+                  onClick={() => changerModeAccueil('produits')}
+                >
+                  Produits
+                </button>
+              </div>
+              <div className="recherche-entete">
+                <i className="bi bi-search"></i>
+                <input
+                  type="text"
+                  aria-label="Rechercher"
+                  placeholder="Rechercher un produit"
+                  value={recherche}
+                  onChange={(e) => changerRechercheEntete(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="entete-actions">
+            <button className="entete-panier" aria-label={`Panier, ${nombreArticles} article(s)`} onClick={ouvrirPanier}>
+              <i className="bi bi-cart3"></i>
+              <span className="entete-libelle-desktop">Panier</span>
+              {nombreArticles > 0 && <span className="entete-pastille">{nombreArticles}</span>}
+            </button>
+            {session ? (
+              <button className="entete-bouton-contour entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
+                Mon compte
+              </button>
+            ) : (
+              <>
+                <button className="entete-bouton-contour entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
+                  Connexion
+                </button>
+                <button className="entete-bouton-accent entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
+                  Inscription
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+      )}
+
+      {!modeMarketplace && (
+        <>
+          <div className="barre-menu-haut">
+            <button
+              className="icone-compte"
+              title="Menu"
+              onClick={() => setAfficherMenu(true)}
+            >
+              <i className="bi bi-list"></i>
+            </button>
+          </div>
+
+          <div className="barre-compte-haut">
+            <button className="lien-compte" onClick={() => setAfficherAuth(true)}>
+              {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
+            </button>
+            <button className="icone-compte" onClick={() => setAfficherAuth(true)}>
+              <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person-circle'}`}></i>
+            </button>
+          </div>
+        </>
+      )}
 
       {afficherMenu && (
         <div className="overlay-auth" onClick={() => setAfficherMenu(false)}>
@@ -2788,11 +2982,6 @@ function App() {
             <button className="fermer-auth" onClick={() => setAfficherMenu(false)}>✕</button>
             <h3>Menu</h3>
             <nav className="liste-menu">
-              {espace !== 'accueil' && !role && (
-                <button onClick={() => { setEspace('accueil'); setAfficherMenu(false) }}>
-                  <i className="bi bi-house"></i> Accueil
-                </button>
-              )}
               <button onClick={() => { setEspace('suivi'); setAfficherMenu(false) }}>
                 <i className="bi bi-truck"></i> Suivre ma commande
               </button>
@@ -2831,25 +3020,29 @@ function App() {
         </div>
       )}
 
-      <div
-        className="bloc-logo"
-        role="button"
-        tabIndex={0}
-        title="Retour à l'accueil"
-        onClick={() => { setEspace('accueil'); setAfficherAuth(false); setAfficherMenu(false) }}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEspace('accueil'); setAfficherAuth(false); setAfficherMenu(false) } }}
-      >
-        <div className="logo">
-          <span className="lettre">C</span>
-          <span className="chiffre">2</span>
-        </div>
-        <p className="sous-marque">
-          <span className="sous-marque-accent">Deli</span>
-          <span className="sous-marque-encre">very</span>
-        </p>
-      </div>
-      <div className="separateur-un"></div>
-      <p className="slogan">Du rayon au chantier, en un clic.</p>
+      {!modeMarketplace && (
+        <>
+          <div
+            className="bloc-logo"
+            role="button"
+            tabIndex={0}
+            title="Retour à l'accueil"
+            onClick={() => { setEspace('catalogue'); setAfficherAuth(false); setAfficherMenu(false) }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEspace('catalogue'); setAfficherAuth(false); setAfficherMenu(false) } }}
+          >
+            <div className="logo">
+              <span className="lettre">C</span>
+              <span className="chiffre">2</span>
+            </div>
+            <p className="sous-marque">
+              <span className="sous-marque-accent">Deli</span>
+              <span className="sous-marque-encre">very</span>
+            </p>
+          </div>
+          <div className="separateur-un"></div>
+          <p className="slogan">Du rayon au chantier, en un clic.</p>
+        </>
+      )}
 
       {afficherAuth && (
         <div className="overlay-auth" onClick={() => setAfficherAuth(false)}>
@@ -3038,6 +3231,45 @@ function App() {
         </div>
       )}
 
+      <div className="corps-marketplace">
+      {modeMarketplace && espace === 'catalogue' && (
+        <aside className="menu-lateral" aria-label="Métiers">
+          <div className="titre-menu-lateral">Métiers</div>
+          {metiers.map((metier) => (
+            <button
+              key={metier.nom}
+              className={`item-lateral${metierFiltre === metier.nom ? ' actif' : ''}`}
+              aria-pressed={metierFiltre === metier.nom}
+              onClick={() => choisirMetier(metier.nom)}
+            >
+              <i className={`bi bi-${metier.icone}`}></i>
+              <span>{metier.nom}</span>
+            </button>
+          ))}
+          {metiersAVenirAffiches.map((a) => (
+            <div key={a.nom} className="item-lateral a-venir">
+              <i className={`bi bi-${a.icone}`}></i>
+              <span>{a.nom}</span>
+              <span className="etiquette-bientot">Bientôt</span>
+            </div>
+          ))}
+          <div className="separateur-lateral"></div>
+          <button className="item-lateral" onClick={ouvrirOngletCommandes}>
+            <i className="bi bi-box-seam"></i>
+            <span>Mes commandes</span>
+          </button>
+          <button className="item-lateral" onClick={() => setEspace('suivi')}>
+            <i className="bi bi-truck"></i>
+            <span>Suivre ma commande</span>
+          </button>
+          <button className="item-lateral" onClick={() => { setRoleChoisi('entreprise'); setAfficherAuth(true) }}>
+            <i className="bi bi-building"></i>
+            <span>Vous êtes une entreprise ?</span>
+          </button>
+        </aside>
+      )}
+
+      <div className={`contenu-marketplace${espace === 'catalogue' ? ' catalogue' : ' etroit'}`}>
       {espace === 'catalogue' && (
         <>
           {chargement && (
@@ -3051,7 +3283,7 @@ function App() {
 
           {!chargement && vue === 'accueil' && (
             <>
-              <div className="bascule-accueil" role="tablist" aria-label="Parcourir par">
+              <div className="bascule-accueil bascule-contenu" role="tablist" aria-label="Parcourir par">
                 <button
                   role="tab"
                   aria-selected={modeAccueil === 'fournisseurs'}
@@ -3072,7 +3304,7 @@ function App() {
 
               <input
                 type="text"
-                className="barre-recherche"
+                className="barre-recherche recherche-contenu"
                 placeholder="Rechercher un produit..."
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
@@ -3129,10 +3361,34 @@ function App() {
                           <span className="detail-fournisseur">{fournisseur.categories.slice(0, 3).join(', ')}</span>
                           <span className="detail-fournisseur">{fournisseur.produits.length} produit(s)</span>
                         </span>
-                        <i className="bi bi-chevron-right"></i>
                       </button>
                     ))}
                   </div>
+
+                  <h3 className="titre-accueil">Comment ça marche</h3>
+                  <div className="grille-etapes">
+                    <div className="etape-accueil">
+                      <span className="numero-etape">1</span>
+                      <i className="bi bi-cart-check"></i>
+                      <strong>Tu commandes</strong>
+                      <p>Choisis tes produits, avec ou sans compte.</p>
+                    </div>
+                    <div className="etape-accueil">
+                      <span className="numero-etape">2</span>
+                      <i className="bi bi-bicycle"></i>
+                      <strong>Un livreur récupère</strong>
+                      <p>Un livreur proche récupère ta commande chez le fournisseur.</p>
+                    </div>
+                    <div className="etape-accueil">
+                      <span className="numero-etape">3</span>
+                      <i className="bi bi-geo-alt"></i>
+                      <strong>Livraison sur chantier</strong>
+                      <p>Elle arrive là où tu en as besoin, avec un suivi en temps réel.</p>
+                    </div>
+                  </div>
+                  <p className="lien-carte" onClick={() => setEspace('apropos')}>
+                    En savoir plus sur nous →
+                  </p>
                 </>
               )}
 
@@ -3160,32 +3416,13 @@ function App() {
               )}
 
               {rechercheNormalisee !== '' && (
-                <ul className="liste-produits">
+                <ul className="liste-lignes">
                   {trierProduits(produitsRecherches, triCatalogue).map((produit) => (
-                    <li key={produit.id}>
-                      {produit.image_url && (
-                        <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
-                      )}
-                      <span>
-                        {produit.nom}
-                        <br />
-                        <span className="souligne">
-                          {produit.sousSection}
-                          {nombreFournisseursTotal > 1 ? ` · ${produit.fournisseur}` : ''}
-                        </span>
-                      </span>
-                      <span className="prix">{produit.prix.toFixed(2)} CHF</span>
-                      {estEnRupture(produit) ? (
-                        <span className="rupture-stock">Rupture de stock</span>
-                      ) : (
-                        <>
-                          {produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3 && (
-                            <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>
-                          )}
-                          <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
-                        </>
-                      )}
-                    </li>
+                    ligneProduit(
+                      produit,
+                      produit.id,
+                      `${produit.sousSection}${nombreFournisseursTotal > 1 ? ` · ${produit.fournisseur}` : ''}`
+                    )
                   ))}
                 </ul>
               )}
@@ -3196,32 +3433,56 @@ function App() {
             </>
           )}
 
-          {vue === 'fournisseur' && fournisseurActif && (
-            <>
-              <p className="retour" onClick={retourAccueil}>← Retour</p>
-              <div className="entete-fournisseur">
-                <span className="visuel-fournisseur grand"><i className="bi bi-shop"></i></span>
-                <h3>{fournisseurActif}</h3>
-                <p className="souligne">
-                  {sousSectionsFournisseur.reduce((somme, ss) => somme + ss.produits.length, 0)} produit(s) · {sousSectionsFournisseur.length} catégorie(s)
-                </p>
-              </div>
-              {nombreFournisseursTotal > 1 && (
-                <div className="note-fournisseur">
-                  <span>Tu peux ajouter des produits d'autres fournisseurs : tout reste dans le même panier.</span>
-                  <button onClick={retourAccueil}>Voir les autres fournisseurs</button>
+          {vue === 'fournisseur' && fournisseurActif && (() => {
+            const categorieCourante = sousSectionsFournisseur.find((ss) => ss.nom === categorieFournisseur) || sousSectionsFournisseur[0]
+            const nombreProduitsFournisseur = sousSectionsFournisseur.reduce((somme, ss) => somme + ss.produits.length, 0)
+            return (
+              <>
+                <div className="cover-fournisseur">
+                  <button className="retour-rond" aria-label="Retour" onClick={retourAccueil}>
+                    <i className="bi bi-chevron-left"></i>
+                  </button>
+                  <i className="bi bi-shop"></i>
                 </div>
-              )}
-              <div className="grille-categories">
-                {sousSectionsFournisseur.map((sousSection) => (
-                  <div key={sousSection.nom} className="carte-categorie" onClick={() => ouvrirSousSection(sousSection)}>
-                    <span className="icon-categorie"><i className={`bi bi-${iconsParSousSection[sousSection.nom] || 'box-seam'}`}></i></span>
-                    <span>{sousSection.nom}</span>
+                <div className="entete-fournisseur">
+                  <h3>{fournisseurActif}</h3>
+                  <p className="souligne">
+                    {nombreProduitsFournisseur} produit(s) · {sousSectionsFournisseur.length} catégorie(s)
+                  </p>
+                </div>
+                {nombreFournisseursTotal > 1 && (
+                  <div className="note-fournisseur">
+                    <span>Tu peux ajouter des produits d'autres fournisseurs : tout reste dans le même panier.</span>
+                    <button onClick={retourAccueil}>Ajouter d'autres fournisseurs</button>
                   </div>
-                ))}
-              </div>
-            </>
-          )}
+                )}
+                <div className="pastilles-categories" role="tablist" aria-label="Catégories">
+                  {sousSectionsFournisseur.map((sousSection) => (
+                    <button
+                      key={sousSection.nom}
+                      role="tab"
+                      aria-selected={categorieCourante && categorieCourante.nom === sousSection.nom}
+                      className={categorieCourante && categorieCourante.nom === sousSection.nom ? 'actif' : ''}
+                      onClick={() => setCategorieFournisseur(sousSection.nom)}
+                    >
+                      {sousSection.nom}
+                    </button>
+                  ))}
+                </div>
+                {categorieCourante && (
+                  <>
+                    <h4 className="titre-categorie">{categorieCourante.nom}</h4>
+                    {categorieCourante.nom === 'Gaines Quadratique' && blocConfigurateur}
+                    <ul className="liste-lignes">
+                      {trierProduits(categorieCourante.produits, triCatalogue).map((produit) =>
+                        ligneProduit(produit, produit.id || produit.nom, null)
+                      )}
+                    </ul>
+                  </>
+                )}
+              </>
+            )
+          })()}
 
           {vue === 'sousSection' && (
             <>
@@ -3239,79 +3500,7 @@ function App() {
               </div>
               <h3>{sousSectionActive.nom}</h3>
 
-              {sousSectionActive.nom === 'Gaines Quadratique' && (
-                <div className="carte-faq carte-configurateur">
-                  <strong>Composer ma pièce sur mesure</strong>
-                  <p className="souligne-configurateur">
-                    Transformation, réduction... choisis directement l'entrée et la sortie de ta pièce,
-                    sans chercher si la combinaison existe déjà ci-dessous.
-                  </p>
-
-                  <div className="ligne-configurateur">
-                    <span className="etiquette-configurateur">Entrée</span>
-                    <select value={configFormeEntree} onChange={(e) => changerFormeEntree(e.target.value)}>
-                      <option value="rond">Rond</option>
-                      <option value="carre">Carré / rectangulaire</option>
-                    </select>
-                    <select value={configTailleEntree} onChange={(e) => setConfigTailleEntree(e.target.value)}>
-                      {(configFormeEntree === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
-                        <option key={taille} value={taille}>
-                          {configFormeEntree === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="ligne-configurateur">
-                    <span className="etiquette-configurateur">Sortie</span>
-                    <select value={configFormeSortie} onChange={(e) => changerFormeSortie(e.target.value)}>
-                      <option value="rond">Rond</option>
-                      <option value="carre">Carré / rectangulaire</option>
-                    </select>
-                    <select value={configTailleSortie} onChange={(e) => setConfigTailleSortie(e.target.value)}>
-                      {(configFormeSortie === 'rond' ? DIAMETRES_RONDS : TAILLES_QUADRA).map((taille) => (
-                        <option key={taille} value={taille}>
-                          {configFormeSortie === 'rond' ? `Ø${taille}mm` : `${taille}mm`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="ligne-configurateur">
-                    <span className="etiquette-configurateur">Longueur</span>
-                    <input
-                      type="number"
-                      min="50"
-                      max={LONGUEUR_MAX_MM}
-                      step="10"
-                      value={configLongueur}
-                      onChange={(e) => setConfigLongueur(e.target.value)}
-                    />
-                    <span className="souligne">mm</span>
-                  </div>
-
-                  {Number(configLongueur) > LONGUEUR_MAX_MM && (
-                    <p className="avertissement-configurateur">
-                      La longueur maximale pour une pièce sur mesure est de {LONGUEUR_MAX_MM}mm.
-                    </p>
-                  )}
-
-                  <div className="pied-configurateur">
-                    <span className="prix-configurateur">
-                      ≈ {(estimerPrixTransformation(configFormeEntree, configTailleEntree, configFormeSortie, configTailleSortie, configLongueur) || 0).toFixed(2)} CHF
-                    </span>
-                    <button
-                      onClick={ajouterTransformationAuPanier}
-                      disabled={Number(configLongueur) > LONGUEUR_MAX_MM}
-                    >
-                      Ajouter
-                    </button>
-                  </div>
-                  <p className="souligne-configurateur">
-                    Prix estimé, ajusté si besoin après validation. Longueur maximale : {LONGUEUR_MAX_MM}mm.
-                  </p>
-                </div>
-              )}
+              {sousSectionActive.nom === 'Gaines Quadratique' && blocConfigurateur}
 
               {sousSectionActive.produits.length > 1 && (
                 <select className="tri-catalogue" value={triCatalogue} onChange={(e) => setTriCatalogue(e.target.value)}>
@@ -3322,32 +3511,16 @@ function App() {
                 </select>
               )}
 
-              <ul className="liste-produits">
+              <ul className="liste-lignes">
                 {trierProduits(sousSectionActive.produits, triCatalogue).map((produit) => (
-                  <li key={produit.nom}>
-                    {produit.image_url && (
-                      <img src={produit.image_url} alt="" className="vignette-produit-catalogue" />
-                    )}
-                    <span>{produit.nom}</span>
-                    <span className="prix">{produit.prix.toFixed(2)} CHF</span>
-                    {estEnRupture(produit) ? (
-                      <span className="rupture-stock">Rupture de stock</span>
-                    ) : (
-                      <>
-                        {produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3 && (
-                          <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>
-                        )}
-                        <button onClick={() => ajouterAuPanier(produit)}>Ajouter</button>
-                      </>
-                    )}
-                  </li>
+                  ligneProduit(produit, produit.id || produit.nom, null)
                 ))}
               </ul>
             </>
           )}
 
           {vue === 'panier' && (
-            <>
+            <div className="vue-panier">
               <p className="retour" onClick={retourAccueil}>← Retour</p>
               <h3>Mon panier</h3>
               {groupesPanier.map((groupe) => (
@@ -3374,10 +3547,31 @@ function App() {
                   </ul>
                 </div>
               ))}
+              {panier.length === 0 && (
+                <div className="panier-vide">
+                  <i className="bi bi-cart3"></i>
+                  <p>Ton panier est vide.</p>
+                  <button className="valider" onClick={retourAccueil}>Voir les fournisseurs</button>
+                </div>
+              )}
               {groupesPanier.length > 1 && (
-                <p className="souligne">
-                  Ta commande contient des produits de {groupesPanier.length} fournisseurs : un seul livreur les récupère et te livre en une fois.
-                </p>
+                <div className="choix-livraison">
+                  <h4>Mode de livraison</h4>
+                  <div className="option-livraison actif">
+                    <span className="radio-livraison"><span></span></span>
+                    <div>
+                      <strong>Livraison groupée</strong>
+                      <p>Un seul livreur passe chez les {groupesPanier.length} fournisseurs, puis chez toi.</p>
+                    </div>
+                  </div>
+                  <div className="option-livraison desactive" aria-disabled="true">
+                    <span className="radio-livraison"></span>
+                    <div>
+                      <strong>Livraisons séparées <span className="etiquette-bientot">Bientôt</span></strong>
+                      <p>Un livreur par fournisseur. Tarif à venir.</p>
+                    </div>
+                  </div>
+                </div>
               )}
               <div className="champ-livraison">
                 <input
@@ -3432,7 +3626,7 @@ function App() {
                     ? 'Payer et commander'
                     : 'Valider la commande'}
               </button>
-            </>
+            </div>
           )}
 
           {vue === 'commande' && (
@@ -3467,7 +3661,11 @@ function App() {
 
           {vue !== 'panier' && vue !== 'commande' && nombreArticles > 0 && (
             <div className="barre-panier au-dessus-onglets" onClick={() => setVue('panier')}>
-              Panier : {nombreArticles} article(s) — {total.toFixed(2)} CHF
+              <span className="barre-panier-gauche">
+                <span className="barre-panier-compte">{nombreArticles}</span>
+                Voir le panier
+              </span>
+              <span>{total.toFixed(2)} CHF</span>
             </div>
           )}
         </>
@@ -3834,67 +4032,6 @@ function App() {
               )}
             </>
           )}
-        </>
-      )}
-
-      {espace === 'accueil' && (
-        <>
-          <p className="accueil-intro">
-            La livraison de matériel de chantier, pensée pour les artisans : commande en quelques clics,
-            un livreur proche de toi s'en charge, et ta commande arrive directement sur le chantier.
-          </p>
-
-          <div className="boutons-hero">
-            <button className="valider" onClick={() => setEspace('catalogue')}>
-              <i className="bi bi-shop"></i> Voir le catalogue
-            </button>
-          </div>
-
-          <h3 className="titre-accueil">Comment ça marche</h3>
-          <div className="grille-etapes">
-            <div className="etape-accueil">
-              <span className="numero-etape">1</span>
-              <i className="bi bi-cart-check"></i>
-              <strong>Tu commandes</strong>
-              <p>Choisis tes produits dans le catalogue, avec ou sans compte.</p>
-            </div>
-            <div className="etape-accueil">
-              <span className="numero-etape">2</span>
-              <i className="bi bi-bicycle"></i>
-              <strong>Un livreur prend en charge</strong>
-              <p>Un livreur disponible à proximité récupère et prépare ta commande.</p>
-            </div>
-            <div className="etape-accueil">
-              <span className="numero-etape">3</span>
-              <i className="bi bi-geo-alt"></i>
-              <strong>Livraison sur chantier</strong>
-              <p>Ta commande arrive directement où tu en as besoin, avec un suivi en temps réel.</p>
-            </div>
-          </div>
-
-          <h3 className="titre-accueil">Pourquoi 2C Delivery</h3>
-          <div className="grille-avantages">
-            <div className="avantage-accueil">
-              <i className="bi bi-lightning-charge"></i>
-              <span>Livraison rapide, directement sur chantier</span>
-            </div>
-            <div className="avantage-accueil">
-              <i className="bi bi-person-check"></i>
-              <span>Aucun compte nécessaire pour commander</span>
-            </div>
-            <div className="avantage-accueil">
-              <i className="bi bi-star"></i>
-              <span>Livreurs notés par les clients</span>
-            </div>
-            <div className="avantage-accueil">
-              <i className="bi bi-signpost-2"></i>
-              <span>Suivi de commande en temps réel</span>
-            </div>
-          </div>
-
-          <p className="lien-carte" onClick={() => setEspace('apropos')}>
-            En savoir plus sur nous →
-          </p>
         </>
       )}
 
@@ -4982,21 +5119,10 @@ function App() {
           )}
         </>
       )}
+      </div>
+      </div>
     </div>
 
-      {!ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace) && (
-        <aside className="colonne-desktop">
-          <div className="carte-desktop carte-diaporama">
-            <DiaporamaChantier />
-            <button
-              className="bouton-cta-desktop"
-              onClick={() => { setRoleChoisi('entreprise'); setAfficherAuth(true) }}
-            >
-              Vous êtes une entreprise ?
-            </button>
-          </div>
-        </aside>
-      )}
     </div>
   )
 }
