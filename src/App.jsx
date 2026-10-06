@@ -589,6 +589,14 @@ function grouperProduits(lignes) {
 
 const STATUTS = ['À livrer', 'En cours', 'Livrée']
 
+// "06/10/2026 à 11:23" : date et heure de prise de commande d'une course,
+// pour la retrouver facilement dans les listes du livreur.
+const dateHeureCourse = (course) => {
+  if (!course || !course.created_at) return ''
+  const d = new Date(course.created_at)
+  return `${d.toLocaleDateString('fr-CH')} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`
+}
+
 const lienItineraire = (destination, etapes = []) => {
   const base = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
   return etapes.length > 0 ? `${base}&waypoints=${encodeURIComponent(etapes.join('|'))}` : base
@@ -804,6 +812,7 @@ function App() {
   const [recuParSaisi, setRecuParSaisi] = useState('')
   const [erreurCodeLivraison, setErreurCodeLivraison] = useState('')
   const [validationLivraisonEnCours, setValidationLivraisonEnCours] = useState(false)
+  const [priseEnChargeAConfirmer, setPriseEnChargeAConfirmer] = useState(null)
 
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
@@ -915,9 +924,11 @@ function App() {
   const coursesActives = courses.filter((course) => course.statut !== 'Livrée' && course.statut !== 'Annulée')
   const coursesLivrees = courses.filter((course) => course.statut === 'Livrée')
 
-  const coursesDisponibles = coursesActives.filter((course) => !course.livreur_id)
-  const coursesMoi = session ? coursesActives.filter((course) => course.livreur_id === session.user.id) : []
-  const coursesLivreesMoi = session ? coursesLivrees.filter((course) => course.livreur_id === session.user.id) : []
+  // Les plus récentes d'abord, pour les retrouver facilement.
+  const plusRecenteDabord = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))
+  const coursesDisponibles = coursesActives.filter((course) => !course.livreur_id).sort(plusRecenteDabord)
+  const coursesMoi = session ? coursesActives.filter((course) => course.livreur_id === session.user.id).sort(plusRecenteDabord) : []
+  const coursesLivreesMoi = session ? coursesLivrees.filter((course) => course.livreur_id === session.user.id).sort(plusRecenteDabord) : []
 
   const coursesFiltreesStatut = filtreAdmin === 'toutes' ? courses : courses.filter((course) => course.statut === filtreAdmin)
   // Date de prise de commande affichée dans le tableau admin (ex. "05/10/2026")
@@ -2190,9 +2201,9 @@ function App() {
   // cours ou annulée. Se déroule en arrière-plan : si ça échoue (pas
   // d'email renseigné, souci réseau...), ça n'empêche jamais de valider
   // la livraison elle-même.
-  // Exception : les anciennes commandes d'entreprise (facturation_mensuelle,
-  // avant l'arrêt de la facturation mensuelle) ne reçoivent pas de facture
-  // individuelle.
+  // Toutes les commandes (particuliers comme entreprises) reçoivent leur
+  // facture individuelle : la facturation mensuelle n'existe plus.
+
   // Sauvegarde une facture déjà générée (PDF) dans le Storage et dans la
   // table "factures", pour qu'elle reste consultable dans "Mes factures"
   // même après l'envoi de l'email. N'empêche jamais l'envoi de la facture
@@ -2232,8 +2243,12 @@ function App() {
       .rpc('obtenir_commande_facture', { p_commande_id: commandeId })
       .single()
 
-    if (error || !data || !data.email || data.facturation_mensuelle) {
-      if (error) console.error('Erreur de récupération de la commande pour la facture :', error)
+    if (error || !data) {
+      console.error('Erreur de récupération de la commande pour la facture :', error)
+      return
+    }
+    if (!data.email) {
+      console.error("Facture non envoyée : aucune adresse email sur la commande", commandeId)
       return
     }
 
@@ -2442,6 +2457,8 @@ function App() {
     }
 
     setCourses(courses.map((c, i) => (i === index ? { ...c, livreur_id: session.user.id } : c)))
+    setPriseEnChargeAConfirmer(null)
+    afficherNotification('Commande prise en charge.', 'info')
   }
 
   async function libererCourse(index) {
@@ -4799,7 +4816,7 @@ function App() {
               <ul className="liste-courses">
                 {coursesDisponibles.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
-                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
+                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}</span>
                     <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
@@ -4812,7 +4829,7 @@ function App() {
               <ul className="liste-courses">
                 {coursesMoi.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
-                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
+                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}</span>
                     <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
@@ -4827,7 +4844,7 @@ function App() {
                   <ul className="liste-courses">
                     {coursesLivreesMoi.map((course) => (
                       <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
-                        <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span></span>
+                        <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}</span>
                         <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                       </li>
                     ))}
@@ -4842,6 +4859,9 @@ function App() {
               <p className="retour" onClick={() => { setCourseSelectionnee(null); setFormulaireLivraisonOuvert(false); setErreurCodeLivraison('') }}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>
               <p className="slogan">{courses[courseSelectionnee].adresse}</p>
+              {courses[courseSelectionnee].created_at && (
+                <p className="souligne"><i className="bi bi-clock"></i> Commande du {dateHeureCourse(courses[courseSelectionnee])}</p>
+              )}
               {(() => {
                 const course = courses[courseSelectionnee]
                 const retraits = fournisseursDeLaCourse(course, produitsTous, fournisseursCarte)
@@ -4930,9 +4950,28 @@ function App() {
               </div>
 
               {!courses[courseSelectionnee].livreur_id && (
-                <button className="valider" onClick={() => prendreEnCharge(courseSelectionnee)}>
-                  Prendre en charge
-                </button>
+                priseEnChargeAConfirmer === courses[courseSelectionnee].id ? (
+                  <div className="carte-auth bloc-validation-livraison">
+                    <h3>Valider la prise en charge ?</h3>
+                    <p className="souligne">
+                      Vous vous engagez à récupérer cette commande chez les fournisseurs puis à la livrer à{' '}
+                      {courses[courseSelectionnee].adresse}.
+                    </p>
+                    <button className="valider" onClick={() => prendreEnCharge(courseSelectionnee)}>
+                      Oui, je prends cette commande
+                    </button>
+                    <p className="retour" onClick={() => setPriseEnChargeAConfirmer(null)}>
+                      Annuler
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    className="valider"
+                    onClick={() => setPriseEnChargeAConfirmer(courses[courseSelectionnee].id)}
+                  >
+                    Prendre en charge
+                  </button>
+                )
               )}
 
               {courses[courseSelectionnee].livreur_id === session.user.id &&
