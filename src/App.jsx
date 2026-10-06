@@ -3062,7 +3062,24 @@ function App() {
     )
   }
 
-  const modeMarketplace = !ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace)
+  const modeMarketplace = true
+  const espaceGestion = ESPACES_SANS_PANNEAUX_DESKTOP.includes(espace)
+
+  // Navigation des espaces de gestion (admin / livreur) : menu latéral
+  // sur ordinateur, barre d'onglets sur téléphone.
+  const navigationGestion = !espaceGestion
+    ? []
+    : role === 'admin'
+      ? [
+          { cle: 'admin', icone: 'speedometer2', libelle: 'Tableau de bord', court: 'Tableau' },
+          { cle: 'catalogueAdmin', icone: 'box-seam', libelle: 'Catalogue', court: 'Catalogue' },
+          { cle: 'fournisseursAdmin', icone: 'geo-alt', libelle: 'Fournisseurs', court: 'Carte' },
+          { cle: 'livreursListe', icone: 'people', libelle: 'Livreurs', court: 'Livreurs' },
+          { cle: 'facturationEntreprises', icone: 'building', libelle: 'Facturation entreprises', court: 'Facturation' }
+        ]
+      : [
+          { cle: role === 'livreur' ? 'livreur' : 'livreurEnAttente', icone: 'bicycle', libelle: 'Mes courses', court: 'Mes courses' }
+        ]
 
   // Points de la carte : un fournisseur est "actif" (cliquable) dès qu'il a
   // des produits au catalogue sous le même nom, sinon il est "bientôt".
@@ -3101,7 +3118,7 @@ function App() {
 
   return (
     <div className="mise-en-page">
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'facturationEntreprises', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
@@ -3117,6 +3134,9 @@ function App() {
           <button className="entete-logo" aria-label="2C Delivery, retour au catalogue" onClick={ouvrirCatalogue}>
             <span className="entete-logo-accent">2C</span> Delivery
           </button>
+          {espaceGestion && (
+            <span className="entete-etiquette">{role === 'admin' ? 'Admin' : 'Livreur'}</span>
+          )}
 
           {espace === 'catalogue' && (
             <div className="entete-controles">
@@ -3152,11 +3172,18 @@ function App() {
           )}
 
           <div className="entete-actions">
-            <button className="entete-panier" aria-label={`Panier, ${nombreArticles} article(s)`} onClick={ouvrirPanier}>
-              <i className="bi bi-cart3"></i>
-              <span className="entete-libelle-desktop">Panier</span>
-              {nombreArticles > 0 && <span className="entete-pastille">{nombreArticles}</span>}
-            </button>
+            {!espaceGestion && (
+              <button className="entete-panier" aria-label={`Panier, ${nombreArticles} article(s)`} onClick={ouvrirPanier}>
+                <i className="bi bi-cart3"></i>
+                <span className="entete-libelle-desktop">Panier</span>
+                {nombreArticles > 0 && <span className="entete-pastille">{nombreArticles}</span>}
+              </button>
+            )}
+            {espaceGestion && (
+              <button className="entete-bouton-icone entete-compte-mobile" aria-label="Mon compte" onClick={() => setAfficherAuth(true)}>
+                <i className="bi bi-person-circle"></i>
+              </button>
+            )}
             {session ? (
               <button className="entete-bouton-contour entete-libelle-desktop" onClick={() => setAfficherAuth(true)}>
                 Mon compte
@@ -3173,29 +3200,6 @@ function App() {
             )}
           </div>
         </header>
-      )}
-
-      {!modeMarketplace && (
-        <>
-          <div className="barre-menu-haut">
-            <button
-              className="icone-compte"
-              title="Menu"
-              onClick={() => setAfficherMenu(true)}
-            >
-              <i className="bi bi-list"></i>
-            </button>
-          </div>
-
-          <div className="barre-compte-haut">
-            <button className="lien-compte" onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
-              {session ? (role === 'livreur' ? 'Livreur' : 'Mon compte') : 'Connexion / Inscription'}
-            </button>
-            <button className="icone-compte" onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
-              <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person-circle'}`}></i>
-            </button>
-          </div>
-        </>
       )}
 
       {afficherMenu && (
@@ -3245,30 +3249,6 @@ function App() {
             </nav>
           </div>
         </div>
-      )}
-
-      {!modeMarketplace && (
-        <>
-          <div
-            className="bloc-logo"
-            role="button"
-            tabIndex={0}
-            title="Retour à l'accueil"
-            onClick={() => { setEspace('catalogue'); setAfficherAuth(false); setAfficherMenu(false) }}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setEspace('catalogue'); setAfficherAuth(false); setAfficherMenu(false) } }}
-          >
-            <div className="logo">
-              <span className="lettre">C</span>
-              <span className="chiffre">2</span>
-            </div>
-            <p className="sous-marque">
-              <span className="sous-marque-accent">Deli</span>
-              <span className="sous-marque-encre">very</span>
-            </p>
-          </div>
-          <div className="separateur-un"></div>
-          <p className="slogan">Du rayon au chantier, en un clic.</p>
-        </>
       )}
 
       {afficherAuth && (
@@ -3510,7 +3490,28 @@ function App() {
         </aside>
       )}
 
-      <div className={`contenu-marketplace${espace === 'catalogue' ? ' catalogue' : ' etroit'}`}>
+      {espaceGestion && navigationGestion.length > 0 && (
+        <aside className="menu-lateral" aria-label="Navigation de gestion">
+          <div className="titre-menu-lateral">{role === 'admin' ? 'Administration' : 'Espace livreur'}</div>
+          {navigationGestion.map((item) => (
+            <button
+              key={item.cle}
+              className={`item-lateral${espace === item.cle ? ' actif' : ''}`}
+              onClick={() => setEspace(item.cle)}
+            >
+              <i className={`bi bi-${item.icone}`}></i>
+              <span>{item.libelle}</span>
+            </button>
+          ))}
+          <div className="separateur-lateral"></div>
+          <button className="item-lateral" onClick={() => setEspace('catalogue')}>
+            <i className="bi bi-shop"></i>
+            <span>Voir le site</span>
+          </button>
+        </aside>
+      )}
+
+      <div className={`contenu-marketplace${espace === 'catalogue' ? ' catalogue' : espaceGestion ? ' gestion' : ' etroit'}`}>
       {espace === 'catalogue' && (
         <>
           {chargement && (
@@ -3926,39 +3927,6 @@ function App() {
               <span>{total.toFixed(2)} CHF</span>
             </div>
           )}
-        </>
-      )}
-
-      {espace === 'catalogue' && (
-        <>
-          <div className="espace-onglets" aria-hidden="true"></div>
-          <nav className="barre-onglets" aria-label="Navigation principale">
-            <button
-              className={vue === 'accueil' || vue === 'fournisseur' || vue === 'sousSection' ? 'actif' : ''}
-              onClick={() => { retourAccueil(); window.scrollTo({ top: 0 }) }}
-            >
-              <i className="bi bi-house"></i>
-              <span>Accueil</span>
-            </button>
-            <button
-              className={vue === 'panier' ? 'actif' : ''}
-              onClick={() => setVue('panier')}
-            >
-              <span className="icone-onglet">
-                <i className="bi bi-cart3"></i>
-                {nombreArticles > 0 && <span className="pastille-onglet">{nombreArticles}</span>}
-              </span>
-              <span>Panier</span>
-            </button>
-            <button onClick={ouvrirOngletCommandes}>
-              <i className="bi bi-box-seam"></i>
-              <span>Commandes</span>
-            </button>
-            <button onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
-              <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person'}`}></i>
-              <span>Compte</span>
-            </button>
-          </nav>
         </>
       )}
 
@@ -4611,7 +4579,7 @@ function App() {
 
       {espace === 'livreurEnAttente' && role === 'livreur_en_attente' && (
         <>
-          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
 
           {!demandeSoumise ? (
             <>
@@ -4684,7 +4652,7 @@ function App() {
 
       {espace === 'livreur' && role === 'livreur' && (
         <>
-          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
 
           <button
             className={`bouton-disponibilite ${disponibleLivreur ? 'actif' : ''}`}
@@ -4830,21 +4798,11 @@ function App() {
 
       {espace === 'admin' && role === 'admin' && (
         <>
-          <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
-          <h3>Tableau de bord</h3>
-
-          <button className="bouton-petit" onClick={() => setEspace('catalogueAdmin')}>
-            <i className="bi bi-box-seam"></i> Gérer le catalogue
-          </button>
-          <button className="bouton-petit" onClick={() => setEspace('fournisseursAdmin')}>
-            <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
-          </button>
-          <button className="bouton-petit" onClick={() => setEspace('facturationEntreprises')}>
-            <i className="bi bi-building"></i> Facturation entreprises
-          </button>
-          <button className="bouton-petit" onClick={() => setEspace('livreursListe')}>
-            <i className="bi bi-people"></i> Gérer les livreurs
-          </button>
+          <p className="retour retour-gestion" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
+          <div className="entete-page">
+            <h2>Tableau de bord</h2>
+            <p className="souligne">Vue d'ensemble des commandes et de l'activité.</p>
+          </div>
 
           {demandesLivreur.length > 0 && (
             <div className="carte-faq">
@@ -4883,27 +4841,33 @@ function App() {
             </div>
           )}
 
-          <div className="stats-admin">
-            <div className="stat-carte">
-              <span className="stat-valeur">{statsAdmin.total}</span>
-              <span className="stat-label">Total</span>
+          <div className="grille-kpi">
+            <div className="kpi-carte">
+              <span className="kpi-libelle">Commandes</span>
+              <span className="kpi-valeur">{statsAdmin.total}</span>
             </div>
-            <div className="stat-carte">
-              <span className="stat-valeur">{statsAdmin.actives}</span>
-              <span className="stat-label">Actives</span>
+            <div className="kpi-carte">
+              <span className="kpi-libelle">Actives</span>
+              <span className="kpi-valeur">{statsAdmin.actives}</span>
             </div>
-            <div className="stat-carte">
-              <span className="stat-valeur">{statsAdmin.livrees}</span>
-              <span className="stat-label">Livrées</span>
+            <div className="kpi-carte">
+              <span className="kpi-libelle">Livrées</span>
+              <span className="kpi-valeur">{statsAdmin.livrees}</span>
             </div>
-            <div className="stat-carte">
-              <span className="stat-valeur">{statsAdmin.annulees}</span>
-              <span className="stat-label">Annulées</span>
+            <div className="kpi-carte">
+              <span className="kpi-libelle">Annulées</span>
+              <span className="kpi-valeur">{statsAdmin.annulees}</span>
+            </div>
+            <div className="kpi-carte kpi-accent">
+              <span className="kpi-libelle">Chiffre d'affaires</span>
+              <span className="kpi-valeur">{statsAdmin.chiffreAffaires.toFixed(2)} <small>CHF</small></span>
+              <span className="kpi-note">hors annulées</span>
             </div>
           </div>
-          <p className="total-panier">Chiffre d'affaires (hors annulées) : {statsAdmin.chiffreAffaires.toFixed(2)} CHF</p>
 
-          <p className="souligne" style={{ textAlign: 'center' }}>7 derniers jours</p>
+          <div className="grille-cartes-admin">
+          <section className="carte-admin">
+          <h4>7 derniers jours</h4>
           <div className="graphique-ca">
             {chiffreParJour.map((jour) => (
               <div key={jour.cle} className="barre-jour" title={`${jour.total.toFixed(2)} CHF`}>
@@ -4915,8 +4879,10 @@ function App() {
               </div>
             ))}
           </div>
+          </section>
 
-          <h3 className="titre-accueil">Produits les plus commandés</h3>
+          <section className="carte-admin">
+          <h4>Produits les plus commandés</h4>
           {produitsPopulaires.length === 0 ? (
             <p className="aucun-resultat">Pas encore assez de données.</p>
           ) : (
@@ -4930,8 +4896,10 @@ function App() {
               ))}
             </div>
           )}
+          </section>
 
-          <h3 className="titre-accueil">Meilleures adresses (chiffre d'affaires)</h3>
+          <section className="carte-admin">
+          <h4>Meilleures adresses (chiffre d'affaires)</h4>
           {adressesTop.length === 0 ? (
             <p className="aucun-resultat">Pas encore assez de données.</p>
           ) : (
@@ -4948,7 +4916,11 @@ function App() {
               ))}
             </div>
           )}
+          </section>
+          </div>
 
+          <section className="carte-admin carte-commandes">
+          <h4>Commandes</h4>
           <input
             type="text"
             className="barre-recherche"
@@ -5075,12 +5047,13 @@ function App() {
           {!chargementCourses && coursesFiltreesAdmin.length === 0 && (
             <p className="aucun-resultat">Aucune commande pour ce filtre.</p>
           )}
+          </section>
         </>
       )}
 
       {espace === 'facturationEntreprises' && role === 'admin' && (
         <>
-          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
           <h3>Facturation entreprises</h3>
           <p className="souligne-configurateur">
             Une facture par mois, regroupant toutes les commandes livrées sur la période choisie.
@@ -5117,7 +5090,7 @@ function App() {
 
       {espace === 'livreursListe' && role === 'admin' && (
         <>
-          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
           <h3>Livreurs</h3>
 
           {livreursAvecStats.length === 0 && (
@@ -5175,7 +5148,7 @@ function App() {
 
       {espace === 'fournisseursAdmin' && role === 'admin' && (
         <>
-          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
           <h3>Gérer les fournisseurs</h3>
           <p className="souligne">
             Les fournisseurs ajoutés ici apparaissent sur la carte. Ils deviennent cliquables dès que des
@@ -5245,7 +5218,7 @@ function App() {
 
       {espace === 'catalogueAdmin' && role === 'admin' && (
         <>
-          <p className="retour" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
           <h3>Gérer le catalogue</h3>
 
           <div className="carte-auth">
@@ -5450,6 +5423,58 @@ function App() {
           )}
         </>
       )}
+      <div className="espace-onglets" aria-hidden="true"></div>
+      <nav className="barre-onglets" aria-label="Navigation principale">
+        {espaceGestion ? (
+          <>
+            {navigationGestion.map((item) => (
+              <button
+                key={item.cle}
+                className={espace === item.cle ? 'actif' : ''}
+                onClick={() => setEspace(item.cle)}
+              >
+                <i className={`bi bi-${item.icone}`}></i>
+                <span>{item.court}</span>
+              </button>
+            ))}
+            <button onClick={() => setEspace('catalogue')}>
+              <i className="bi bi-shop"></i>
+              <span>Le site</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className={espace === 'catalogue' && vue !== 'panier' ? 'actif' : ''}
+              onClick={() => { setEspace('catalogue'); retourAccueil(); window.scrollTo({ top: 0 }) }}
+            >
+              <i className="bi bi-house"></i>
+              <span>Accueil</span>
+            </button>
+            <button
+              className={espace === 'catalogue' && vue === 'panier' ? 'actif' : ''}
+              onClick={() => { setEspace('catalogue'); setVue('panier') }}
+            >
+              <span className="icone-onglet">
+                <i className="bi bi-cart3"></i>
+                {nombreArticles > 0 && <span className="pastille-onglet">{nombreArticles}</span>}
+              </span>
+              <span>Panier</span>
+            </button>
+            <button
+              className={['mesCommandes', 'mesFactures', 'suivi'].includes(espace) ? 'actif' : ''}
+              onClick={ouvrirOngletCommandes}
+            >
+              <i className="bi bi-box-seam"></i>
+              <span>Commandes</span>
+            </button>
+            <button onClick={() => { setModeAuth('connexion'); setAfficherAuth(true) }}>
+              <i className={`bi ${session ? 'bi-person-check-fill' : 'bi-person'}`}></i>
+              <span>Compte</span>
+            </button>
+          </>
+        )}
+      </nav>
       </div>
       </div>
     </div>
