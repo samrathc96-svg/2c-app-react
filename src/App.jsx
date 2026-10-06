@@ -39,6 +39,25 @@ const iconsParMetier = {
   'Ventilation': 'wind'
 }
 
+// Icône d'un métier : cherche une correspondance (sans accents ni majuscules)
+// dans la liste ci-dessus, pour que "Plomberie" ou "Électricité" aient
+// leur icône même si le nom saisi par l'admin est plus court.
+function iconePourMetier(nom) {
+  const normaliser = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const cible = normaliser(nom)
+  if (!cible) return 'grid'
+  for (const cle of Object.keys(iconsParMetier)) {
+    const c = normaliser(cle)
+    if (c === cible || c.startsWith(cible) || cible.startsWith(c.split(' ')[0])) return iconsParMetier[cle]
+  }
+  const motsCles = [
+    ['outil', 'wrench'], ['fixation', 'tools'], ['visserie', 'tools'], ['jardin', 'flower1'],
+    ['peinture', 'brush'], ['quincaillerie', 'tools'], ['securite', 'shield-check'], ['sanitaire', 'droplet']
+  ]
+  for (const [mot, icone] of motsCles) if (cible.includes(mot)) return icone
+  return 'grid'
+}
+
 // Nom affiché pour les produits qui n'ont pas (encore) de fournisseur
 // renseigné dans le catalogue admin.
 const FOURNISSEUR_PAR_DEFAUT = '2C Delivery'
@@ -81,7 +100,7 @@ const ESPACES_SANS_PANNEAUX_DESKTOP = [
 
 const AVANTAGES_PANNEAU_GAUCHE = [
   { icone: 'lightning-charge', titre: 'Livraison rapide', texte: "Directement sur chantier, sans détour par un dépôt." },
-  { icone: 'wind', titre: 'Spécialiste ventilation', texte: "Des consommables sélectionnés pour les pros du métier." },
+  { icone: 'grid', titre: 'Plusieurs métiers', texte: "Des fournisseurs sélectionnés pour chaque corps de métier." },
   { icone: 'person-check', titre: 'Sans compte', texte: "Commande en quelques clics, sans inscription obligatoire." },
   { icone: 'star', titre: 'Livreurs notés', texte: "Évalués par les clients à chaque livraison." }
 ]
@@ -692,7 +711,7 @@ function grouperProduits(lignes) {
 
   return Object.keys(parMetier).map((nomMetier) => ({
     nom: nomMetier,
-    icone: iconsParMetier[nomMetier] || 'question-circle',
+    icone: iconePourMetier(nomMetier),
     sousSections: Object.keys(parMetier[nomMetier]).map((nomSousSection) => ({
       nom: nomSousSection,
       produits: parMetier[nomMetier][nomSousSection]
@@ -792,6 +811,7 @@ function App() {
 
   const [nouveauFournisseur, setNouveauFournisseur] = useState('')
   const [editionFournisseur, setEditionFournisseur] = useState('')
+  const [nouveauMetierProduit, setNouveauMetierProduit] = useState('')
   const [nouveauSousSection, setNouveauSousSection] = useState('')
   const [nouveauNomProduit, setNouveauNomProduit] = useState('')
   const [nouveauPrixProduit, setNouveauPrixProduit] = useState('')
@@ -819,7 +839,7 @@ function App() {
   const [fournisseursCarte, setFournisseursCarte] = useState([])
   const [nouveauNomFournisseur, setNouveauNomFournisseur] = useState('')
   const [nouvelleAdresseFournisseur, setNouvelleAdresseFournisseur] = useState('')
-  const [nouveauMetierFournisseur, setNouveauMetierFournisseur] = useState('Ventilation')
+  const [nouveauMetierFournisseur, setNouveauMetierFournisseur] = useState('')
   const [erreurFournisseurAdmin, setErreurFournisseurAdmin] = useState('')
   const [envoiFournisseurEnCours, setEnvoiFournisseurEnCours] = useState(false)
   const [panier, setPanier] = useState([])
@@ -2742,8 +2762,8 @@ function App() {
     const stockTexte = nouveauStockProduit.trim()
     const stockNombre = stockTexte === '' ? null : parseInt(stockTexte, 10)
 
-    if (nouveauNomProduit.trim() === '' || nouveauSousSection.trim() === '' || nouveauPrixProduit.trim() === '') {
-      setErreurProduit('Merci de remplir la sous-section, le nom et le prix.')
+    if (nouveauNomProduit.trim() === '' || nouveauMetierProduit.trim() === '' || nouveauSousSection.trim() === '' || nouveauPrixProduit.trim() === '') {
+      setErreurProduit('Merci de remplir le métier, la sous-section, le nom et le prix.')
       return
     }
     if (isNaN(prixNombre) || prixNombre < 0) {
@@ -2760,7 +2780,7 @@ function App() {
     const { data, error } = await supabase
       .from('produits')
       .insert({
-        metier: 'Ventilation',
+        metier: nouveauMetierProduit.trim(),
         sous_section: nouveauSousSection.trim(),
         nom: nouveauNomProduit.trim(),
         prix: prixNombre,
@@ -3314,7 +3334,7 @@ function App() {
 
             <div className="tiroir-pied">
               <span className="tiroir-pied-logo"><span>2C</span></span>
-              <span>Livraison de petits consommables pour le BTP, directement sur chantier.</span>
+              <span>Fournisseurs de plusieurs métiers, livrés où vous en avez besoin.</span>
             </div>
           </aside>
         </div>
@@ -3693,8 +3713,8 @@ function App() {
                     <div className="etape-accueil">
                       <span className="numero-etape">3</span>
                       <i className="bi bi-geo-alt"></i>
-                      <strong>Livraison sur chantier</strong>
-                      <p>Elle arrive là où tu en as besoin, avec un suivi en temps réel.</p>
+                      <strong>Livraison où tu veux</strong>
+                      <p>Chantier, atelier ou domicile : elle arrive là où tu en as besoin, avec le suivi de ta commande.</p>
                     </div>
                   </div>
                   <p className="lien-carte" onClick={() => setEspace('apropos')}>
@@ -4336,46 +4356,90 @@ function App() {
           <h3>FAQ</h3>
 
           <div className="carte-faq">
-            <strong>Comment suivre ma commande ?</strong>
+            <strong>Qu'est-ce que 2C Delivery ?</strong>
             <p>
-              Utilise le numéro de suivi reçu à la validation de ta commande, via le menu ☰ → "Suivre ma commande".
-              Si tu as créé un compte, tu la retrouves aussi automatiquement dans "Mes commandes".
+              2C Delivery est une plateforme de livraison ouverte aux professionnels comme aux particuliers. Vous choisissez un fournisseur selon votre besoin, vous commandez directement sur notre site ou notre application, et un livreur récupère votre commande chez le fournisseur pour vous la livrer à l'adresse de votre choix : chantier, atelier ou domicile.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Qui vend les produits ?</strong>
+            <p>
+              Les produits sont vendus par les fournisseurs présentés sur la plateforme. 2C Delivery met en relation, encaisse le paiement de votre commande et assure la livraison. Le nom du fournisseur est indiqué sur chaque produit et dans votre panier.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Comment passer commande ?</strong>
+            <p>
+              Depuis la page d'accueil, choisissez un fournisseur (liste ou carte), ajoutez les produits à votre panier, puis validez votre commande en indiquant l'adresse de livraison. Un numéro de suivi et un email de confirmation vous sont envoyés.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Puis-je commander chez plusieurs fournisseurs en une seule fois ?</strong>
+            <p>
+              Oui. Votre panier peut contenir des produits de plusieurs fournisseurs. Avec la livraison groupée, un seul livreur passe chez chacun d'eux, puis chez vous. La livraison séparée (un livreur par fournisseur) sera proposée prochainement.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Dois-je créer un compte pour commander ?</strong>
             <p>
-              Non, tu peux commander sans compte : un numéro de suivi t'est donné à la fin.
-              Créer un compte te permet simplement de retrouver tout ton historique de commandes automatiquement.
+              Non, vous pouvez commander sans compte : un numéro de suivi vous est remis à la fin de la commande. Un compte vous permet de retrouver automatiquement votre historique dans « Mes commandes ». Les entreprises peuvent ouvrir un compte entreprise avec facturation mensuelle groupée.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Comment suivre ma commande ?</strong>
+            <p>
+              Utilisez le numéro de suivi reçu à la validation, via le menu ☰ puis « Suivre ma commande ». Si vous avez un compte, la commande figure aussi dans « Mes commandes ».
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Comment payer ?</strong>
+            <p>
+              Les particuliers et les clients sans compte paient en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. Les comptes entreprise reçoivent une facture mensuelle, payable à 30 jours.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Puis-je annuler ma commande ?</strong>
             <p>
-              Oui, tant qu'elle est encore au statut "À livrer", depuis l'écran de suivi ou "Mes commandes".
-              Une fois "En cours", l'annulation n'est plus possible.
+              Oui, tant qu'elle est au statut « À livrer », depuis l'écran de suivi ou « Mes commandes ». Une fois « En cours », l'annulation n'est plus possible. Une commande payée en ligne et annulée dans ces conditions est remboursée automatiquement par le même moyen de paiement.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Comment se fait la livraison ?</strong>
             <p>
-              Selon le livreur qui prend en charge ta commande et le format de celle-ci : scooter, moto, vélo cargo ou petit utilitaire.
-              Ce choix n'est pas fait par le client, il dépend de la disponibilité et du véhicule du livreur.
+              Un livreur partenaire récupère votre commande chez le fournisseur puis vous la livre à l'adresse indiquée (chantier, atelier, domicile), à scooter, moto, vélo cargo ou en petit utilitaire selon le format de la commande. Ce choix n'est pas fait par le client : il dépend de la disponibilité et du véhicule du livreur. Les délais affichés sont estimatifs.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Quels produits proposez-vous ?</strong>
+            <strong>Un produit est abîmé, manquant ou ne correspond pas à ma commande. Que faire ?</strong>
             <p>
-              Des petits consommables pour le métier de la ventilation (supportage, silicone, gaines, soupapes, grilles de finition...),
-              livrables rapidement sur chantier.
+              Vérifiez la marchandise à la réception et écrivez-nous dès que possible à contact@2cdelivery.ch, avec votre numéro de suivi et, si possible, une photo. Nous traitons la demande avec le fournisseur concerné.
             </p>
           </div>
 
-          <p className="aucun-resultat">D'autres questions ? Cette section sera complétée au fil du temps.</p>
+          <div className="carte-faq">
+            <strong>Quels produits et quels fournisseurs trouve-t-on sur la plateforme ?</strong>
+            <p>
+              Des fournisseurs de plusieurs corps de métier : matériaux, outillage, fixation, fournitures techniques et bien d'autres. Les métiers déjà disponibles sont affichés sur la page d'accueil ; ceux qui arrivent portent la mention « Bientôt ». De nouveaux fournisseurs rejoignent régulièrement la plateforme, et la carte interactive montre ceux déjà présents et ceux à venir.
+</p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Je suis fournisseur : comment rejoindre la plateforme ?</strong>
+            <p>
+              Écrivez-nous à contact@2cdelivery.ch en présentant votre activité et vos produits : nous reviendrons vers vous pour étudier votre intégration.
+            </p>
+          </div>
+
+          <p className="aucun-resultat">Une autre question ? Écrivez-nous à contact@2cdelivery.ch.</p>
         </>
       )}
 
@@ -4389,24 +4453,33 @@ function App() {
           <div className="carte-faq">
             <strong>Notre mission</strong>
             <p>
-              <strong>2C</strong> est un service de livraison pensé pour les artisans du bâtiment : on livre rapidement,
-              directement sur chantier, les petits consommables qui manquent au dernier moment — sans avoir à quitter le chantier
-              pour aller en magasin.
+              <strong>2C Delivery</strong> est une enseigne de livraison pure : nous relions nos clients — artisans, entreprises et particuliers — aux fournisseurs dont ils ont besoin, et nous livrons leur commande directement là où ils se trouvent, sur chantier, à l'atelier ou à domicile. Plus besoin de se déplacer en magasin pour trouver la pièce ou le matériel qui manque.</p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Comment ça fonctionne</strong>
+            <p>
+              Vous choisissez un fournisseur selon votre besoin, vous commandez sur notre site ou notre application, puis un livreur partenaire récupère votre commande chez le fournisseur et vous la livre. Vous pouvez regrouper plusieurs fournisseurs dans un même panier.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Nos métiers</strong>
+            <strong>Nos fournisseurs</strong>
             <p>
-              On démarre avec le métier de la <strong>ventilation</strong> (montage de gaines quadratiques et spiro, du
-              supportage à la finition), avec l'ambition d'ajouter d'autres métiers du BTP par la suite.
-            </p>
+              Les produits sont vendus par des fournisseurs indépendants, que nous sélectionnons. Notre ambition : couvrir de nombreux <strong>corps de métier</strong> et répondre à une clientèle large, des professionnels du bâtiment aux particuliers. Le catalogue s'élargit au fil des fournisseurs qui nous rejoignent ; les métiers à venir sont annoncés sur la page d'accueil.</p>
           </div>
 
           <div className="carte-faq">
             <strong>Notre livraison</strong>
             <p>
-              Nos livreurs se déplacent en scooter, moto, vélo cargo ou petit utilitaire pour aller vite, même en ville ou sur des accès difficiles.
+              Nos livreurs se déplacent en scooter, moto, vélo cargo ou petit utilitaire pour aller vite, même en ville ou sur des accès difficiles. Nous intervenons à Genève et dans les environs.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Nous contacter</strong>
+            <p>
+              Une question, une remarque, un fournisseur à nous proposer ? <strong>contact@2cdelivery.ch</strong>
             </p>
           </div>
         </>
@@ -4418,15 +4491,13 @@ function App() {
           <h3>Mentions légales</h3>
 
           <p className="aucun-resultat">
-            La structure juridique de l'entreprise est en cours de finalisation. Les informations marquées
-            <strong> [à compléter]</strong> seront mises à jour dès que la raison sociale sera enregistrée.
+            La structure juridique de l'entreprise est en cours de finalisation. Les informations marquées <strong>[à compléter]</strong> seront mises à jour dès que la raison sociale sera enregistrée.
           </p>
 
           <div className="carte-faq">
             <strong>Éditeur du site</strong>
             <p>
-              2C Delivery, service de livraison de petits consommables pour les métiers du bâtiment, exploité par
-              Samrath Chau. Activité exercée en Suisse (Genève).<br />
+              2C Delivery, plateforme de commande et de livraison de produits de plusieurs corps de métier, à destination des professionnels et des particuliers, exploitée par Samrath Chau. Activité exercée en Suisse (Genève).<br />
               Adresse : <strong>[adresse du siège en Suisse à compléter]</strong><br />
               Numéro d'identification des entreprises (IDE) : <strong>[à compléter]</strong><br />
               Numéro de TVA : entreprise non assujettie à la TVA à ce jour (chiffre d'affaires inférieur au seuil légal).<br />
@@ -4436,7 +4507,16 @@ function App() {
 
           <div className="carte-faq">
             <strong>Responsable de publication</strong>
-            <p>Samrath Chau.</p>
+            <p>
+              Samrath Chau.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Nature du service</strong>
+            <p>
+              2C Delivery agit comme intermédiaire : la plateforme met en relation les clients et des fournisseurs indépendants, encaisse le paiement des commandes et assure leur livraison. Les produits sont vendus par les fournisseurs, dont le nom est indiqué sur chaque produit et dans le panier. Les informations propres à chaque fournisseur (raison sociale, adresse) sont communiquées sur demande à contact@2cdelivery.ch.
+            </p>
           </div>
 
           <div className="carte-faq">
@@ -4444,23 +4524,31 @@ function App() {
             <p>
               Site hébergé par Vercel Inc. (vercel.com).<br />
               Base de données et authentification hébergées par Supabase Inc. (supabase.com).<br />
-              Suivi technique des erreurs assuré par Sentry (sentry.io) — aucune donnée de paiement n'y transite.
+              Paiements en ligne traités par Stripe (stripe.com) ; aucune donnée de carte bancaire n'est conservée par 2C Delivery.<br />
+              Emails de confirmation et factures envoyés via Resend (resend.com).<br />
+              Suivi technique des erreurs assuré par Sentry (sentry.io) — aucune donnée de paiement n'y transite.<br />
+              Carte interactive : fonds de carte © contributeurs OpenStreetMap (openstreetmap.org), affichage via Leaflet.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Propriété intellectuelle</strong>
             <p>
-              Les textes, le logo et les visuels du site sont la propriété de 2C Delivery ou utilisés avec
-              autorisation. Toute reproduction sans accord préalable est interdite.
+              Les textes, le logo et les visuels du site sont la propriété de 2C Delivery ou utilisés avec autorisation. Les noms, marques et visuels des fournisseurs restent la propriété de leurs titulaires. Toute reproduction sans accord préalable est interdite.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Responsabilité quant au contenu</strong>
+            <p>
+              Les descriptions, prix et disponibilités des produits sont fournis avec soin ; 2C Delivery ne peut toutefois garantir l'absence d'erreur ou d'indisponibilité temporaire. Les liens vers des sites tiers sont fournis à titre d'information, sans responsabilité quant à leur contenu.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Droit applicable</strong>
             <p>
-              Le présent site est soumis au droit suisse. For juridique : Genève, sous réserve des règles
-              impératives de protection des consommateurs.
+              Le présent site est soumis au droit suisse. For juridique : Genève, sous réserve des règles impératives de protection des consommateurs.
             </p>
           </div>
         </>
@@ -4472,94 +4560,117 @@ function App() {
           <h3>Conditions générales</h3>
 
           <p className="aucun-resultat">
-            Version provisoire, à faire valider par un professionnel du droit suisse avant la mise en ligne
-            définitive du service — notamment les points marqués <strong>[à compléter]</strong>.
+            Version provisoire, mise à jour pour le fonctionnement en plateforme (fournisseurs, livraison, encaissement). Elle doit être validée par un professionnel du droit suisse avant la mise en ligne définitive du service — notamment les points marqués <strong>[à valider]</strong> ou <strong>[à compléter]</strong>.
           </p>
 
           <div className="carte-faq">
-            <strong>Objet et champ d'application</strong>
+            <strong>1. Qui sommes-nous, rôle de 2C Delivery</strong>
             <p>
-              2C Delivery propose un service de commande et de livraison de petits consommables pour les métiers
-              du bâtiment, directement sur chantier, à Genève et dans les environs. Les présentes conditions
-              s'appliquent à toute commande passée sur le site, par un particulier comme par une entreprise.
+              2C Delivery est une plateforme en ligne (site et application) qui permet aux clients de commander des produits auprès de fournisseurs indépendants et de se les faire livrer (chantier, atelier, domicile), à Genève et dans les environs. Les présentes conditions s'appliquent à toute commande passée sur la plateforme, par un particulier comme par une entreprise.
+            </p>
+            <p>
+              2C Delivery agit comme intermédiaire. Pour chaque commande, deux relations coexistent : un contrat de vente entre le client et le fournisseur concerné, pour les produits ; un contrat de prestation entre le client et 2C Delivery, pour la mise en relation, l'encaissement et la livraison. <strong>[Qualification juridique exacte à valider]</strong>
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Commande</strong>
+            <strong>2. Commande</strong>
             <p>
-              La commande se fait depuis le catalogue, avec ou sans compte. Le contrat est conclu lorsque la
-              commande est confirmée par 2C Delivery ; un numéro de suivi et un email de confirmation sont fournis
-              à la validation. Le client peut annuler sa commande tant qu'elle est au statut "À livrer" ;
-              l'annulation n'est plus possible une fois la commande "En cours".
+              La commande se fait depuis le catalogue, avec ou sans compte. Le panier peut contenir des produits de plusieurs fournisseurs. Le contrat est conclu lorsque la commande est confirmée ; un numéro de suivi et un email de confirmation sont fournis à la validation. Le client est responsable de l'exactitude de l'adresse de livraison et des informations de contact qu'il indique.
+            </p>
+            <p>
+              Si un produit s'avère indisponible après la commande, le client en est informé et le montant correspondant lui est remboursé ; la commande peut être maintenue pour les autres produits ou annulée.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Prix</strong>
+            <strong>3. Prix</strong>
             <p>
-              Les prix sont indiqués en francs suisses (CHF) et incluent la livraison. Ils sont susceptibles
-              d'évoluer ; le prix applicable est celui affiché au moment de la validation de la commande.
-              2C Delivery n'étant pas assujettie à la TVA à ce jour, les prix sont affichés sans TVA.
+              Les prix sont indiqués en francs suisses (CHF). Sauf mention contraire, ils incluent la livraison en mode groupé. Le prix applicable est celui affiché au moment de la validation de la commande. 2C Delivery n'étant pas assujettie à la TVA à ce jour, les prix sont affichés sans TVA. <strong>[Traitement de la TVA des fournisseurs à valider]</strong>
+            </p>
+            <p>
+              Un mode de livraison séparée (un livreur par fournisseur) pourra être proposé ultérieurement, avec un tarif propre, qui sera indiqué avant la validation de la commande.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Paiement</strong>
+            <strong>4. Paiement</strong>
             <p>
-              Pour les clients sans compte et les particuliers, le paiement s'effectue en ligne au moment de la
-              commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe.
-              2C Delivery ne conserve aucune donnée de carte bancaire. Pour les comptes entreprise, les commandes
-              livrées sont facturées une fois par mois, payable à 30 jours dès réception de la facture.
+              Pour les clients sans compte et les particuliers, le paiement s'effectue en ligne au moment de la commande (carte bancaire, TWINT ou autre moyen proposé), via notre prestataire de paiement Stripe. 2C Delivery ne conserve aucune donnée de carte bancaire.
+            </p>
+            <p>
+              2C Delivery encaisse le paiement de la commande, y compris le prix des produits, pour le compte du fournisseur concerné, puis le lui reverse. Le paiement effectué auprès de 2C Delivery libère le client envers le fournisseur. <strong>[Mandat d'encaissement à valider]</strong>
+            </p>
+            <p>
+              Pour les comptes entreprise, les commandes livrées sont facturées une fois par mois, payable à 30 jours dès réception de la facture.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Délais de livraison</strong>
+            <strong>5. Livraison</strong>
             <p>
-              Les créneaux affichés sont estimatifs et dépendent du nombre de courses en attente au moment de la
-              commande. Ils ne constituent pas un engagement horaire ferme.
+              Un livreur partenaire récupère la commande chez le ou les fournisseurs, puis la livre à l'adresse indiquée. Le moyen de transport (scooter, moto, vélo cargo, petit utilitaire) dépend du livreur assigné et du format de la commande ; il n'est pas choisi par le client.
+            </p>
+            <p>
+              Les créneaux affichés sont estimatifs et dépendent de la préparation chez le fournisseur et du nombre de courses en attente. Ils ne constituent pas un engagement horaire ferme. Le client veille à être joignable et à permettre la remise de la commande ; en cas d'impossibilité de livrer par sa faute, la livraison peut être facturée de nouveau ou la commande considérée comme remise.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Annulation, retour et pièces sur mesure</strong>
+            <strong>6. Annulation et pièces sur mesure</strong>
             <p>
-              Le droit suisse ne prévoit pas de droit de rétractation légal pour les achats effectués en ligne.
-              2C Delivery permet toutefois d'annuler une commande tant qu'elle n'est pas prise en charge (voir
-              "Commande"). Lorsqu'une commande payée en ligne est annulée dans ces conditions, le montant payé est
-              remboursé automatiquement par le même moyen de paiement ; le délai de réception dépend de la banque
-              ou de l'émetteur de la carte. Les pièces découpées ou configurées sur mesure ne peuvent ni être
-              annulées une fois la commande en cours, ni être reprises.
+              Le droit suisse ne prévoit pas de droit de rétractation légal pour les achats effectués en ligne. 2C Delivery permet toutefois d'annuler une commande tant qu'elle est au statut « À livrer ». Une commande payée en ligne et annulée dans ces conditions est remboursée automatiquement par le même moyen de paiement ; le délai de réception dépend de la banque ou de l'émetteur de la carte.
+            </p>
+            <p>
+              Une fois la commande « En cours », l'annulation n'est plus possible. Les pièces découpées ou configurées sur mesure ne peuvent être ni annulées une fois la commande en cours, ni reprises.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Garantie et défauts</strong>
+            <strong>7. Réclamations, garantie et défauts</strong>
             <p>
-              Le client vérifie la marchandise à la livraison et signale tout défaut ou erreur dès sa découverte,
-              par email à contact@2cdelivery.ch, en joignant si possible une photo. La garantie légale suisse en
-              cas de défaut s'applique. <strong>[Limitations éventuelles pour la clientèle professionnelle à
-              valider avec un juriste]</strong>
+              Le client vérifie la marchandise à la remise et signale tout défaut, dommage, manque ou erreur dès sa découverte, par email à contact@2cdelivery.ch, avec son numéro de suivi et, si possible, une photo. 2C Delivery transmet la demande au fournisseur concerné et assure le suivi avec le client.
+            </p>
+            <p>
+              Les droits de garantie portant sur le produit lui-même (défaut, non-conformité) s'exercent à l'égard du fournisseur, vendeur, selon la garantie légale suisse. Les dommages survenus pendant le transport et les erreurs de livraison relèvent de 2C Delivery. <strong>[Répartition des responsabilités et limitations éventuelles pour la clientèle professionnelle à valider avec un juriste]</strong>
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Responsabilité</strong>
+            <strong>8. Responsabilité</strong>
             <p>
-              2C Delivery met tout en œuvre pour livrer les commandes dans les meilleurs délais, sans garantir
-              un horaire précis. La responsabilité de 2C Delivery ne saurait être engagée en cas de retard dû à
-              des circonstances hors de son contrôle (météo, trafic, indisponibilité temporaire d'un livreur),
-              dans les limites permises par le droit suisse.
+              2C Delivery met tout en œuvre pour que la plateforme fonctionne et que les commandes soient livrées dans les meilleurs délais, sans garantir un horaire précis. 2C Delivery n'est pas responsable de la qualité, de la conformité ou de la disponibilité des produits vendus par les fournisseurs, sous réserve de ses propres obligations de mise en relation, d'encaissement et de livraison.
+            </p>
+            <p>
+              Sa responsabilité ne saurait être engagée en cas de retard dû à des circonstances hors de son contrôle (météo, trafic, indisponibilité temporaire d'un livreur ou d'un fournisseur), dans les limites permises par le droit suisse.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Droit applicable et litiges</strong>
+            <strong>9. Compte et utilisation de la plateforme</strong>
             <p>
-              Les présentes conditions sont soumises au droit suisse. En cas de litige, les parties cherchent
-              d'abord une solution amiable ; à défaut, les tribunaux compétents sont ceux du lieu prévu par la
-              loi ou, pour les clients professionnels, ceux de Genève.
+              Le client garantit l'exactitude des informations de son compte et protège ses identifiants. Les comptes entreprise sont placés sous la responsabilité de l'entreprise, qui répond des commandes passées par ses collaborateurs. Toute utilisation abusive ou frauduleuse de la plateforme peut entraîner la suspension du compte.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>10. Données personnelles</strong>
+            <p>
+              Le traitement des données, y compris leur transmission aux fournisseurs et aux livreurs pour l'exécution de la commande, est décrit dans la politique de confidentialité.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>11. Modification des conditions</strong>
+            <p>
+              2C Delivery peut modifier les présentes conditions ; la version applicable à une commande est celle en vigueur au moment de sa validation.
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>12. Droit applicable et litiges</strong>
+            <p>
+              Les présentes conditions sont soumises au droit suisse. En cas de litige, les parties cherchent d'abord une solution amiable ; à défaut, les tribunaux compétents sont ceux du lieu prévu par la loi ou, pour les clients professionnels, ceux de Genève.
             </p>
           </div>
         </>
@@ -4571,76 +4682,69 @@ function App() {
           <h3>Politique de confidentialité</h3>
 
           <p className="aucun-resultat">
-            Cette politique est rédigée selon la loi fédérale suisse sur la protection des données (LPD).
-            Version provisoire, à faire valider par un professionnel.
+            Cette politique est rédigée selon la loi fédérale suisse sur la protection des données (LPD) et tient compte du fonctionnement en plateforme. Version provisoire, à faire valider par un professionnel.
           </p>
 
           <div className="carte-faq">
             <strong>Responsable du traitement</strong>
             <p>
-              2C Delivery, exploité par Samrath Chau — <strong>contact@2cdelivery.ch</strong>.
+              2C Delivery, exploité par Samrath Chau — <strong>contact@2cdelivery.ch</strong>. Pour les données nécessaires à la préparation d'une commande, le fournisseur concerné traite aussi ces données pour son propre compte, selon sa propre politique.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Données collectées</strong>
             <p>
-              Nom, adresse de livraison, numéro de téléphone, email, et historique des commandes. Pour les
-              comptes créés, le mot de passe est stocké de façon sécurisée (haché) via Supabase Auth et n'est
-              jamais visible par 2C Delivery. Les données de carte bancaire sont saisies directement chez Stripe
-              et ne sont jamais enregistrées par 2C Delivery.
+              Nom, adresse de livraison, numéro de téléphone, email, contenu et historique des commandes ; pour les entreprises, nom de la société, chantier et collaborateur concerné. Pour les comptes créés, le mot de passe est stocké de façon sécurisée (haché) via Supabase Auth et n'est jamais visible par 2C Delivery. Les données de carte bancaire sont saisies directement chez Stripe et ne sont jamais enregistrées par 2C Delivery.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Pourquoi ces données</strong>
             <p>
-              Uniquement pour traiter et livrer la commande, encaisser le paiement, contacter le client si
-              besoin, envoyer la confirmation de commande, et — pour les comptes entreprise — établir la
-              facturation mensuelle.
+              Uniquement pour traiter la commande avec les fournisseurs, la faire livrer, encaisser le paiement et reverser les fournisseurs, vous contacter si besoin, envoyer la confirmation de commande et — pour les comptes entreprise — établir la facturation mensuelle.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Qui y a accès</strong>
             <p>
-              L'équipe 2C Delivery (administration) et le livreur assigné à la commande, uniquement le temps
-              nécessaire à la livraison.
+              L'équipe 2C Delivery (administration) ; le ou les fournisseurs concernés, pour les informations nécessaires à la préparation et au retrait de la commande (contenu de la commande, nom du client ou de l'entreprise) ; et le livreur assigné, uniquement le temps nécessaire à la livraison (adresse, téléphone, contenu de la commande).
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Prestataires techniques et transfert à l'étranger</strong>
             <p>
-              Supabase (base de données), Vercel (hébergement du site), Sentry (détection d'erreurs techniques)
-              et Stripe (paiement en ligne). Ces prestataires peuvent traiter des données hors de Suisse, par
-              exemple dans l'Union européenne ou aux États-Unis, avec des garanties contractuelles appropriées.
-              <strong> [Région d'hébergement exacte à confirmer]</strong>
+              Supabase (base de données), Vercel (hébergement du site), Stripe (paiement en ligne), Resend (envoi des emails) et Sentry (détection d'erreurs techniques). Ces prestataires peuvent traiter des données hors de Suisse, par exemple dans l'Union européenne ou aux États-Unis, avec des garanties contractuelles appropriées. <strong>[Région d'hébergement exacte à confirmer]</strong>
+            </p>
+          </div>
+
+          <div className="carte-faq">
+            <strong>Carte interactive</strong>
+            <p>
+              L'affichage de la carte des fournisseurs charge des éléments auprès de services tiers (fonds de carte OpenStreetMap, bibliothèque Leaflet), qui reçoivent à cette occasion votre adresse IP, comme pour toute page web. Aucune donnée de compte ne leur est transmise.
             </p>
           </div>
 
           <div className="carte-faq">
             <strong>Durée de conservation</strong>
             <p>
-              Les commandes et factures sont conservées 10 ans, conformément aux obligations comptables suisses.
-              Les autres données du compte sont conservées tant que le compte existe, puis supprimées sur demande.
+              Les commandes et factures sont conservées 10 ans, conformément aux obligations comptables suisses. Les autres données du compte sont conservées tant que le compte existe, puis supprimées sur demande.
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Tes droits</strong>
+            <strong>Vos droits</strong>
             <p>
-              Tu peux demander l'accès, la rectification ou la suppression de tes données, ou t'opposer à leur
-              traitement, en écrivant à <strong>contact@2cdelivery.ch</strong>. Tu peux aussi t'adresser au
-              Préposé fédéral à la protection des données et à la transparence (PFPDT).
+              Vous pouvez demander l'accès, la rectification ou la suppression de vos données, ou vous opposer à leur traitement, en écrivant à <strong>contact@2cdelivery.ch</strong>. Vous pouvez aussi vous adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).
             </p>
           </div>
 
           <div className="carte-faq">
-            <strong>Cookies</strong>
+            <strong>Cookies et stockage local</strong>
             <p>
-              Le site n'utilise pas de cookies publicitaires. Seuls des éléments techniques nécessaires au
-              fonctionnement (connexion) et l'outil de suivi d'erreurs Sentry sont utilisés.
+              Le site n'utilise pas de cookies publicitaires. Il utilise uniquement des éléments techniques nécessaires au fonctionnement : connexion, mémorisation de votre panier et de vos commandes récentes dans votre navigateur, et l'outil de suivi d'erreurs Sentry.
             </p>
           </div>
         </>
@@ -5240,10 +5344,16 @@ function App() {
             />
             <input
               type="text"
-              placeholder="Métier (ex: Ventilation)"
+              list="liste-metiers-admin"
+              placeholder="Métier (ex: Ventilation, Plomberie)"
               value={nouveauMetierFournisseur}
               onChange={(e) => setNouveauMetierFournisseur(e.target.value)}
             />
+            <datalist id="liste-metiers-admin">
+              {[...new Set([...metiers.map((m) => m.nom), ...METIERS_A_VENIR.map((m) => m.nom)])].map((nom) => (
+                <option key={nom} value={nom} />
+              ))}
+            </datalist>
             {erreurFournisseurAdmin && <p className="souligne">{erreurFournisseurAdmin}</p>}
             <button className="valider" disabled={envoiFournisseurEnCours} onClick={ajouterFournisseurCarte}>
               {envoiFournisseurEnCours ? 'Localisation en cours...' : 'Ajouter à la carte'}
@@ -5298,6 +5408,18 @@ function App() {
               value={nouveauFournisseur}
               onChange={(e) => setNouveauFournisseur(e.target.value)}
             />
+            <input
+              type="text"
+              list="liste-metiers-admin"
+              placeholder="Métier (ex: Ventilation, Plomberie, Électricité)"
+              value={nouveauMetierProduit}
+              onChange={(e) => setNouveauMetierProduit(e.target.value)}
+            />
+            <datalist id="liste-metiers-admin">
+              {[...new Set([...metiers.map((m) => m.nom), ...METIERS_A_VENIR.map((m) => m.nom)])].map((nom) => (
+                <option key={nom} value={nom} />
+              ))}
+            </datalist>
             <input
               type="text"
               placeholder="Sous-section (ex: Supportage)"
