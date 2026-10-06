@@ -3404,8 +3404,8 @@ function App() {
                     <p className="souligne-configurateur">
                       Compte partagé : tes employés pourront se connecter avec ce même
                       identifiant pour commander (en indiquant leur nom à chaque commande).
-                      Toutes les commandes livrées seront regroupées en une seule facture,
-                      envoyée chaque mois.
+                      Chaque commande est payée en ligne, et la facture vous est envoyée
+                      par email une fois la livraison effectuée.
                     </p>
                   )}
                   {roleChoisi === 'livreur' && (
