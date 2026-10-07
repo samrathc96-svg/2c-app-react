@@ -81,7 +81,9 @@ Deno.serve(async (req) => {
       chantier,
       technicien,
       nomEntreprise,
-      emailResponsable
+      emailResponsable,
+      fraisLivraison,
+      modePaiement
     } = await req.json()
 
     if (!email) {
@@ -95,6 +97,20 @@ Deno.serve(async (req) => {
     const appelServeur = cleServeur !== '' && req.headers.get('Authorization') === `Bearer ${cleServeur}`
     const code = appelServeur && codeLivraison ? String(codeLivraison) : ''
     const copieVers = appelServeur && emailResponsable ? String(emailResponsable).trim() : ''
+
+    // Compte entreprise : 2C ne facture que la livraison ; les produits sont
+    // facturés à part par le fournisseur.
+    const frais = appelServeur && fraisLivraison !== undefined && fraisLivraison !== null ? Number(fraisLivraison) : null
+    const libellesPaiement: Record<string, string> = {
+      carte_entreprise: 'carte bancaire réservée, débitée à la livraison',
+      prepaye: 'prélevée sur votre solde prépayé',
+      mensuel: 'facturée dans la facture mensuelle'
+    }
+    const libellePaiement = frais !== null ? libellesPaiement[String(modePaiement ?? '')] ?? '' : ''
+    const ligneMontant = frais !== null
+      ? `<p><strong>Valeur des produits :</strong> ${Number(total).toFixed(2)} CHF <span style="color:#79705F;">(facturée séparément par le fournisseur)</span></p>
+         <p><strong>Livraison 2C :</strong> ${frais.toFixed(2)} CHF${libellePaiement ? ` <span style="color:#79705F;">(${echapper(libellePaiement)})</span>` : ''}</p>`
+      : `<p><strong>Total :</strong> ${Number(total).toFixed(2)} CHF</p>`
 
     const blocCode = code
       ? `
@@ -122,7 +138,7 @@ Deno.serve(async (req) => {
         ${detailsEntreprise}
         <p><strong>Produits :</strong> ${echapper(produits)}</p>
         <p><strong>Adresse de livraison :</strong> ${echapper(adresse)}</p>
-        <p><strong>Total :</strong> ${Number(total).toFixed(2)} CHF</p>
+        ${ligneMontant}
         <p><strong>Numéro de suivi :</strong> ${echapper(numeroSuivi)}</p>
         ${blocCode}
         <p>Vous pouvez suivre l'avancement de votre livraison à tout moment depuis le site, via le menu ☰ → "Suivre ma commande".</p>
@@ -151,7 +167,7 @@ Deno.serve(async (req) => {
           ${detailsEntreprise}
           <p><strong>Produits :</strong> ${echapper(produits)}</p>
           <p><strong>Adresse de livraison :</strong> ${echapper(adresse)}</p>
-          <p><strong>Total :</strong> ${Number(total).toFixed(2)} CHF</p>
+          ${ligneMontant}
           <p style="color: #79705F; font-size: 13px;">
             Le code de livraison a été remis uniquement à la personne qui a passé la commande.
             Vous recevrez la facture par email une fois la livraison effectuée.

@@ -78,6 +78,33 @@ async function rembourser(paymentIntent: string, cle: string) {
   })
 }
 
+// Carte RÉSERVÉE (comptes entreprise) : Stripe ne marque pas la session comme
+// "paid" tant que le montant n'est pas encaissé. On vérifie directement
+// l'autorisation auprès de Stripe.
+async function autorisationValide(paymentIntent: string): Promise<boolean> {
+  try {
+    const r = await fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntent)}`, {
+      headers: { Authorization: `Bearer ${STRIPE_KEY}` }
+    })
+    if (!r.ok) return false
+    const pi = await r.json()
+    return pi.status === 'requires_capture' || pi.status === 'succeeded'
+  } catch (_e) {
+    return false
+  }
+}
+
+async function annulerAutorisation(paymentIntent: string, cle: string) {
+  return fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntent)}/cancel`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${STRIPE_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': cle
+    }
+  })
+}
+
 // Lecture simple d'une liste via l'API REST (clé serveur). Renvoie [] en cas de souci.
 async function lire(chemin: string): Promise<any[]> {
   try {
@@ -144,7 +171,11 @@ Deno.serve(async (req) => {
   if (!types.includes(evenement.type)) return new Response('ignoré', { status: 200 })
 
   const session = evenement.data.object
-  if (session.payment_status !== 'paid') return new Response('pas encore payé', { status: 200 })
+  const carteReservee = session.metadata?.mode_paiement === 'carte_entreprise'
+  if (session.payment_status !== 'paid') {
+    const autorisee = carteReservee && session.payment_intent && (await autorisationValide(session.payment_intent))
+    if (!autorisee) return new Response('pas encore payé', { status: 200 })
+  }
 
   // 1) Création de la commande (idempotent : un événement rejoué ne crée rien en double)
   const rf = await rest('rpc/finaliser_paiement', {
@@ -157,7 +188,11 @@ Deno.serve(async (req) => {
     console.error('finaliser_paiement a échoué :', erreur)
     // Stock épuisé entre-temps : on rembourse automatiquement, inutile de réessayer.
     if (erreur.includes('Stock insuffisant') && session.payment_intent) {
-      await rembourser(session.payment_intent, `remb-echec-${session.id}`)
+      if (carteReservee) {
+        await annulerAutorisation(session.payment_intent, `annul-echec-${session.id}`)
+      } else {
+        await rembourser(session.payment_intent, `remb-echec-${session.id}`)
+      }
       await rest(`paiements_en_attente?stripe_session_id=eq.${session.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ statut: 'rembourse_stock' })
@@ -198,6 +233,9 @@ Deno.serve(async (req) => {
         total: commande.total,
         numeroSuivi: commande.numero_suivi,
         adresse: commande.adresse,
+        ...(commande.mode_paiement === 'carte_entreprise'
+          ? { fraisLivraison: commande.frais_livraison, modePaiement: 'carte_entreprise' }
+          : {}),
         ...infos
       })
     }).catch((e) => console.error('Email de confirmation :', e))

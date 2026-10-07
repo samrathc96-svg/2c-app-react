@@ -376,6 +376,11 @@ function construireFacturePDF(commande) {
   const encre = [30, 27, 23]
   const muted = [121, 112, 95]
 
+  // Compte entreprise : 2C ne facture que la livraison (les produits sont
+  // facturés par le fournisseur).
+  const livraisonSeule = Boolean(commande.livraison_seule)
+  const montantFacture = livraisonSeule ? Number(commande.frais_livraison || 0) : commande.total
+
   const numeroFacture = `2C-${String(commande.id).padStart(5, '0')}`
   const dateFacture = new Date(commande.created_at).toLocaleDateString('fr-FR', {
     day: '2-digit', month: '2-digit', year: 'numeric'
@@ -428,6 +433,8 @@ function construireFacturePDF(commande) {
   doc.setFontSize(10)
   doc.text(commande.nom_client || '—', 15, y)
   y += 5
+  if (livraisonSeule && commande.chantier) { doc.text(`Chantier : ${commande.chantier}`, 15, y); y += 5 }
+  if (livraisonSeule && commande.technicien) { doc.text(`Commandé par : ${commande.technicien}`, 15, y); y += 5 }
   if (commande.adresse) { doc.text(commande.adresse, 15, y); y += 5 }
   if (commande.telephone) { doc.text(commande.telephone, 15, y); y += 5 }
   if (commande.email) { doc.text(commande.email, 15, y); y += 5 }
@@ -445,7 +452,7 @@ function construireFacturePDF(commande) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(255, 255, 255)
-  doc.text('Produit', colProduit, y)
+  doc.text(livraisonSeule ? 'Prestation' : 'Produit', colProduit, y)
   doc.text('Prix', colPrix, y)
   doc.text('Qté', colQte, y)
   doc.text('Sous-total', colTotal, y)
@@ -457,9 +464,15 @@ function construireFacturePDF(commande) {
   // Les commandes passées avant l'ajout du détail ligne par ligne n'ont
   // pas "produits_detail" : on retombe alors sur le texte résumé, sans
   // détail de prix par article.
-  const lignes = commande.produits_detail && commande.produits_detail.length > 0
-    ? commande.produits_detail
-    : [{ nom: commande.produits, prix: null, quantite: null }]
+  const lignes = livraisonSeule
+    ? [{
+        nom: `Livraison 2C Delivery — commande ${commande.numero_suivi || commande.id}`,
+        prix: montantFacture,
+        quantite: 1
+      }]
+    : commande.produits_detail && commande.produits_detail.length > 0
+      ? commande.produits_detail
+      : [{ nom: commande.produits, prix: null, quantite: null }]
 
   lignes.forEach((ligne, index) => {
     const nomAffiche = doc.splitTextToSize(ligne.nom, 100)
@@ -490,8 +503,8 @@ function construireFacturePDF(commande) {
   doc.setFontSize(10)
   doc.setTextColor(...encre)
   if (INFOS_ENTREPRISE.tvaTaux) {
-    const sousTotal = commande.total / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
-    const montantTVA = commande.total - sousTotal
+    const sousTotal = montantFacture / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
+    const montantTVA = montantFacture - sousTotal
     doc.text('Sous-total HT', 140, y)
     doc.text(`${sousTotal.toFixed(2)} CHF`, 195, y, { align: 'right' })
     y += 6
@@ -509,8 +522,23 @@ function construireFacturePDF(commande) {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.text('Total à payer', 140, y)
-  doc.text(`${commande.total.toFixed(2)} CHF`, 195, y, { align: 'right' })
+  doc.text(commande.deja_regle ? 'Total' : 'Total à payer', 140, y)
+  doc.text(`${montantFacture.toFixed(2)} CHF`, 195, y, { align: 'right' })
+
+  if (livraisonSeule) {
+    y += 12
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...muted)
+    if (commande.mention_paiement) {
+      doc.text(commande.mention_paiement, 15, y)
+      y += 5
+    }
+    doc.text(
+      `Valeur de la commande fournisseur : ${Number(commande.total).toFixed(2)} CHF — facturée séparément par le fournisseur.`,
+      15, y
+    )
+  }
 
   if (INFOS_ENTREPRISE.donneesTest) {
     doc.setFont('helvetica', 'normal')
@@ -913,7 +941,7 @@ function PageEquipe({ entreprise, onRetour, afficherNotification }) {
 
 // Fiche d'une entreprise dans l'admin : statut, mode de paiement convenu,
 // plafond et fournisseurs avec lesquels un accord existe.
-function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistrer }) {
+function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistrer, solde, encours, onCrediter }) {
   const [statut, setStatut] = useState(entreprise.statut)
   const [mode, setMode] = useState(entreprise.mode_paiement)
   const [plafond, setPlafond] = useState(
@@ -921,6 +949,20 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   )
   const [fournisseurs, setFournisseurs] = useState(entreprise.fournisseurs || [])
   const [enCours, setEnCours] = useState(false)
+  const [montantCredit, setMontantCredit] = useState('')
+  const [noteCredit, setNoteCredit] = useState('')
+
+  async function crediter() {
+    const montant = Number(montantCredit.replace(',', '.'))
+    if (!Number.isFinite(montant) || montant === 0) return
+    setEnCours(true)
+    const ok = await onCrediter(entreprise.id, montant, noteCredit)
+    setEnCours(false)
+    if (ok) {
+      setMontantCredit('')
+      setNoteCredit('')
+    }
+  }
 
   function basculerFournisseur(nom) {
     setFournisseurs((precedent) =>
@@ -976,6 +1018,38 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
           <option value="mensuel">Facturation mensuelle</option>
         </select>
       </label>
+
+      {mode === 'prepaye' && (
+        <div className="champ-admin-entreprise">
+          <span>
+            Solde prépayé actuel : <strong>{Number(solde || 0).toFixed(2)} CHF</strong>
+            {mode !== entreprise.mode_paiement && ' (enregistrez d\'abord le changement de mode)'}
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="Montant reçu par virement (négatif pour corriger)"
+            value={montantCredit}
+            onChange={(e) => setMontantCredit(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Note (ex. virement du 12.10)"
+            value={noteCredit}
+            onChange={(e) => setNoteCredit(e.target.value)}
+          />
+          <button className="bouton-secondaire" disabled={enCours || montantCredit.trim() === ''} onClick={crediter}>
+            Créditer le solde
+          </button>
+        </div>
+      )}
+
+      {mode === 'mensuel' && (
+        <p className="souligne">
+          La facturation mensuelle n'est possible que pour une entreprise « Validée ». Encours à facturer :{' '}
+          <strong>{Number(encours || 0).toFixed(2)} CHF</strong>.
+        </p>
+      )}
 
       {mode === 'mensuel' && (
         <label className="champ-admin-entreprise">
@@ -1054,6 +1128,8 @@ function App() {
   // { statut: 'ok' | 'invitation_invalide', entreprise_nom, role_entreprise, actif, ... }
   const [entreprise, setEntreprise] = useState(null)
   const [entreprisesAdmin, setEntreprisesAdmin] = useState([])
+  const [soldesAdmin, setSoldesAdmin] = useState({})
+  const [tarifAdmin, setTarifAdmin] = useState({ forfait: '', km_inclus: '', prix_km: '' })
   const [roleChoisi, setRoleChoisi] = useState('client')
   const [erreurInscription, setErreurInscription] = useState('')
   const [messageInscription, setMessageInscription] = useState('')
@@ -1176,6 +1252,8 @@ function App() {
   // Statut de livraison des commandes des autres membres de l'équipe (visible
   // du responsable seulement) : { [id de commande]: statut }
   const [statutsEquipe, setStatutsEquipe] = useState({})
+  // Mode de paiement / tarif de livraison de l'entreprise du compte connecté
+  const [infosPaiement, setInfosPaiement] = useState(null)
   const [chargementFactures, setChargementFactures] = useState(true)
   const [telechargementFactureId, setTelechargementFactureId] = useState(null)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
@@ -1677,11 +1755,74 @@ function App() {
       return
     }
     setEntreprisesAdmin(data || [])
+
+    const { data: soldes, error: erreurSoldes } = await supabase.rpc('admin_soldes_entreprises')
+    if (!erreurSoldes && soldes) {
+      const parEntreprise = {}
+      soldes.forEach((l) => {
+        parEntreprise[l.entreprise_id] = l
+      })
+      setSoldesAdmin(parEntreprise)
+    }
+  }
+
+  async function chargerTarifAdmin() {
+    const { data, error } = await supabase.from('tarif_livraison').select('*').eq('id', 1).maybeSingle()
+    if (error || !data) {
+      if (error) console.error('Erreur de chargement du tarif de livraison :', error)
+      return
+    }
+    setTarifAdmin({
+      forfait: String(data.forfait),
+      km_inclus: String(data.km_inclus),
+      prix_km: String(data.prix_km)
+    })
   }
 
   useEffect(() => {
-    if (role === 'admin') chargerEntreprisesAdmin()
+    if (role === 'admin') {
+      chargerEntreprisesAdmin()
+      chargerTarifAdmin()
+    }
   }, [role])
+
+  async function enregistrerTarifAdmin() {
+    const nombre = (v) => Number(String(v).replace(',', '.'))
+    const forfait = nombre(tarifAdmin.forfait)
+    const kmInclus = nombre(tarifAdmin.km_inclus || 0)
+    const prixKm = nombre(tarifAdmin.prix_km || 0)
+    if (!Number.isFinite(forfait) || forfait < 0.5 || !Number.isFinite(kmInclus) || kmInclus < 0 || !Number.isFinite(prixKm) || prixKm < 0) {
+      afficherNotification('Tarif invalide : forfait d\'au moins 0.50 CHF, autres valeurs positives.')
+      return
+    }
+    const { error } = await supabase.rpc('admin_modifier_tarif', {
+      p_forfait: forfait,
+      p_km_inclus: kmInclus,
+      p_prix_km: prixKm
+    })
+    if (error) {
+      console.error("Erreur d'enregistrement du tarif :", error)
+      afficherNotification("L'enregistrement du tarif a échoué.")
+      return
+    }
+    afficherNotification('Tarif de livraison enregistré.', 'info')
+  }
+
+  async function crediterPrepayeAdmin(id, montant, note) {
+    const { error } = await supabase.rpc('admin_crediter_prepaye', {
+      p_entreprise: id,
+      p_montant: montant,
+      p_note: note
+    })
+    if (error) {
+      console.error('Erreur de crédit du solde :', error)
+      afficherNotification('Le crédit du solde a échoué.')
+      return false
+    }
+    afficherNotification('Solde mis à jour.', 'info')
+    chargerEntreprisesAdmin()
+    return true
+  }
 
   async function enregistrerEntrepriseAdmin(id, { statut, mode, plafond, fournisseurs }) {
     const { error } = await supabase.rpc('admin_modifier_entreprise', {
@@ -1968,6 +2109,26 @@ function App() {
     }
     chargerCommandes()
   }, [session, entreprise])
+
+  useEffect(() => {
+    if (!session || role !== 'entreprise' || !entreprise || entreprise.statut !== 'ok') {
+      setInfosPaiement(null)
+      return
+    }
+    let annule = false
+    supabase.rpc('infos_paiement_entreprise').then(({ data, error }) => {
+      if (annule) return
+      if (error) {
+        console.error('Erreur de chargement du mode de paiement :', error)
+        setInfosPaiement(null)
+      } else {
+        setInfosPaiement(data)
+      }
+    })
+    return () => {
+      annule = true
+    }
+  }, [session, role, entreprise])
 
   useEffect(() => {
     async function chargerMesAvis() {
@@ -2514,6 +2675,13 @@ function App() {
       }
     })
 
+    // Entreprise en mode prépayé / mensuel : la commande est créée directement
+    if (!error && data && data.commande) {
+      setEnvoiEnCours(false)
+      afficherConfirmationCommande(data.commande)
+      return
+    }
+
     if (error || !data || !data.url) {
       setEnvoiEnCours(false)
       let message = "Le paiement n'a pas pu être lancé, réessaie."
@@ -2562,19 +2730,7 @@ function App() {
       return
     }
 
-    setMesCommandes((precedentes) =>
-      precedentes.some((c) => c.id === commande.id) ? precedentes : [commande, ...precedentes]
-    )
-    setCommandeInvite(commande)
-    sauvegarderCommandeLocale(commande)
-
-    const articles = (commande.produits_detail || []).reduce(
-      (somme, ligne) => somme + Number(ligne.quantite || 1),
-      0
-    )
-    setRecapCommande(articles + ' article(s) pour un total de ' + Number(commande.total).toFixed(2) + ' CHF')
-    setVue('commande')
-    mettreAJourCreneau()
+    afficherConfirmationCommande(commande)
   }
 
   // Après une annulation, rembourse automatiquement si la commande avait
@@ -2591,6 +2747,15 @@ function App() {
       if (data && data.rembourse) {
         afficherNotification(
           'Commande annulée. Le remboursement est lancé (quelques jours selon ta banque).',
+          'info'
+        )
+      } else if (data && data.libere) {
+        afficherNotification(
+          data.mode === 'carte_entreprise'
+            ? 'Commande annulée. La réservation sur votre carte est levée : rien ne sera débité.'
+            : data.mode === 'prepaye'
+              ? 'Commande annulée. Les frais de livraison sont recrédités sur votre solde.'
+              : 'Commande annulée. Aucun frais de livraison ne sera facturé.',
           'info'
         )
       }
@@ -2614,6 +2779,55 @@ function App() {
       return "Le compte de votre entreprise est suspendu. Contactez 2C Delivery."
     }
     return null
+  }
+
+  // Compte entreprise : seule la livraison est payée sur le site.
+  function compteEntrepriseActif() {
+    return Boolean(role === 'entreprise' && entreprise && entreprise.statut === 'ok')
+  }
+
+  function modePaiementEntreprise() {
+    if (!compteEntrepriseActif()) return null
+    return (infosPaiement && infosPaiement.mode_paiement) || 'carte'
+  }
+
+  function libelleFraisLivraison() {
+    if (!infosPaiement) return '—'
+    const forfait = Number(infosPaiement.forfait || 0).toFixed(2)
+    return Number(infosPaiement.prix_km) > 0 ? `dès ${forfait} CHF` : `${forfait} CHF`
+  }
+
+  // Affiche la confirmation d'une commande qui vient d'être créée.
+  function afficherConfirmationCommande(commande) {
+    try {
+      window.localStorage.removeItem('panierEnAttente2C')
+    } catch (e) {
+      // stockage indisponible - on ignore silencieusement
+    }
+    setPanier([])
+    setAdresseClient('')
+    setTelephoneClient('')
+    setTechnicienCommande('')
+    setChantierCommande('')
+
+    setMesCommandes((precedentes) =>
+      precedentes.some((c) => c.id === commande.id) ? precedentes : [commande, ...precedentes]
+    )
+    setCommandeInvite(commande)
+    sauvegarderCommandeLocale(commande)
+
+    const articles = (commande.produits_detail || []).reduce(
+      (somme, ligne) => somme + Number(ligne.quantite || 1),
+      0
+    )
+    const livraisonSeule = commande.mode_paiement && commande.mode_paiement !== 'en_ligne'
+    setRecapCommande(
+      livraisonSeule
+        ? articles + ' article(s) · livraison 2C : ' + Number(commande.frais_livraison || 0).toFixed(2) + ' CHF'
+        : articles + ' article(s) pour un total de ' + Number(commande.total).toFixed(2) + ' CHF'
+    )
+    setVue('commande')
+    mettreAJourCreneau()
   }
 
   async function validerCommande() {
@@ -2791,6 +3005,51 @@ function App() {
       return
     }
 
+    // Commandes entreprise : seule la livraison est facturée. Le mode de
+    // paiement décide de la suite (voir ci-dessous).
+    let infosFrais = null
+    try {
+      const { data: fraisData, error: erreurFrais } = await supabase.rpc('obtenir_frais_commande', {
+        p_commande_id: String(commandeId)
+      })
+      if (!erreurFrais && fraisData) infosFrais = fraisData
+    } catch (e) {
+      console.error('Frais de livraison indisponibles :', e)
+    }
+    const modeEntreprise = infosFrais && infosFrais.mode_paiement && infosFrais.mode_paiement !== 'en_ligne'
+      ? infosFrais.mode_paiement
+      : null
+
+    if (modeEntreprise === 'mensuel') {
+      // Facturée dans la facture mensuelle (pas de facture individuelle).
+      return
+    }
+    if (modeEntreprise === 'carte_entreprise') {
+      // On débite la carte réservée AVANT d'envoyer une facture "payée".
+      const { data: resultat, error: erreurEncaissement } = await supabase.functions.invoke('encaisser-livraison', {
+        body: { commande_id: commandeId }
+      })
+      if (erreurEncaissement || !resultat || !resultat.encaisse) {
+        console.error("Le débit de la carte de l'entreprise a échoué :", erreurEncaissement || resultat)
+        afficherNotification(
+          "Livraison validée, mais le débit de la carte de l'entreprise n'a pas abouti. 2C Delivery va régulariser.",
+          'info'
+        )
+        return
+      }
+    }
+    if (modeEntreprise) {
+      data.livraison_seule = true
+      data.frais_livraison = infosFrais.frais_livraison
+      data.chantier = infosFrais.chantier
+      data.technicien = infosFrais.technicien
+      data.deja_regle = true
+      data.mention_paiement =
+        modeEntreprise === 'prepaye'
+          ? 'Réglé par prélèvement sur le solde prépayé.'
+          : 'Réglé par carte bancaire.'
+    }
+
     const { doc, numeroFacture } = construireFacturePDF(data)
     const pdfBase64 = doc.output('datauristring').split(',')[1]
 
@@ -2819,7 +3078,13 @@ function App() {
     // passées par un compte (un invité n'a pas d'espace où la retrouver,
     // il garde l'email).
     if (data.user_id) {
-      enregistrerFacture({ numeroFacture, userId: data.user_id, commandeId, montant: data.total, doc })
+      enregistrerFacture({
+        numeroFacture,
+        userId: data.user_id,
+        commandeId,
+        montant: data.livraison_seule ? Number(data.frais_livraison || 0) : data.total,
+        doc
+      })
     }
   }
 
@@ -4048,6 +4313,20 @@ function App() {
                 {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && (
                   <p className="slogan">{entreprise.entreprise_nom}</p>
                 )}
+                {compteEntrepriseActif() && infosPaiement && (
+                  <p className="souligne">
+                    Paiement de la livraison :{' '}
+                    {infosPaiement.mode_paiement === 'prepaye'
+                      ? 'compte prépayé'
+                      : infosPaiement.mode_paiement === 'mensuel'
+                        ? 'facture mensuelle'
+                        : 'carte réservée, débitée à la livraison'}
+                    {infosPaiement.mode_paiement === 'prepaye' && infosPaiement.solde_prepaye !== null && infosPaiement.solde_prepaye !== undefined &&
+                      ` — solde : ${Number(infosPaiement.solde_prepaye).toFixed(2)} CHF`}
+                    {infosPaiement.mode_paiement === 'mensuel' && infosPaiement.encours_mensuel !== null && infosPaiement.encours_mensuel !== undefined &&
+                      ` — en cours : ${Number(infosPaiement.encours_mensuel).toFixed(2)} / ${Number(infosPaiement.plafond_mensuel || 0).toFixed(2)} CHF`}
+                  </p>
+                )}
                 {messageAccesEntreprise() && (
                   <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
                 )}
@@ -4522,19 +4801,40 @@ function App() {
                   onChange={(e) => setEmailClient(e.target.value)}
                 />
               </div>
-              <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
+              {compteEntrepriseActif() ? (
+                <div className="recap-livraison-entreprise">
+                  <p className="souligne">
+                    Valeur des produits : {total.toFixed(2)} CHF — facturée séparément par le fournisseur.
+                  </p>
+                  <p className="total-panier">Livraison 2C : {libelleFraisLivraison()}</p>
+                  <p className="souligne">
+                    {modePaiementEntreprise() === 'prepaye'
+                      ? 'Les frais de livraison sont retirés du solde prépayé de votre entreprise.'
+                      : modePaiementEntreprise() === 'mensuel'
+                        ? 'Les frais de livraison seront ajoutés à la facture mensuelle de votre entreprise.'
+                        : 'Votre carte est réservée maintenant (paiement sécurisé Stripe) et débitée uniquement une fois la livraison effectuée.'}
+                    {infosPaiement && Number(infosPaiement.prix_km) > 0 && ' Le prix exact dépend de la distance.'}
+                  </p>
+                </div>
+              ) : (
+                <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
+              )}
               {messageAccesEntreprise() && (
                 <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
               )}
-              {PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise' && (
+              {PAIEMENT_EN_LIGNE_ACTIF && !compteEntrepriseActif() && (
                 <p className="souligne">Paiement sécurisé en ligne (carte, TWINT) sur la page de notre partenaire Stripe.</p>
               )}
               <button className="valider" disabled={envoiEnCours || Boolean(messageAccesEntreprise())} onClick={validerCommande}>
                 {envoiEnCours
                   ? 'Envoi en cours...'
-                  : PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise'
-                    ? 'Payer et commander'
-                    : 'Valider la commande'}
+                  : compteEntrepriseActif()
+                    ? modePaiementEntreprise() === 'carte'
+                      ? 'Réserver la carte et commander'
+                      : 'Commander'
+                    : PAIEMENT_EN_LIGNE_ACTIF
+                      ? 'Payer et commander'
+                      : 'Valider la commande'}
               </button>
             </div>
           )}
@@ -4660,7 +4960,14 @@ function App() {
               {mesCommandes[commandeSelectionnee].adresse && (
                 <p className="souligne">Livraison : {mesCommandes[commandeSelectionnee].adresse}</p>
               )}
-              <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} CHF</p>
+              {mesCommandes[commandeSelectionnee].mode_paiement && mesCommandes[commandeSelectionnee].mode_paiement !== 'en_ligne' ? (
+                <>
+                  <p className="souligne">Valeur des produits : {mesCommandes[commandeSelectionnee].total.toFixed(2)} CHF (facturée par le fournisseur)</p>
+                  <p className="total-panier">Livraison 2C : {Number(mesCommandes[commandeSelectionnee].frais_livraison || 0).toFixed(2)} CHF</p>
+                </>
+              ) : (
+                <p className="total-panier">{mesCommandes[commandeSelectionnee].total.toFixed(2)} CHF</p>
+              )}
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
               )}
@@ -6017,10 +6324,48 @@ function App() {
           <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
           <h3>Entreprises</h3>
           <p className="souligne">
-            Validez chaque entreprise après vérification, choisissez le mode de paiement convenu et les
-            fournisseurs avec lesquels un accord existe. Le mode de paiement sera appliqué aux commandes
-            à l'étape suivante ; pour l'instant, toutes les commandes se paient en ligne.
+            Validez chaque entreprise après vérification et choisissez le mode de paiement convenu.
+            Les entreprises ne paient sur le site que la livraison (les produits sont facturés par le
+            fournisseur) : carte réservée puis débitée à la livraison, solde prépayé, ou facturation
+            mensuelle avec plafond.
           </p>
+
+          <div className="carte-auth carte-tarif-livraison">
+            <h3>Tarif de livraison (entreprises)</h3>
+            <label className="champ-admin-entreprise">
+              <span>Forfait par commande (CHF)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={tarifAdmin.forfait}
+                onChange={(e) => setTarifAdmin({ ...tarifAdmin, forfait: e.target.value })}
+              />
+            </label>
+            <label className="champ-admin-entreprise">
+              <span>Kilomètres inclus dans le forfait</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={tarifAdmin.km_inclus}
+                onChange={(e) => setTarifAdmin({ ...tarifAdmin, km_inclus: e.target.value })}
+              />
+            </label>
+            <label className="champ-admin-entreprise">
+              <span>Prix par km supplémentaire (CHF) — 0 = prix fixe</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={tarifAdmin.prix_km}
+                onChange={(e) => setTarifAdmin({ ...tarifAdmin, prix_km: e.target.value })}
+              />
+            </label>
+            <p className="souligne">
+              Prix = forfait + (km au-delà des km inclus) × prix par km, arrondi à 5 centimes. Tant que le
+              prix par km est à 0, le prix reste fixe. La distance est estimée du ou des fournisseurs
+              jusqu'à l'adresse de livraison.
+            </p>
+            <button className="valider" onClick={enregistrerTarifAdmin}>Enregistrer le tarif</button>
+          </div>
           {entreprisesAdmin.length === 0 ? (
             <p className="aucun-resultat">Aucune entreprise inscrite pour le moment.</p>
           ) : (
@@ -6036,6 +6381,9 @@ function App() {
                     ].filter(Boolean))
                   ]}
                   onEnregistrer={enregistrerEntrepriseAdmin}
+                  solde={soldesAdmin[e.id] ? soldesAdmin[e.id].solde_prepaye : 0}
+                  encours={soldesAdmin[e.id] ? soldesAdmin[e.id].encours_mensuel : 0}
+                  onCrediter={crediterPrepayeAdmin}
                 />
               ))}
             </div>
