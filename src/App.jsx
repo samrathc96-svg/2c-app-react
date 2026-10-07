@@ -2148,6 +2148,10 @@ function App() {
     // Le profil (table "profils") est maintenant créé automatiquement
     // côté base de données par un déclencheur ("trigger"), dès que le
     // compte est créé — plus besoin de l'insérer ici depuis le site.
+    // L'invitation est consommée : le rattachement à l'équipe se fait à la
+    // première connexion, à partir des données envoyées avec l'inscription.
+    setInvitationEquipe(null)
+    setNomEntrepriseInscription('')
     if (!data.session) {
       // Pas de session tout de suite : la confirmation par email est
       // active, il faut prévenir le client plutôt que de le laisser
@@ -3667,8 +3671,11 @@ function App() {
                     {role === 'livreur' ? 'Livreur' :
                       role === 'livreur_en_attente' ? 'Livreur (en attente)' :
                       role === 'admin' ? 'Admin' :
-                      role === 'entreprise' ? 'Entreprise' :
-                      'Client'}
+                      role === 'entreprise'
+                        ? (entreprise && entreprise.statut === 'ok'
+                            ? `${entreprise.role_entreprise === 'responsable' ? 'Responsable' : 'Employé'} · ${entreprise.entreprise_nom}`
+                            : 'Entreprise')
+                        : 'Client'}
                   </small>
                 </span>
               </div>
@@ -3973,14 +3980,15 @@ function App() {
                     role === 'livreur' ? 'Livreur' :
                     role === 'livreur_en_attente' ? 'Livreur (en attente de validation)' :
                     role === 'admin' ? 'Admin' :
-                    role === 'entreprise' ? 'Entreprise' :
-                    'Client'
+                    role === 'entreprise'
+                      ? (entreprise && entreprise.statut === 'ok'
+                          ? (entreprise.role_entreprise === 'responsable' ? 'Responsable d\'entreprise' : 'Employé')
+                          : 'Entreprise')
+                      : 'Client'
                   }
                 </p>
                 {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && (
-                  <p className="slogan">
-                    {entreprise.entreprise_nom} · {entreprise.role_entreprise === 'responsable' ? 'Responsable' : 'Employé'}
-                  </p>
+                  <p className="slogan">{entreprise.entreprise_nom}</p>
                 )}
                 {messageAccesEntreprise() && (
                   <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
