@@ -1,7 +1,8 @@
 // Fonction : stripe-webhook
 // Appelée PAR STRIPE (pas par le site) quand un paiement est réussi.
 // Vérifie que le message vient bien de Stripe (signature), puis crée la
-// commande, puis envoie l'email de confirmation.
+// commande, puis envoie l'email de confirmation (avec le code de livraison, et
+// un bon de commande en copie au responsable pour un compte entreprise).
 // À déployer avec "Verify JWT" DÉSACTIVÉ (Stripe n'a pas de compte Supabase).
 // Secrets requis : STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET.
 
@@ -77,6 +78,60 @@ async function rembourser(paymentIntent: string, cle: string) {
   })
 }
 
+// Lecture simple d'une liste via l'API REST (clé serveur). Renvoie [] en cas de souci.
+async function lire(chemin: string): Promise<any[]> {
+  try {
+    const r = await rest(chemin)
+    if (!r.ok) return []
+    const donnees = await r.json()
+    return Array.isArray(donnees) ? donnees : []
+  } catch (_e) {
+    return []
+  }
+}
+
+// Informations ajoutées à l'email de confirmation : code de livraison de la
+// commande, et, pour un compte entreprise, chantier / personne qui commande
+// et email du responsable (qui reçoit le bon de commande en copie).
+// Tout est facultatif : en cas d'échec, l'email part quand même, sans ces ajouts.
+async function infosEmailCommande(commandeId: unknown) {
+  const infos: Record<string, unknown> = {}
+  const id = encodeURIComponent(String(commandeId))
+
+  const [commande] = await lire(`commandes?id=eq.${id}&select=user_id,chantier,technicien`)
+  if (commande) {
+    if (commande.chantier) infos.chantier = commande.chantier
+    if (commande.technicien) infos.technicien = commande.technicien
+  }
+
+  const [course] = await lire(`courses?commande_id=eq.${id}&select=id&limit=1`)
+  if (course) {
+    const [codeLigne] = await lire(
+      `codes_livraison?course_id=eq.${encodeURIComponent(String(course.id))}&select=code`
+    )
+    if (codeLigne?.code) infos.codeLivraison = codeLigne.code
+  }
+
+  if (commande?.user_id) {
+    const [membre] = await lire(
+      `entreprise_membres?user_id=eq.${encodeURIComponent(commande.user_id)}&select=entreprise_id,entreprises(nom)`
+    )
+    if (membre) {
+      const nomEntreprise = Array.isArray(membre.entreprises) ? membre.entreprises[0]?.nom : membre.entreprises?.nom
+      if (nomEntreprise) infos.nomEntreprise = nomEntreprise
+      const [responsable] = await lire(
+        `entreprise_membres?entreprise_id=eq.${encodeURIComponent(membre.entreprise_id)}&role_entreprise=eq.responsable&actif=eq.true&select=user_id&limit=1`
+      )
+      if (responsable) {
+        const [profil] = await lire(`profils?id=eq.${encodeURIComponent(responsable.user_id)}&select=email`)
+        if (profil?.email) infos.emailResponsable = profil.email
+      }
+    }
+  }
+
+  return infos
+}
+
 Deno.serve(async (req) => {
   const corps = await req.text()
 
@@ -128,6 +183,7 @@ Deno.serve(async (req) => {
   )
   const aEnvoyer = rc.ok ? await rc.json() : []
   if (aEnvoyer.length > 0 && commande.email) {
+    const infos = await infosEmailCommande(commande.id)
     await fetch(`${SUPABASE_URL}/functions/v1/envoyer-confirmation-commande`, {
       method: 'POST',
       headers: {
@@ -141,7 +197,8 @@ Deno.serve(async (req) => {
         produits: commande.produits,
         total: commande.total,
         numeroSuivi: commande.numero_suivi,
-        adresse: commande.adresse
+        adresse: commande.adresse,
+        ...infos
       })
     }).catch((e) => console.error('Email de confirmation :', e))
   }

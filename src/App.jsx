@@ -2749,9 +2749,22 @@ function App() {
     const { doc, numeroFacture } = construireFacturePDF(data)
     const pdfBase64 = doc.output('datauristring').split(',')[1]
 
+    // Compte entreprise : le responsable reçoit la facture en copie. Si la
+    // fonction n'existe pas encore ou échoue, la facture part quand même
+    // au client, sans copie.
+    let copieEmail = null
+    try {
+      const { data: emailResponsable, error: erreurCopie } = await supabase.rpc('email_responsable_commande', {
+        p_commande_id: String(commandeId)
+      })
+      if (!erreurCopie && emailResponsable) copieEmail = emailResponsable
+    } catch (e) {
+      console.error('Copie responsable indisponible :', e)
+    }
+
     supabase.functions
       .invoke('envoyer-facture-email', {
-        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64 }
+        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64, copieEmail }
       })
       .catch((erreurEmail) => {
         console.error("Erreur d'envoi automatique de la facture :", erreurEmail)
