@@ -92,6 +92,7 @@ const ESPACES_SANS_PANNEAUX_DESKTOP = [
   'admin',
   'catalogueAdmin',
   'fournisseursAdmin',
+  'entreprisesAdmin',
   'livreur',
   'livreurEnAttente',
   'livreursListe'
@@ -671,6 +672,352 @@ function BlocCodeLivraison({ numero, nom, statut }) {
   )
 }
 
+// =========================================================
+// Comptes entreprise : responsable + employés
+// =========================================================
+const DATE_HEURE_CH = (valeur) => {
+  if (!valeur) return ''
+  const d = new Date(valeur)
+  return `${d.toLocaleDateString('fr-CH')} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`
+}
+
+const LIBELLE_STATUT_ENTREPRISE = {
+  en_attente: 'En cours de validation par 2C',
+  validee: 'Compte validé',
+  suspendue: 'Compte suspendu'
+}
+
+// Page "Mon équipe" du responsable : lien d'invitation, membres et
+// commandes de toute l'équipe.
+function PageEquipe({ entreprise, onRetour, afficherNotification }) {
+  const [equipe, setEquipe] = useState([])
+  const [commandes, setCommandes] = useState([])
+  const [statuts, setStatuts] = useState({})
+  const [chargement, setChargement] = useState(true)
+  const [erreurChargement, setErreurChargement] = useState(false)
+  const [code, setCode] = useState(entreprise.code_invitation || '')
+  const [confirmationRegeneration, setConfirmationRegeneration] = useState(false)
+
+  const lien = `${window.location.origin}/?equipe=${code}`
+
+  async function charger() {
+    const [resEquipe, resCommandes, resStatuts] = await Promise.all([
+      supabase.rpc('equipe_entreprise'),
+      supabase.rpc('commandes_equipe'),
+      supabase.rpc('statuts_equipe')
+    ])
+    if (resEquipe.error || resCommandes.error) {
+      console.error('Erreur de chargement de l’équipe :', resEquipe.error || resCommandes.error)
+      setErreurChargement(true)
+    } else {
+      setErreurChargement(false)
+    }
+    setEquipe(resEquipe.data || [])
+    setCommandes(resCommandes.data || [])
+    const parCommande = {}
+    ;(resStatuts.data || []).forEach((s) => {
+      parCommande[String(s.commande_id)] = s.statut
+    })
+    setStatuts(parCommande)
+    setChargement(false)
+  }
+
+  useEffect(() => {
+    charger()
+  }, [])
+
+  async function copierLien() {
+    try {
+      await navigator.clipboard.writeText(lien)
+      afficherNotification("Lien d'invitation copié.", 'info')
+    } catch (e) {
+      window.prompt("Copiez ce lien d'invitation :", lien)
+    }
+  }
+
+  async function partagerLien() {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Rejoindre ${entreprise.entreprise_nom} sur 2C Delivery`,
+          text: `Créez votre session pour commander au nom de ${entreprise.entreprise_nom} :`,
+          url: lien
+        })
+        return
+      } catch (e) {
+        // partage annulé : on ne fait rien
+        return
+      }
+    }
+    copierLien()
+  }
+
+  async function regenererLien() {
+    const { data, error } = await supabase.rpc('regenerer_invitation')
+    if (error || !data) {
+      console.error('Erreur de régénération du lien :', error)
+      afficherNotification('Impossible de renouveler le lien, réessayez.')
+      return
+    }
+    setCode(data)
+    setConfirmationRegeneration(false)
+    afficherNotification("Nouveau lien créé. L'ancien ne fonctionne plus.", 'info')
+  }
+
+  async function changerAcces(membre, actif) {
+    const { error } = await supabase.rpc('changer_acces_employe', {
+      p_user_id: membre.user_id,
+      p_actif: actif
+    })
+    if (error) {
+      console.error("Erreur de changement d'accès :", error)
+      afficherNotification("La modification a échoué, réessayez.")
+      return
+    }
+    afficherNotification(actif ? 'Accès réactivé.' : 'Accès désactivé.', 'info')
+    charger()
+  }
+
+  const nomParUtilisateur = {}
+  equipe.forEach((m) => {
+    nomParUtilisateur[m.user_id] = m.nom || m.email
+  })
+
+  return (
+    <>
+      <p className="retour" onClick={onRetour}>← Retour</p>
+      <div className="entete-page">
+        <h2>Mon équipe</h2>
+        <p className="souligne">
+          {entreprise.entreprise_nom}
+          {' · '}
+          <span className={`etiquette-statut-entreprise statut-${entreprise.statut_entreprise}`}>
+            {LIBELLE_STATUT_ENTREPRISE[entreprise.statut_entreprise] || ''}
+          </span>
+        </p>
+      </div>
+
+      <div className="carte-auth">
+        <h3>Inviter un employé</h3>
+        <p className="souligne">
+          Envoyez ce lien à vos employés : ils créent leur propre session et commandent au nom de
+          votre entreprise. Vous suivez toutes leurs commandes ici.
+        </p>
+        <div className="lien-invitation">{lien}</div>
+        <div className="boutons-confirmation">
+          <button className="valider" onClick={partagerLien}>
+            <i className="bi bi-share"></i> Partager
+          </button>
+          <button className="annuler-secondaire" onClick={copierLien}>
+            <i className="bi bi-clipboard"></i> Copier
+          </button>
+        </div>
+        {confirmationRegeneration ? (
+          <div className="confirmation-annulation">
+            <p className="aucun-resultat">
+              L'ancien lien ne fonctionnera plus. Les employés déjà inscrits ne sont pas affectés.
+            </p>
+            <div className="boutons-confirmation">
+              <button className="annuler-secondaire" onClick={() => setConfirmationRegeneration(false)}>
+                Annuler
+              </button>
+              <button className="valider" onClick={regenererLien}>
+                Créer un nouveau lien
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="retour" onClick={() => setConfirmationRegeneration(true)}>
+            Créer un nouveau lien (l'ancien sera désactivé)
+          </p>
+        )}
+      </div>
+
+      {chargement && (
+        <div className="skeleton-liste">
+          <div className="skeleton-ligne"></div>
+          <div className="skeleton-ligne"></div>
+        </div>
+      )}
+
+      {erreurChargement && !chargement && (
+        <p className="aucun-resultat">
+          Impossible de charger l'équipe pour le moment. Vérifiez votre connexion et réessayez.
+        </p>
+      )}
+
+      {!chargement && !erreurChargement && (
+        <>
+          <h3>Membres ({equipe.length})</h3>
+          <ul className="liste-membres">
+            {equipe.map((membre) => (
+              <li key={membre.user_id} className={membre.actif ? '' : 'membre-inactif'}>
+                <span className="texte-membre">
+                  <strong>{membre.nom || membre.email}</strong>
+                  <span className="souligne">
+                    {membre.role_entreprise === 'responsable' ? 'Responsable' : 'Employé'}
+                    {' · '}
+                    {membre.email}
+                    {' · '}
+                    {membre.nb_commandes} commande{Number(membre.nb_commandes) > 1 ? 's' : ''}
+                    {!membre.actif ? ' · accès désactivé' : ''}
+                  </span>
+                </span>
+                {membre.role_entreprise === 'employe' && (
+                  membre.actif ? (
+                    <button className="bouton-refuser" onClick={() => changerAcces(membre, false)}>
+                      Désactiver
+                    </button>
+                  ) : (
+                    <button className="bouton-approuver" onClick={() => changerAcces(membre, true)}>
+                      Réactiver
+                    </button>
+                  )
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <h3>Commandes de l'équipe</h3>
+          {commandes.length === 0 ? (
+            <p className="aucun-resultat">Aucune commande pour le moment.</p>
+          ) : (
+            <ul className="liste-mes-commandes liste-commandes-equipe">
+              {commandes.map((commande) => (
+                <li key={commande.id} className="commande-equipe">
+                  <span>
+                    {commande.chantier ? <strong>{commande.chantier}</strong> : <strong>Sans chantier</strong>}
+                    <br />
+                    <span className="souligne">
+                      {commande.produits}
+                    </span>
+                    <br />
+                    <span className="souligne">
+                      {DATE_HEURE_CH(commande.created_at)}
+                      {' · par '}
+                      {commande.technicien || nomParUtilisateur[commande.user_id] || '—'}
+                      {' · '}
+                      {statuts[String(commande.id)] || 'À livrer'}
+                    </span>
+                  </span>
+                  <span className="prix">{Number(commande.total).toFixed(2)} CHF</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+// Fiche d'une entreprise dans l'admin : statut, mode de paiement convenu,
+// plafond et fournisseurs avec lesquels un accord existe.
+function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistrer }) {
+  const [statut, setStatut] = useState(entreprise.statut)
+  const [mode, setMode] = useState(entreprise.mode_paiement)
+  const [plafond, setPlafond] = useState(
+    entreprise.plafond_mensuel === null || entreprise.plafond_mensuel === undefined ? '' : String(entreprise.plafond_mensuel)
+  )
+  const [fournisseurs, setFournisseurs] = useState(entreprise.fournisseurs || [])
+  const [enCours, setEnCours] = useState(false)
+
+  function basculerFournisseur(nom) {
+    setFournisseurs((precedent) =>
+      precedent.includes(nom) ? precedent.filter((f) => f !== nom) : [...precedent, nom]
+    )
+  }
+
+  async function enregistrer() {
+    setEnCours(true)
+    await onEnregistrer(entreprise.id, {
+      statut,
+      mode,
+      plafond: mode === 'mensuel' && plafond.trim() !== '' ? Number(plafond) : null,
+      fournisseurs
+    })
+    setEnCours(false)
+  }
+
+  // Fournisseurs déjà choisis mais absents de la liste actuelle : on les garde visibles.
+  const tousLesFournisseurs = [...new Set([...fournisseursDisponibles, ...fournisseurs])].sort((a, b) =>
+    a.localeCompare(b, 'fr')
+  )
+
+  return (
+    <div className="carte-auth carte-entreprise-admin">
+      <div className="entete-entreprise-admin">
+        <h3>{entreprise.nom}</h3>
+        <span className="souligne">
+          {entreprise.nb_membres} membre{Number(entreprise.nb_membres) > 1 ? 's' : ''}
+          {' · inscrite le '}
+          {new Date(entreprise.created_at).toLocaleDateString('fr-CH')}
+        </span>
+      </div>
+      <p className="souligne">
+        Responsable : {entreprise.responsable_nom || '—'}
+        {entreprise.responsable_email ? ` (${entreprise.responsable_email})` : ''}
+      </p>
+
+      <label className="champ-admin-entreprise">
+        <span>Statut</span>
+        <select value={statut} onChange={(e) => setStatut(e.target.value)}>
+          <option value="en_attente">En attente de validation</option>
+          <option value="validee">Validée</option>
+          <option value="suspendue">Suspendue (ne peut plus commander)</option>
+        </select>
+      </label>
+
+      <label className="champ-admin-entreprise">
+        <span>Mode de paiement convenu</span>
+        <select value={mode} onChange={(e) => setMode(e.target.value)}>
+          <option value="carte">Carte (par défaut)</option>
+          <option value="prepaye">Compte prépayé</option>
+          <option value="mensuel">Facturation mensuelle</option>
+        </select>
+      </label>
+
+      {mode === 'mensuel' && (
+        <label className="champ-admin-entreprise">
+          <span>Plafond mensuel (CHF)</span>
+          <input
+            type="number"
+            min="0"
+            step="50"
+            placeholder="Ex. 2000"
+            value={plafond}
+            onChange={(e) => setPlafond(e.target.value)}
+          />
+        </label>
+      )}
+
+      <div className="champ-admin-entreprise">
+        <span>Fournisseurs avec accord (commande sur compte)</span>
+        {tousLesFournisseurs.length === 0 ? (
+          <p className="souligne">Aucun fournisseur enregistré pour le moment.</p>
+        ) : (
+          <div className="cases-fournisseurs">
+            {tousLesFournisseurs.map((nom) => (
+              <label key={nom} className="case-fournisseur">
+                <input
+                  type="checkbox"
+                  checked={fournisseurs.includes(nom)}
+                  onChange={() => basculerFournisseur(nom)}
+                />
+                <span>{nom}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button className="valider" disabled={enCours} onClick={enregistrer}>
+        {enCours ? 'Enregistrement...' : 'Enregistrer'}
+      </button>
+    </div>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [role, setRole] = useState(null)
@@ -699,6 +1046,14 @@ function App() {
   const [emailInscription, setEmailInscription] = useState('')
   const [motDePasseInscription, setMotDePasseInscription] = useState('')
   const [nomInscription, setNomInscription] = useState('')
+  const [nomEntrepriseInscription, setNomEntrepriseInscription] = useState('')
+  // Lien d'invitation d'équipe (?equipe=CODE) : { code, nom } tant que la
+  // personne n'a pas fini de s'inscrire.
+  const [invitationEquipe, setInvitationEquipe] = useState(null)
+  // Rattachement du compte entreprise connecté (réponse de la base) :
+  // { statut: 'ok' | 'invitation_invalide', entreprise_nom, role_entreprise, actif, ... }
+  const [entreprise, setEntreprise] = useState(null)
+  const [entreprisesAdmin, setEntreprisesAdmin] = useState([])
   const [roleChoisi, setRoleChoisi] = useState('client')
   const [erreurInscription, setErreurInscription] = useState('')
   const [messageInscription, setMessageInscription] = useState('')
@@ -1059,10 +1414,19 @@ function App() {
   // reste modifiable si besoin.
   useEffect(() => {
     if ((role === 'entreprise' || role === 'client') && session) {
-      setNomClient((precedent) => precedent || nomUtilisateur)
+      // Compte entreprise : le "client" de la commande est l'entreprise, et
+      // la personne qui commande est celle qui est connectée.
+      if (role === 'client') {
+        setNomClient((precedent) => precedent || nomUtilisateur)
+      } else if (entreprise && entreprise.entreprise_nom) {
+        setNomClient((precedent) => precedent || entreprise.entreprise_nom)
+      }
       setEmailClient((precedent) => precedent || session.user.email || '')
+      if (role === 'entreprise' && nomUtilisateur) {
+        setTechnicienCommande((precedent) => precedent || nomUtilisateur)
+      }
     }
-  }, [role, session, nomUtilisateur])
+  }, [role, session, nomUtilisateur, entreprise])
 
   function afficherNotification(message, type = 'erreur') {
     setNotification({ message, type })
@@ -1184,6 +1548,27 @@ function App() {
     }
   }, [])
 
+  // Lien d'invitation d'une équipe (ex: 2cdelivery.ch/?equipe=CODE) : ouvre
+  // l'inscription entreprise, qui rattachera la personne comme employé.
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    const code = parametres.get('equipe')
+    if (!code) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+    setInvitationEquipe({ code, nom: '' })
+    setRoleChoisi('entreprise')
+    setModeAuth('inscription')
+    setAfficherAuth(true)
+    supabase.rpc('nom_entreprise_invitation', { p_code: code }).then(({ data, error }) => {
+      if (error) {
+        console.error("Erreur de lecture de l'invitation :", error)
+        return
+      }
+      if (data) setInvitationEquipe({ code, nom: data })
+      else setInvitationEquipe({ code, nom: null })
+    })
+  }, [])
+
   // Retour depuis la page de paiement Stripe (?paiement=ok ou ?paiement=annule).
   useEffect(() => {
     const parametres = new URLSearchParams(window.location.search)
@@ -1257,6 +1642,60 @@ function App() {
     }
     chargerRole()
   }, [session, modeReinitialisation])
+
+  // Compte entreprise : la base rattache la personne à son entreprise à la
+  // première connexion (responsable si elle crée l'entreprise, employé si
+  // elle est arrivée par un lien d'invitation). Si le script SQL n'a pas
+  // encore été exécuté, on ignore simplement : tout continue comme avant.
+  useEffect(() => {
+    if (role !== 'entreprise' || !session) {
+      setEntreprise(null)
+      return undefined
+    }
+    let annule = false
+    supabase.rpc('initialiser_compte_entreprise').then(({ data, error }) => {
+      if (annule) return
+      if (error) {
+        console.error("Erreur de rattachement à l'entreprise :", error)
+        setEntreprise(null)
+        return
+      }
+      setEntreprise(data && data.statut !== 'non_entreprise' ? data : null)
+    })
+    return () => {
+      annule = true
+    }
+  }, [role, session])
+
+  async function chargerEntreprisesAdmin() {
+    const { data, error } = await supabase.rpc('admin_entreprises')
+    if (error) {
+      console.error('Erreur de chargement des entreprises :', error)
+      return
+    }
+    setEntreprisesAdmin(data || [])
+  }
+
+  useEffect(() => {
+    if (role === 'admin') chargerEntreprisesAdmin()
+  }, [role])
+
+  async function enregistrerEntrepriseAdmin(id, { statut, mode, plafond, fournisseurs }) {
+    const { error } = await supabase.rpc('admin_modifier_entreprise', {
+      p_id: id,
+      p_statut: statut,
+      p_mode_paiement: mode,
+      p_plafond: plafond,
+      p_fournisseurs: fournisseurs
+    })
+    if (error) {
+      console.error("Erreur d'enregistrement de l'entreprise :", error)
+      afficherNotification("L'enregistrement a échoué, réessayez.")
+      return
+    }
+    afficherNotification('Entreprise mise à jour.', 'info')
+    chargerEntreprisesAdmin()
+  }
 
   useEffect(() => {
     if (role !== 'admin') return
@@ -1664,6 +2103,32 @@ function App() {
       setErreurInscription('Le mot de passe doit contenir au moins 8 caractères.')
       return
     }
+    const inscriptionEntreprise = roleChoisi === 'entreprise'
+    const viaInvitation = inscriptionEntreprise && invitationEquipe && invitationEquipe.nom
+    if (inscriptionEntreprise && invitationEquipe && !invitationEquipe.nom) {
+      setErreurInscription(
+        invitationEquipe.nom === null
+          ? "Ce lien d'invitation n'est plus valable. Demandez-en un nouveau au responsable de votre entreprise."
+          : "Vérification de l'invitation en cours, réessayez dans un instant."
+      )
+      return
+    }
+    if (inscriptionEntreprise && !viaInvitation && nomEntrepriseInscription.trim() === '') {
+      setErreurInscription("Merci d'indiquer le nom de votre entreprise.")
+      return
+    }
+    if (inscriptionEntreprise && nomInscription.trim() === '') {
+      setErreurInscription('Merci d\'indiquer votre nom et prénom.')
+      return
+    }
+    // Pour un compte entreprise : le nom de l'entreprise (responsable) ou le
+    // code du lien d'invitation (employé) voyagent avec l'inscription ; la
+    // base s'en sert à la première connexion pour rattacher la personne.
+    const donneesEntreprise = !inscriptionEntreprise
+      ? {}
+      : viaInvitation
+        ? { invitation: invitationEquipe.code }
+        : { entreprise_nom: nomEntrepriseInscription.trim() }
     const { data, error } = await supabase.auth.signUp({
       email: emailInscription,
       password: motDePasseInscription,
@@ -1671,7 +2136,8 @@ function App() {
         emailRedirectTo: window.location.origin,
         data: {
           role: roleChoisi,
-          nom: nomInscription
+          nom: nomInscription,
+          ...donneesEntreprise
         }
       }
     })
@@ -1690,6 +2156,8 @@ function App() {
       setEmailInscription('')
       setMotDePasseInscription('')
       setNomInscription('')
+      setNomEntrepriseInscription('')
+      setInvitationEquipe(null)
     }
   }
 
@@ -2082,9 +2550,31 @@ function App() {
     }
   }
 
+  // Un compte entreprise ne peut pas commander si son accès a été désactivé
+  // par le responsable, si le lien d'invitation n'était plus valable ou si
+  // l'entreprise est suspendue. Renvoie le message à afficher, ou null.
+  function messageAccesEntreprise() {
+    if (role !== 'entreprise' || !entreprise) return null
+    if (entreprise.statut === 'invitation_invalide') {
+      return "Ce lien d'invitation n'est plus valable. Demandez un nouveau lien au responsable de votre entreprise."
+    }
+    if (entreprise.actif === false) {
+      return "Votre accès a été désactivé par le responsable de votre entreprise."
+    }
+    if (entreprise.statut_entreprise === 'suspendue') {
+      return "Le compte de votre entreprise est suspendu. Contactez 2C Delivery."
+    }
+    return null
+  }
+
   async function validerCommande() {
     if (panier.length === 0) {
       afficherNotification('Votre panier est vide.')
+      return
+    }
+    const blocageEntreprise = messageAccesEntreprise()
+    if (blocageEntreprise) {
+      afficherNotification(blocageEntreprise)
       return
     }
     if (
@@ -3033,6 +3523,7 @@ function App() {
           { cle: 'admin', icone: 'speedometer2', libelle: 'Tableau de bord', court: 'Tableau' },
           { cle: 'catalogueAdmin', icone: 'box-seam', libelle: 'Catalogue', court: 'Catalogue' },
           { cle: 'fournisseursAdmin', icone: 'geo-alt', libelle: 'Fournisseurs', court: 'Carte' },
+          { cle: 'entreprisesAdmin', icone: 'building', libelle: 'Entreprises', court: 'Entrepr.' },
           { cle: 'livreursListe', icone: 'people', libelle: 'Livreurs', court: 'Livreurs' }
         ]
       : [
@@ -3076,7 +3567,7 @@ function App() {
 
   return (
     <div className="mise-en-page">
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'entreprisesAdmin', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
@@ -3240,9 +3731,17 @@ function App() {
               <button onClick={() => { setEspace('apropos'); setAfficherMenu(false) }}>
                 <i className="bi bi-info-circle"></i> Qui sommes-nous
               </button>
+              {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable' && (
+                <button onClick={() => { setEspace('equipe'); setAfficherMenu(false) }}>
+                  <i className="bi bi-people"></i> Mon équipe
+                </button>
+              )}
               {role === 'admin' && (
                 <>
                   <div className="tiroir-titre-groupe">Administration</div>
+                  <button onClick={() => { setEspace('entreprisesAdmin'); setAfficherMenu(false) }}>
+                    <i className="bi bi-building"></i> Gérer les entreprises
+                  </button>
                   <button onClick={() => { setEspace('catalogueAdmin'); setAfficherMenu(false) }}>
                     <i className="bi bi-box-seam"></i> Gérer le catalogue
                   </button>
@@ -3366,17 +3865,51 @@ function App() {
 
                 {modeAuth === 'inscription' && (
                 <div className="carte-auth">
-                  <h3>Inscription</h3>
-                  <div className="choix-role">
-                    <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
-                    <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
-                    {accesRecrutementLivreur && (
-                      <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
-                    )}
-                  </div>
+                  <h3>{invitationEquipe ? 'Rejoindre une équipe' : 'Inscription'}</h3>
+                  {invitationEquipe ? (
+                    <div className="bandeau-invitation">
+                      {invitationEquipe.nom === null ? (
+                        <>
+                          <strong>Lien d'invitation non valable</strong>
+                          <span>Demandez un nouveau lien au responsable de votre entreprise.</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-people"></i>
+                          <span>
+                            {invitationEquipe.nom
+                              ? <>Vous êtes invité(e) à rejoindre l'équipe <strong>{invitationEquipe.nom}</strong>.</>
+                              : "Vérification de l'invitation..."}
+                          </span>
+                        </>
+                      )}
+                      <button
+                        className="lien-discret"
+                        onClick={() => { setInvitationEquipe(null); setRoleChoisi('client') }}
+                      >
+                        Ce n'est pas pour moi
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="choix-role">
+                      <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
+                      <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
+                      {accesRecrutementLivreur && (
+                        <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
+                      )}
+                    </div>
+                  )}
+                  {roleChoisi === 'entreprise' && !invitationEquipe && (
+                    <input
+                      type="text"
+                      placeholder="Nom de l'entreprise"
+                      value={nomEntrepriseInscription}
+                      onChange={(e) => setNomEntrepriseInscription(e.target.value)}
+                    />
+                  )}
                   <input
                     type="text"
-                    placeholder={roleChoisi === 'entreprise' ? "Nom de l'entreprise" : 'Nom'}
+                    placeholder={roleChoisi === 'entreprise' ? 'Votre nom et prénom' : 'Nom'}
                     value={nomInscription}
                     onChange={(e) => setNomInscription(e.target.value)}
                   />
@@ -3400,12 +3933,17 @@ function App() {
                   {motDePasseInscription.length > 0 && motDePasseInscription.length < 8 && (
                     <p className="souligne">8 caractères minimum.</p>
                   )}
-                  {roleChoisi === 'entreprise' && (
+                  {roleChoisi === 'entreprise' && !invitationEquipe && (
                     <p className="souligne-configurateur">
-                      Compte partagé : tes employés pourront se connecter avec ce même
-                      identifiant pour commander (en indiquant leur nom à chaque commande).
-                      Chaque commande est payée en ligne, et la facture vous est envoyée
-                      par email une fois la livraison effectuée.
+                      Vous serez le responsable du compte : vous invitez vos employés par un
+                      lien, chacun commande avec sa propre session, et vous suivez toutes les
+                      commandes de l'équipe. La facture est envoyée par email après chaque livraison.
+                    </p>
+                  )}
+                  {roleChoisi === 'entreprise' && invitationEquipe && invitationEquipe.nom && (
+                    <p className="souligne-configurateur">
+                      Vous commanderez au nom de l'entreprise, avec votre propre session. Le
+                      code de livraison vous sera communiqué à chaque commande.
                     </p>
                   )}
                   {roleChoisi === 'livreur' && (
@@ -3439,6 +3977,25 @@ function App() {
                     'Client'
                   }
                 </p>
+                {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && (
+                  <p className="slogan">
+                    {entreprise.entreprise_nom} · {entreprise.role_entreprise === 'responsable' ? 'Responsable' : 'Employé'}
+                  </p>
+                )}
+                {messageAccesEntreprise() && (
+                  <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
+                )}
+                {invitationEquipe && (
+                  <p className="souligne">
+                    Vous êtes déjà connecté(e). Pour rejoindre une équipe avec ce lien d'invitation,
+                    déconnectez-vous puis créez votre session depuis le lien.
+                  </p>
+                )}
+                {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable' && espace !== 'equipe' && (
+                  <button className="valider" onClick={() => { setEspace('equipe'); setAfficherAuth(false) }}>
+                    Mon équipe
+                  </button>
+                )}
                 {role === 'livreur' && espace !== 'livreur' && (
                   <button className="valider" onClick={() => { setEspace('livreur'); setAfficherAuth(false) }}>
                     Aller à mon espace livreur
@@ -3875,6 +4432,7 @@ function App() {
                       type="text"
                       placeholder="Nom de l'employé qui commande"
                       value={technicienCommande}
+                      readOnly={Boolean(entreprise && entreprise.role_entreprise === 'employe')}
                       onChange={(e) => setTechnicienCommande(e.target.value)}
                     />
                   </>
@@ -3899,10 +4457,13 @@ function App() {
                 />
               </div>
               <p className="total-panier">Total : {total.toFixed(2)} CHF</p>
+              {messageAccesEntreprise() && (
+                <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
+              )}
               {PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise' && (
                 <p className="souligne">Paiement sécurisé en ligne (carte, TWINT) sur la page de notre partenaire Stripe.</p>
               )}
-              <button className="valider" disabled={envoiEnCours} onClick={validerCommande}>
+              <button className="valider" disabled={envoiEnCours || Boolean(messageAccesEntreprise())} onClick={validerCommande}>
                 {envoiEnCours
                   ? 'Envoi en cours...'
                   : PAIEMENT_EN_LIGNE_ACTIF && role !== 'entreprise'
@@ -4141,6 +4702,14 @@ function App() {
         </>
       )}
 
+      {espace === 'equipe' && role === 'entreprise' && entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable' && (
+        <PageEquipe
+          entreprise={entreprise}
+          onRetour={() => setEspace('catalogue')}
+          afficherNotification={afficherNotification}
+        />
+      )}
+
       {espace === 'mesFactures' && (role === 'client' || role === 'entreprise') && (
         <>
           <p className="retour" onClick={() => setEspace('catalogue')}>← Retour au catalogue</p>
@@ -4333,7 +4902,7 @@ function App() {
           <div className="carte-faq">
             <strong>Dois-je créer un compte pour commander ?</strong>
             <p>
-              Non, vous pouvez commander sans compte : un numéro de suivi vous est remis à la fin de la commande. Un compte vous permet de retrouver automatiquement votre historique dans « Mes commandes ». Les entreprises peuvent ouvrir un compte entreprise pour indiquer le chantier et le collaborateur sur chaque commande.
+              Non, vous pouvez commander sans compte : un numéro de suivi vous est remis à la fin de la commande. Un compte vous permet de retrouver automatiquement votre historique dans « Mes commandes ». Les entreprises peuvent ouvrir un compte entreprise : le responsable invite ses employés par un lien, chacun commande avec sa propre session en indiquant le chantier, et le responsable suit toutes les commandes de l'équipe.
             </p>
           </div>
 
@@ -5350,6 +5919,37 @@ function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {espace === 'entreprisesAdmin' && role === 'admin' && (
+        <>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <h3>Entreprises</h3>
+          <p className="souligne">
+            Validez chaque entreprise après vérification, choisissez le mode de paiement convenu et les
+            fournisseurs avec lesquels un accord existe. Le mode de paiement sera appliqué aux commandes
+            à l'étape suivante ; pour l'instant, toutes les commandes se paient en ligne.
+          </p>
+          {entreprisesAdmin.length === 0 ? (
+            <p className="aucun-resultat">Aucune entreprise inscrite pour le moment.</p>
+          ) : (
+            <div className="liste-entreprises-admin">
+              {entreprisesAdmin.map((e) => (
+                <CarteEntrepriseAdmin
+                  key={e.id}
+                  entreprise={e}
+                  fournisseursDisponibles={[
+                    ...new Set([
+                      ...fournisseursCarte.map((f) => f.nom),
+                      ...produitsTous.map((p) => p.fournisseur)
+                    ].filter(Boolean))
+                  ]}
+                  onEnregistrer={enregistrerEntrepriseAdmin}
+                />
+              ))}
             </div>
           )}
         </>

@@ -4251,3 +4251,179 @@ body.marketplace {
   margin-top: 14px;
   text-decoration: none;
 }
+
+/* =========================================================
+   Comptes entreprise : équipe, invitation, admin
+   ========================================================= */
+.lien-invitation {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  background: var(--couleur-carte);
+  border: 1px dashed var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  font-size: 12.5px;
+  line-height: 1.4;
+  word-break: break-all;
+  color: var(--couleur-encre);
+}
+
+.etiquette-statut-entreprise {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--couleur-accent-clair);
+  color: var(--couleur-accent);
+}
+
+.etiquette-statut-entreprise.statut-validee {
+  background: #e3f4e8;
+  color: #1e7d3c;
+}
+
+.etiquette-statut-entreprise.statut-suspendue {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.liste-membres {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+}
+
+.liste-membres li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.liste-membres li.membre-inactif .texte-membre {
+  opacity: 0.6;
+}
+
+.liste-commandes-equipe {
+  max-width: none;
+  margin: 0 0 24px;
+}
+
+.texte-membre {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.texte-membre .souligne {
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.liste-mes-commandes li.commande-equipe {
+  cursor: default;
+  align-items: flex-start;
+}
+
+.liste-mes-commandes li.commande-equipe:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.bandeau-invitation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--couleur-accent-clair);
+  border-radius: var(--rayon-s);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.bandeau-invitation i {
+  color: var(--couleur-accent);
+  font-size: 18px;
+}
+
+.bandeau-invitation .lien-discret {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--couleur-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.liste-entreprises-admin {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  align-items: start;
+}
+
+.carte-entreprise-admin .entete-entreprise-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.carte-entreprise-admin .entete-entreprise-admin h3 {
+  margin-bottom: 0;
+}
+
+.champ-admin-entreprise {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.champ-admin-entreprise > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--couleur-muted);
+}
+
+.carte-entreprise-admin .champ-admin-entreprise select,
+.carte-entreprise-admin .champ-admin-entreprise input {
+  margin-bottom: 0;
+}
+
+.cases-fournisseurs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+}
+
+.case-fournisseur {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.carte-auth .case-fournisseur input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--couleur-accent);
+}
