@@ -1173,6 +1173,9 @@ function App() {
   const [chargementCommandes, setChargementCommandes] = useState(true)
 
   const [mesFactures, setMesFactures] = useState([])
+  // Statut de livraison des commandes des autres membres de l'équipe (visible
+  // du responsable seulement) : { [id de commande]: statut }
+  const [statutsEquipe, setStatutsEquipe] = useState({})
   const [chargementFactures, setChargementFactures] = useState(true)
   const [telechargementFactureId, setTelechargementFactureId] = useState(null)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
@@ -1928,6 +1931,28 @@ function App() {
         setChargementCommandes(false)
         return
       }
+      // Responsable d'entreprise : "Mes commandes" regroupe celles de toute
+      // l'équipe (les siennes comprises). Autres comptes : les siennes.
+      const responsable = Boolean(
+        entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable'
+      )
+      if (responsable) {
+        const [resCommandes, resStatuts] = await Promise.all([
+          supabase.rpc('commandes_equipe'),
+          supabase.rpc('statuts_equipe')
+        ])
+        if (!resCommandes.error) {
+          setMesCommandes(resCommandes.data || [])
+          const parCommande = {}
+          ;(resStatuts.data || []).forEach((st) => {
+            parCommande[String(st.commande_id)] = st.statut
+          })
+          setStatutsEquipe(parCommande)
+          setChargementCommandes(false)
+          return
+        }
+        console.error("Erreur de chargement des commandes de l'équipe :", resCommandes.error)
+      }
       const { data, error } = await supabase
         .from('commandes')
         .select('*')
@@ -1942,7 +1967,7 @@ function App() {
       setChargementCommandes(false)
     }
     chargerCommandes()
-  }, [session])
+  }, [session, entreprise])
 
   useEffect(() => {
     async function chargerMesAvis() {
@@ -1979,6 +2004,16 @@ function App() {
         setChargementFactures(false)
         return
       }
+      // Responsable d'entreprise : factures de toute l'équipe.
+      if (entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable') {
+        const { data: donneesEquipe, error: erreurEquipe } = await supabase.rpc('factures_equipe')
+        if (!erreurEquipe) {
+          setMesFactures(donneesEquipe || [])
+          setChargementFactures(false)
+          return
+        }
+        console.error("Erreur de chargement des factures de l'équipe :", erreurEquipe)
+      }
       const { data, error } = await supabase
         .from('factures')
         .select('*')
@@ -1993,7 +2028,7 @@ function App() {
       setChargementFactures(false)
     }
     chargerFactures()
-  }, [session])
+  }, [session, entreprise])
 
   // Télécharge une facture depuis l'espace "Mes factures" : on génère une
   // URL signée à la demande (le bucket est privé) plutôt que de garder un
@@ -2351,7 +2386,17 @@ function App() {
 
   function statutCommande(commandeId) {
     const course = courses.find((c) => c.commande_id === commandeId)
-    return course ? course.statut : 'À livrer'
+    if (course) return course.statut
+    // Commande d'un autre membre de l'équipe (vue du responsable)
+    return statutsEquipe[String(commandeId)] || 'À livrer'
+  }
+
+  // Vrai pour le responsable qui consulte la commande d'un de ses employés.
+  function estCommandeDunAutre(commande) {
+    return Boolean(
+      session && commande && commande.user_id && commande.user_id !== session.user.id &&
+      entreprise && entreprise.role_entreprise === 'responsable'
+    )
   }
 
   // La course liée à une commande (même donnée que statutCommande, mais
@@ -4586,6 +4631,12 @@ function App() {
                           minute: '2-digit'
                         })} — {statutCommande(commande.id)}
                       </span>
+                      {estCommandeDunAutre(commande) && commande.technicien && (
+                        <>
+                          <br />
+                          <span className="souligne">Commandé par {commande.technicien}</span>
+                        </>
+                      )}
                     </span>
                     <span className="prix">{commande.total.toFixed(2)} CHF</span>
                   </li>
@@ -4613,7 +4664,12 @@ function App() {
               {mesCommandes[commandeSelectionnee].numero_suivi && (
                 <p className="souligne">N° de suivi : {mesCommandes[commandeSelectionnee].numero_suivi}</p>
               )}
-              {statutCommande(mesCommandes[commandeSelectionnee].id) !== 'Annulée' && (
+              {estCommandeDunAutre(mesCommandes[commandeSelectionnee]) && (
+                <p className="souligne">
+                  <i className="bi bi-info-circle"></i> Commande passée par un membre de votre équipe : il reçoit lui-même le code de livraison et peut l'annuler.
+                </p>
+              )}
+              {statutCommande(mesCommandes[commandeSelectionnee].id) !== 'Annulée' && !estCommandeDunAutre(mesCommandes[commandeSelectionnee]) && (
                 <BlocCodeLivraison
                   numero={mesCommandes[commandeSelectionnee].numero_suivi}
                   nom={mesCommandes[commandeSelectionnee].nom_client}
@@ -4644,7 +4700,7 @@ function App() {
                     </p>
                   )}
 
-                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' && (
+                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'À livrer' && !estCommandeDunAutre(mesCommandes[commandeSelectionnee]) && (
                     confirmationAnnulation ? (
                       <div className="confirmation-annulation">
                         <p className="aucun-resultat">Confirmer l'annulation de cette commande ?</p>
@@ -4670,7 +4726,7 @@ function App() {
                     )
                   )}
 
-                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' && (() => {
+                  {statutCommande(mesCommandes[commandeSelectionnee].id) === 'Livrée' && !estCommandeDunAutre(mesCommandes[commandeSelectionnee]) && (() => {
                     const course = courseDeCommande(mesCommandes[commandeSelectionnee].id)
                     if (!course) return null
                     const avisExistant = mesAvis[course.id]
@@ -4762,6 +4818,17 @@ function App() {
                         : new Date(facture.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                       {' · '}{facture.montant_total.toFixed(2)} CHF
                     </span>
+                    {(() => {
+                      if (!entreprise || entreprise.role_entreprise !== 'responsable') return null
+                      const commande = mesCommandes.find((c) => String(c.id) === String(facture.commande_id))
+                      if (!commande || !commande.technicien || commande.user_id === session.user.id) return null
+                      return (
+                        <>
+                          <br />
+                          <span className="souligne">Commande de {commande.technicien}</span>
+                        </>
+                      )
+                    })()}
                   </span>
                   <button
                     className="bouton-secondaire"
