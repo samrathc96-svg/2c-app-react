@@ -134,6 +134,9 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
 
   useEffect(() => {
     charger()
+    // Nouvelle commande détectée par l'alerte : la liste se met à jour toute seule.
+    window.addEventListener('commandes-fournisseur-maj', charger)
+    return () => window.removeEventListener('commandes-fournisseur-maj', charger)
   }, [])
 
   async function marquer(commande, prepare) {

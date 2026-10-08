@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
 import { EspaceFournisseur, AdminComptesFournisseurs } from './EspaceFournisseur'
+import { jouerSonnerie } from './alerteSonore'
+import { useAlerteFournisseur } from './useAlerteFournisseur'
 import './App.css'
 
 // =========================================================
@@ -338,26 +340,10 @@ function estimerPrixTransformation(formeEntree, tailleEntree, formeSortie, taill
   return Math.round(prix * 20) / 20 // arrondi au 0.05 le plus proche, comme le reste du catalogue
 }
 
-// Petit bip de notification (livreur) généré directement dans le
-// navigateur, sans fichier audio externe à héberger. Échoue silencieusement
-// si l'audio n'est pas disponible (permissions navigateur, etc.).
+// Sonnerie brève de notification (livreur, client) : voir alerteSonore.js.
+// Échoue silencieusement si l'audio n'est pas disponible.
 function jouerSonNotification() {
-  try {
-    const ContexteAudio = window.AudioContext || window.webkitAudioContext
-    const contexte = new ContexteAudio()
-    const oscillateur = contexte.createOscillator()
-    const gain = contexte.createGain()
-    oscillateur.connect(gain)
-    gain.connect(contexte.destination)
-    oscillateur.type = 'sine'
-    oscillateur.frequency.setValueAtTime(880, contexte.currentTime)
-    gain.gain.setValueAtTime(0.2, contexte.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, contexte.currentTime + 0.4)
-    oscillateur.start()
-    oscillateur.stop(contexte.currentTime + 0.4)
-  } catch (e) {
-    // audio indisponible - on ignore silencieusement
-  }
+  jouerSonnerie()
 }
 
 // Estimation (approximative) du créneau de livraison, à partir du nombre
@@ -2086,6 +2072,10 @@ function App() {
       annule = true
     }
   }, [session])
+
+  // Alerte sonore + bandeau quand une nouvelle commande est à préparer
+  // (fournisseur validé, quelle que soit la page ouverte du site).
+  useAlerteFournisseur(compteFournisseur, afficherNotification)
 
   // Lien « Accéder à mon compte » des emails et QR code des factures
   // (2cdelivery.ch/?compte=1) : ouvre le panneau du compte (connexion si

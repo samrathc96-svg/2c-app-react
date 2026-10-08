@@ -4804,3 +4804,9 @@ a.bouton-secondaire {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* Réglages de l'alerte sonore (espace fournisseur) */
+.reglages-alerte { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 14px; }
+.reglages-alerte button { width: auto; flex: 1 1 auto; margin: 0; padding: 8px 12px; font-size: 0.88rem; }
+.reglages-alerte button.alerte-active { border-color: var(--couleur-encre); font-weight: 600; }
+.reglages-alerte small { flex-basis: 100%; color: #79705F; line-height: 1.35; }

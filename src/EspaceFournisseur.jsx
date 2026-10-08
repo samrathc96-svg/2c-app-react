@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { CommandesFournisseur } from './CommandesFournisseur'
+import { alerteSonoreActivee, definirAlerteSonore, deverrouillerAudio, jouerSonnerie } from './alerteSonore'
 
 // =========================================================
 // Espace fournisseur (version 1) + validation côté admin
@@ -186,6 +187,57 @@ const FORMULAIRE_VIDE = {
   image_url: ''
 }
 
+
+// Réglages de l'alerte « nouvelle commande à préparer » (par appareil).
+function ReglagesAlerte({ notifier }) {
+  const [sonActif, setSonActif] = useState(alerteSonoreActivee())
+  const [permission, setPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'indisponible'
+  )
+
+  function basculer() {
+    const nouveau = !sonActif
+    definirAlerteSonore(nouveau)
+    setSonActif(nouveau)
+    if (nouveau) {
+      deverrouillerAudio()
+      jouerSonnerie()
+    }
+  }
+
+  async function activerNotifications() {
+    if (typeof Notification === 'undefined') return
+    const resultat = await Notification.requestPermission()
+    setPermission(resultat)
+    if (resultat === 'granted') notifier('Notifications activées sur cet appareil.', 'info')
+    else notifier('Notifications refusées. Vous pouvez les activer dans les réglages du navigateur.')
+  }
+
+  return (
+    <div className="reglages-alerte">
+      <button className={sonActif ? 'bouton-secondaire alerte-active' : 'bouton-secondaire'} onClick={basculer}>
+        <i className={sonActif ? 'bi bi-bell-fill' : 'bi bi-bell-slash'}></i>{' '}
+        Alerte sonore : {sonActif ? 'activée' : 'désactivée'}
+      </button>
+      <button
+        className="bouton-secondaire"
+        onClick={() => {
+          deverrouillerAudio()
+          if (!jouerSonnerie()) notifier("Le son n'est pas disponible sur cet appareil.")
+        }}
+      >
+        <i className="bi bi-volume-up"></i> Tester le son
+      </button>
+      {permission === 'default' && (
+        <button className="bouton-secondaire" onClick={activerNotifications}>
+          <i className="bi bi-megaphone"></i> Activer les notifications
+        </button>
+      )}
+      <small>La sonnerie retentit quand une nouvelle commande est à préparer, tant que le site est ouvert (pensez à monter le volume).</small>
+    </div>
+  )
+}
+
 export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChange }) {
   const valide = compte.statut === 'valide'
   const metiersAutorises = compte.metiers || []
@@ -213,6 +265,13 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
 
   useEffect(() => {
     if (valide) chargerAPreparer()
+  }, [valide])
+
+  // L'alerte (useAlerteFournisseur) signale une nouvelle commande : on rafraîchit la pastille.
+  useEffect(() => {
+    if (!valide) return undefined
+    window.addEventListener('commandes-fournisseur-maj', chargerAPreparer)
+    return () => window.removeEventListener('commandes-fournisseur-maj', chargerAPreparer)
   }, [valide])
 
   async function charger() {
@@ -473,6 +532,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
         <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
         <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
         {barreOnglets}
+        <ReglagesAlerte notifier={notifier} />
         <CommandesFournisseur compte={compte} notifier={notifier} onChangement={chargerAPreparer} />
       </div>
     )
@@ -483,6 +543,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
       <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
       <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
       {barreOnglets}
+      {valide && <ReglagesAlerte notifier={notifier} />}
       {bandeau}
 
       {peutAgir && (
