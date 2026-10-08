@@ -1444,15 +1444,40 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   )
 }
 
+
+// Mémorise la section ouverte (onglet du navigateur seulement) pour qu'un
+// rechargement de page ne renvoie pas à l'accueil.
+const CLE_ESPACE_MEMORISE = 'espace2C'
+const ESPACES_PUBLICS = ['catalogue', 'suivi', 'faq', 'apropos', 'mentionsLegales', 'cgv', 'confidentialite']
+function lireEspaceMemorise() {
+  try {
+    const brut = window.sessionStorage.getItem(CLE_ESPACE_MEMORISE)
+    return brut ? JSON.parse(brut) : null
+  } catch (e) {
+    return null
+  }
+}
+function ecrireEspaceMemorise(valeur) {
+  try {
+    window.sessionStorage.setItem(CLE_ESPACE_MEMORISE, JSON.stringify(valeur))
+  } catch (e) {
+    // stockage indisponible - on ignore silencieusement
+  }
+}
+
 function App() {
   const [session, setSession] = useState(null)
+  const utilisateurRedirige = useRef(null)
   const [role, setRole] = useState(null)
   const [chargementAuth, setChargementAuth] = useState(true)
   const [afficherAuth, setAfficherAuth] = useState(false)
   // Une seule fenêtre à la fois : 'connexion' ou 'inscription'.
   const [modeAuth, setModeAuth] = useState('connexion')
   const [afficherMenu, setAfficherMenu] = useState(false)
-  const [espace, setEspace] = useState('catalogue')
+  const [espace, setEspace] = useState(() => {
+    const memorisee = lireEspaceMemorise()
+    return memorisee && !memorisee.userId && ESPACES_PUBLICS.includes(memorisee.espace) ? memorisee.espace : 'catalogue'
+  })
 
   const [emailConnexion, setEmailConnexion] = useState('')
   const [motDePasseConnexion, setMotDePasseConnexion] = useState('')
@@ -1954,18 +1979,34 @@ function App() {
   }
 
   useEffect(() => {
+    // Même personne = même objet de session. Supabase renvoie un événement
+    // (SIGNED_IN, TOKEN_REFRESHED...) à chaque retour sur l'onglet du
+    // navigateur : sans ce garde-fou, le site rechargeait le profil et
+    // renvoyait la personne à l'accueil à chaque changement d'onglet.
+    function garderSessionSiMemePersonne(precedente, nouvelle) {
+      if (precedente && nouvelle && precedente.user && nouvelle.user && precedente.user.id === nouvelle.user.id) {
+        return precedente
+      }
+      return nouvelle
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+      setSession((precedente) => garderSessionSiMemePersonne(precedente, session))
       if (!session) setChargementAuth(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
+      if (_event === 'USER_UPDATED' || _event === 'PASSWORD_RECOVERY' || _event === 'SIGNED_OUT') {
+        setSession(session)
+      } else {
+        setSession((precedente) => garderSessionSiMemePersonne(precedente, session))
+      }
       if (_event === 'PASSWORD_RECOVERY') {
         setModeReinitialisation(true)
         setAfficherAuth(true)
       }
       if (!session) {
+        utilisateurRedirige.current = null
         setRole(null)
         setChargementAuth(false)
       }
@@ -2158,12 +2199,25 @@ function App() {
         setDisponibleLivreur(data.disponible !== false)
         setDemandeSoumise(data.demande_soumise === true)
         if (!modeReinitialisation) {
-          setEspace(
-            data.role === 'livreur' ? 'livreur' :
-            data.role === 'admin' ? 'admin' :
-            data.role === 'livreur_en_attente' ? 'livreurEnAttente' :
-            'catalogue'
-          )
+          // Redirection vers l'espace de la personne seulement à la
+          // connexion (changement de personne), jamais lors d'un simple
+          // rafraîchissement de session : elle reste où elle était.
+          if (utilisateurRedirige.current !== session.user.id) {
+            utilisateurRedirige.current = session.user.id
+            // Page rechargée (le navigateur met parfois un onglet en
+            // veille) : on rouvre la section où la personne se trouvait.
+            const memorisee = lireEspaceMemorise()
+            if (memorisee && memorisee.userId === session.user.id && memorisee.role === data.role && memorisee.espace) {
+              setEspace(memorisee.espace)
+            } else {
+              setEspace(
+                data.role === 'livreur' ? 'livreur' :
+                data.role === 'admin' ? 'admin' :
+                data.role === 'livreur_en_attente' ? 'livreurEnAttente' :
+                'catalogue'
+              )
+            }
+          }
           setAfficherAuth(false)
         }
       } else if (error) {
@@ -2182,6 +2236,16 @@ function App() {
     }
     chargerRole()
   }, [session, modeReinitialisation])
+
+  // Mémorise la section en cours (voir lireEspaceMemorise).
+  useEffect(() => {
+    if (chargementAuth) return
+    if (session && role) {
+      ecrireEspaceMemorise({ userId: session.user.id, role, espace })
+    } else if (!session) {
+      ecrireEspaceMemorise({ userId: null, role: null, espace })
+    }
+  }, [espace, session, role, chargementAuth])
 
   // Compte entreprise : la base rattache la personne à son entreprise à la
   // première connexion (responsable si elle crée l'entreprise, employé si
