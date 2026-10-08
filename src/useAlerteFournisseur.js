@@ -5,8 +5,8 @@ import { alerteSonoreActivee, jouerSonnerie } from './alerteSonore'
 
 // Alerte du fournisseur : tant que son site est ouvert (n'importe quelle
 // page), on vérifie régulièrement s'il y a une nouvelle commande à préparer.
-// Nouvelle commande = sonnerie brève + bandeau (+ notification du navigateur
-// si la personne l'a autorisée). Le fournisseur n'a pas accès direct aux
+// Nouvelle commande = sonnerie brève + bandeau (le téléphone verrouillé est prévenu
+// par les notifications push, voir ActivationNotifications). Le fournisseur n'a pas accès direct aux
 // commandes : on interroge donc sa fonction sécurisée à intervalle régulier.
 // L'événement 'commandes-fournisseur-maj' prévient l'espace fournisseur
 // (pastille et liste) qu'il faut se rafraîchir.
@@ -41,14 +41,13 @@ export function useAlerteFournisseur(compte, notifier) {
       const texte = nouvelles.length === 1
         ? `Nouvelle commande à préparer : ${nouvelles[0].numero_suivi}`
         : `${nouvelles.length} nouvelles commandes à préparer`
-      if (alerteSonoreActivee()) jouerSonnerie()
-      if (notifierRef.current) notifierRef.current(texte, 'info')
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try {
-          new Notification(texte, { body: 'Ouvrez votre espace fournisseur pour voir le détail.', tag: 'commande-fournisseur' })
-        } catch (e) {
-          // notifications indisponibles - on ignore silencieusement
-        }
+      let sonOk = true
+      if (alerteSonoreActivee()) sonOk = await jouerSonnerie()
+      if (notifierRef.current) {
+        notifierRef.current(
+          sonOk ? texte : `${texte} (son bloqué : touchez l'écran une fois pour l'activer)`,
+          'info'
+        )
       }
     }
 

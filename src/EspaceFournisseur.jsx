@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { CommandesFournisseur } from './CommandesFournisseur'
-import { alerteSonoreActivee, definirAlerteSonore, jouerSonnerie } from './alerteSonore'
+import { ActivationNotifications } from './ActivationNotifications'
+import { alerteSonoreActivee, definirAlerteSonore, etatSon, jouerSonnerie } from './alerteSonore'
 
 // =========================================================
 // Espace fournisseur (version 1) + validation côté admin
@@ -191,23 +192,19 @@ const FORMULAIRE_VIDE = {
 // Réglages de l'alerte « nouvelle commande à préparer » (par appareil).
 function ReglagesAlerte({ notifier }) {
   const [sonActif, setSonActif] = useState(alerteSonoreActivee())
-  const [permission, setPermission] = useState(
-    typeof Notification !== 'undefined' ? Notification.permission : 'indisponible'
-  )
+  const [etat, setEtat] = useState(etatSon())
+
+  // L'état du son peut changer après le premier toucher : on le relit régulièrement.
+  useEffect(() => {
+    const minuterie = setInterval(() => setEtat(etatSon()), 1000)
+    return () => clearInterval(minuterie)
+  }, [])
 
   function basculer() {
     const nouveau = !sonActif
     definirAlerteSonore(nouveau)
     setSonActif(nouveau)
-    if (nouveau) jouerSonnerie()
-  }
-
-  async function activerNotifications() {
-    if (typeof Notification === 'undefined') return
-    const resultat = await Notification.requestPermission()
-    setPermission(resultat)
-    if (resultat === 'granted') notifier('Notifications activées sur cet appareil.', 'info')
-    else notifier('Notifications refusées. Vous pouvez les activer dans les réglages du navigateur.')
+    if (nouveau) jouerSonnerie().then(() => setEtat(etatSon()))
   }
 
   return (
@@ -220,23 +217,24 @@ function ReglagesAlerte({ notifier }) {
         className="bouton-secondaire"
         onClick={() => {
           jouerSonnerie().then((ok) => {
-            if (!ok) notifier('Son bloqué par ce téléphone : vérifiez le volume et le mode silencieux, puis réessayez.')
+            setEtat(etatSon())
+            if (!ok) notifier('Son bloqué par ce téléphone : vérifiez le volume, puis réessayez.')
           })
         }}
       >
         <i className="bi bi-volume-up"></i> Tester le son
       </button>
-      {permission === 'default' && (
-        <button className="bouton-secondaire" onClick={activerNotifications}>
-          <i className="bi bi-megaphone"></i> Activer les notifications
-        </button>
-      )}
-      <small>La sonnerie retentit quand une nouvelle commande est à préparer, tant que le site est ouvert et l'écran allumé. Touchez le bouton de test une fois après avoir ouvert la page, montez le volume et désactivez le mode silencieux.</small>
+      <small className={etat === 'pret' ? 'son-pret' : 'son-attente'}>
+        {etat === 'pret'
+          ? 'Son prêt sur cet appareil.'
+          : 'Son en attente : touchez le bouton « Tester le son » une fois pour l\'activer.'}
+      </small>
+      <small>La sonnerie retentit aussi dans la page (site ouvert, écran allumé). Touchez « Tester le son » une fois après avoir ouvert la page et montez le volume.</small>
     </div>
   )
 }
 
-export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChange }) {
+export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChange, ongletInitial }) {
   const valide = compte.statut === 'valide'
   const metiersAutorises = compte.metiers || []
   const [produits, setProduits] = useState([])
@@ -251,7 +249,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
   const [importEnCours, setImportEnCours] = useState(false)
   const [resultatImport, setResultatImport] = useState(null)
   const champFichier = useRef(null)
-  const [onglet, setOnglet] = useState('catalogue')
+  const [onglet, setOnglet] = useState(ongletInitial === 'commandes' && compte.statut === 'valide' ? 'commandes' : 'catalogue')
   const [aPreparer, setAPreparer] = useState(0)
 
   // Pastille "commandes à préparer" sur l'onglet Commandes
@@ -530,6 +528,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
         <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
         <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
         {barreOnglets}
+        <ActivationNotifications notifier={notifier} sujet="des nouvelles commandes à préparer" />
         <ReglagesAlerte notifier={notifier} />
         <CommandesFournisseur compte={compte} notifier={notifier} onChangement={chargerAPreparer} />
       </div>
@@ -541,7 +540,12 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
       <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
       <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
       {barreOnglets}
-      {valide && <ReglagesAlerte notifier={notifier} />}
+      {valide && (
+        <>
+          <ActivationNotifications notifier={notifier} sujet="des nouvelles commandes à préparer" />
+          <ReglagesAlerte notifier={notifier} />
+        </>
+      )}
       {bandeau}
 
       {peutAgir && (

@@ -4,6 +4,8 @@ import { supabase } from './supabaseClient'
 import { EspaceFournisseur, AdminComptesFournisseurs } from './EspaceFournisseur'
 import { jouerSonnerie } from './alerteSonore'
 import { useAlerteFournisseur } from './useAlerteFournisseur'
+import { ActivationNotifications } from './ActivationNotifications'
+import { pushActifLocalement } from './notificationsPush'
 import './App.css'
 
 // =========================================================
@@ -1454,6 +1456,15 @@ function ecrireEspaceMemorise(valeur) {
 function App() {
   const [session, setSession] = useState(null)
   const utilisateurRedirige = useRef(null)
+  // Lien d'une notification push (2cdelivery.ch/?ouvrir=commandes) : ouvre
+  // directement les commandes du fournisseur après la connexion.
+  const [ouvrirAuDemarrage, setOuvrirAuDemarrage] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('ouvrir')
+    } catch (e) {
+      return null
+    }
+  })
   const [role, setRole] = useState(null)
   const [chargementAuth, setChargementAuth] = useState(true)
   const [afficherAuth, setAfficherAuth] = useState(false)
@@ -2077,6 +2088,13 @@ function App() {
   // (fournisseur validé, quelle que soit la page ouverte du site).
   useAlerteFournisseur(compteFournisseur, afficherNotification)
 
+  // Retire le paramètre ?ouvrir= de la barre d'adresse (déjà lu plus haut).
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    if (!parametres.has('ouvrir')) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }, [])
+
   // Lien « Accéder à mon compte » des emails et QR code des factures
   // (2cdelivery.ch/?compte=1) : ouvre le panneau du compte (connexion si
   // la personne n'est pas connectée). Le QR ne contient aucun secret.
@@ -2197,7 +2215,9 @@ function App() {
             // Page rechargée (le navigateur met parfois un onglet en
             // veille) : on rouvre la section où la personne se trouvait.
             const memorisee = lireEspaceMemorise()
-            if (memorisee && memorisee.userId === session.user.id && memorisee.role === data.role && memorisee.espace) {
+            if (ouvrirAuDemarrage === 'commandes') {
+              setEspace('fournisseurEspace')
+            } else if (memorisee && memorisee.userId === session.user.id && memorisee.role === data.role && memorisee.espace) {
               setEspace(memorisee.espace)
             } else {
               setEspace(
@@ -2609,7 +2629,7 @@ function App() {
             // Notification navigateur : visible même si l'onglet n'est pas
             // au premier plan (permission à activer une fois via le bouton
             // dédié de l'espace livreur). Échoue silencieusement sinon.
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            if (!pushActifLocalement() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               try {
                 const notifNavigateur = new Notification('Nouvelle course disponible !', {
                   body: `${payload.new.client || 'Client'} — ${payload.new.adresse || ''}`,
@@ -2646,7 +2666,7 @@ function App() {
             const message = messages[payload.new.statut]
             afficherNotification(message, payload.new.statut === 'Annulée' ? 'erreur' : 'info')
             jouerSonNotification()
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            if (!pushActifLocalement() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               try {
                 const notifNavigateur = new Notification(message, {
                   body: payload.new.adresse || '',
@@ -6552,14 +6572,7 @@ function App() {
             {disponibleLivreur ? 'Disponible' : 'Indisponible'}
           </button>
 
-          {permissionNotifs !== 'granted' && permissionNotifs !== 'unsupported' && (
-            <button className="bouton-petit" onClick={demanderPermissionNotifications}>
-              <i className="bi bi-bell"></i> Activer les notifications
-            </button>
-          )}
-          {permissionNotifs === 'granted' && (
-            <p className="souligne"><i className="bi bi-bell-fill"></i> Notifications activées</p>
-          )}
+          <ActivationNotifications notifier={afficherNotification} sujet="des nouvelles courses à livrer" />
 
           {chargementCourses && (
             <div className="skeleton-liste">
@@ -7212,9 +7225,10 @@ function App() {
       {espace === 'fournisseurEspace' && compteFournisseur && (
         <EspaceFournisseur
           compte={compteFournisseur}
-          onRetour={() => setEspace('catalogue')}
+          onRetour={() => { setOuvrirAuDemarrage(null); setEspace('catalogue') }}
           notifier={afficherNotification}
           onCatalogueChange={chargerProduits}
+          ongletInitial={ouvrirAuDemarrage}
         />
       )}
 

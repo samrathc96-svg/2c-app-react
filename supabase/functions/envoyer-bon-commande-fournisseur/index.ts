@@ -12,7 +12,14 @@
 // Chaque fournisseur ne reçoit qu'un seul email par commande (table
 // commande_fournisseur_prepa), même si la fonction est appelée deux fois.
 //
-// Prérequis : supabase/commandes_fournisseur.sql exécuté.
+// En plus de l'email, la fonction envoie des notifications push (téléphone
+// verrouillé, comme un SMS) : au fournisseur concerné (commande à préparer)
+// et à tous les livreurs disponibles (nouvelle course). Ces envois sont
+// facultatifs : si les notifications push ne sont pas installées, la commande
+// et les emails ne sont pas affectés.
+//
+// Prérequis : supabase/commandes_fournisseur.sql exécuté
+// (et supabase/notifications_push.sql + fonction notifications-push pour le push).
 // Secret requis : RESEND_API_KEY (déjà en place).
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -61,6 +68,24 @@ async function lire(chemin: string): Promise<any[]> {
   } catch (e) {
     console.error('Lecture impossible :', chemin, e)
     return []
+  }
+}
+
+// Notification push (facultative) via la fonction notifications-push
+async function pousser(corps: Record<string, unknown>) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/notifications-push`, {
+      method: 'POST',
+      headers: {
+        apikey: SERVICE_KEY,
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action: 'envoyer', ...corps })
+    })
+    if (!r.ok) console.error('Notification push non envoyée :', r.status, await r.text().catch(() => ''))
+  } catch (e) {
+    console.error('Notification push non envoyée :', e)
   }
 }
 
@@ -209,6 +234,15 @@ Deno.serve(async (req) => {
     )
     if (!commande) return reponseJson({ error: 'Commande introuvable' }, 404)
 
+    // Les livreurs disponibles sont prévenus d'une nouvelle course (push)
+    await pousser({
+      audience: 'livreurs',
+      titre: 'Nouvelle course disponible',
+      corps: String(commande.adresse ?? '').slice(0, 120),
+      url: '/',
+      tag: `course-${commande.id}`
+    })
+
     const detail: any[] = Array.isArray(commande.produits_detail) ? commande.produits_detail : []
     const idsProduits = [...new Set(detail.map((l) => l?.id).filter((v) => v !== undefined && v !== null))]
     if (idsProduits.length === 0) return reponseJson({ success: true, envoyes: 0 })
@@ -295,6 +329,17 @@ Deno.serve(async (req) => {
         continue
       }
       if (Array.isArray(crees) && crees.length === 0) continue // déjà envoyé
+
+      // Notification push au fournisseur (en plus de l'email)
+      await pousser({
+        userIds: [compte.user_id],
+        titre: 'Nouvelle commande à préparer',
+        corps: [numero, nomEntreprise || commande.nom_client, `${lignes.length} produit${lignes.length > 1 ? 's' : ''}`]
+          .filter(Boolean)
+          .join(' · '),
+        url: '/?ouvrir=commandes',
+        tag: `commande-${commande.id}`
+      })
 
       const html = gabaritFournisseur({ fournisseur: nomFournisseur, infos, lignes, numero })
       const envoi = await envoyerEmail(adresseEmail, `Nouvelle commande à préparer – ${numero}`, html)

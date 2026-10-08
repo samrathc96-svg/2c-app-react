@@ -8,6 +8,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Notifications push : le fichier public/push-sw.js affiche les alertes
+      // (écran verrouillé, site fermé) dans le service worker généré.
+      workbox: {
+        importScripts: ['push-sw.js'],
+      },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '2C Delivery',

@@ -1,19 +1,25 @@
 // =========================================================
-// Sonnerie d'alerte (fournisseur, livreur)
+// Sonnerie d'alerte (fournisseur, livreur) — iPhone, Android, ordinateur
 // =========================================================
-// Petite sonnerie brève (deux notes) générée dans le navigateur : aucun
+// Petite sonnerie brève (deux notes) fabriquée dans le navigateur : aucun
 // fichier audio à héberger. Elle est jouée comme un petit fichier audio
-// (élément <audio>), ce que les téléphones acceptent beaucoup mieux que
-// l'API Web Audio (sur iPhone, Web Audio est coupé par le bouton silencieux
-// et souvent bloqué). Web Audio ne sert que de secours.
-// Les navigateurs n'autorisent le son qu'après un premier geste de la
-// personne (toucher, clic) : un écouteur discret « déverrouille » donc
-// l'audio dès le premier contact avec la page.
+// (élément <audio>), que les téléphones acceptent mieux que Web Audio.
+// L'API Web Audio ne sert que de secours.
+//
+// Règles des téléphones, en particulier Safari sur iPhone :
+//  * aucun son sans geste de la personne : le déblocage doit se faire pendant
+//    un vrai toucher (événements "touchend" ou "click", pas "pointerdown") ;
+//  * un élément audio déjà « lu » pendant un geste peut ensuite être relancé
+//    tout seul : on joue donc la sonnerie une fois pendant le geste (sa
+//    première milliseconde est silencieuse) puis on l'arrête aussitôt ;
+//  * la lecture muette ne débloque rien sur iPhone : on ne l'utilise pas ;
+//  * après une mise en veille ou un retour sur l'application, le déblocage
+//    peut être perdu : l'écouteur reste donc actif et se réarme au toucher.
 
 const CLE_ALERTE = 'alerteSonore2C'
 let contexte = null
 let lecteur = null
-let urlSon = null
+let audioDebloque = false
 let sonDemande = 0 // numéro de la dernière vraie sonnerie demandée
 
 // --- Fabrication du son (fichier WAV créé en mémoire) -----------------
@@ -37,10 +43,10 @@ function fabriquerWav() {
         valeur += Math.sin(2 * Math.PI * n.f * local) * attaque * decroissance
       }
     })
-    donnees[i] = Math.max(-1, Math.min(1, valeur * 0.7)) * 32767
+    donnees[i] = Math.max(-1, Math.min(1, valeur * 0.8)) * 32767
   }
-  const tampon = new ArrayBuffer(44 + donnees.length * 2)
-  const vue = new DataView(tampon)
+  const octets = new Uint8Array(44 + donnees.length * 2)
+  const vue = new DataView(octets.buffer)
   const ecrire = (position, texte) => {
     for (let i = 0; i < texte.length; i++) vue.setUint8(position + i, texte.charCodeAt(i))
   }
@@ -58,16 +64,28 @@ function fabriquerWav() {
   ecrire(36, 'data')
   vue.setUint32(40, donnees.length * 2, true)
   for (let i = 0; i < donnees.length; i++) vue.setInt16(44 + i * 2, donnees[i], true)
-  return new Blob([tampon], { type: 'audio/wav' })
+  return octets
+}
+
+// Adresse « data: » (plus fiable que blob: sur Safari iPhone)
+function enAdresseData(octets) {
+  let texte = ''
+  const paquet = 0x8000
+  for (let i = 0; i < octets.length; i += paquet) {
+    texte += String.fromCharCode.apply(null, octets.subarray(i, i + paquet))
+  }
+  return 'data:audio/wav;base64,' + btoa(texte)
 }
 
 function obtenirLecteur() {
   if (lecteur) return lecteur
   try {
-    urlSon = URL.createObjectURL(fabriquerWav())
-    lecteur = new Audio(urlSon)
+    lecteur = new Audio()
     lecteur.preload = 'auto'
     lecteur.setAttribute('playsinline', '')
+    lecteur.setAttribute('webkit-playsinline', '')
+    lecteur.src = enAdresseData(fabriquerWav())
+    lecteur.load()
   } catch (e) {
     lecteur = null
   }
@@ -78,7 +96,15 @@ function obtenirLecteur() {
 function obtenirContexte() {
   const ContexteAudio = window.AudioContext || window.webkitAudioContext
   if (!ContexteAudio) return null
-  if (!contexte) contexte = new ContexteAudio()
+  if (!contexte) {
+    // iOS 17+ : fait jouer Web Audio même si le bouton silencieux est activé.
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback'
+    } catch (e) {
+      // option indisponible - on ignore
+    }
+    contexte = new ContexteAudio()
+  }
   return contexte
 }
 
@@ -90,10 +116,14 @@ function note(c, frequence, debut, duree) {
   oscillateur.type = 'sine'
   oscillateur.frequency.setValueAtTime(frequence, c.currentTime + debut)
   gain.gain.setValueAtTime(0.0001, c.currentTime + debut)
-  gain.gain.exponentialRampToValueAtTime(0.35, c.currentTime + debut + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.4, c.currentTime + debut + 0.02)
   gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + debut + duree)
   oscillateur.start(c.currentTime + debut)
   oscillateur.stop(c.currentTime + debut + duree + 0.02)
+}
+
+function contexteEnMarche() {
+  return Boolean(contexte && contexte.state === 'running')
 }
 
 function jouerAvecWebAudio() {
@@ -101,6 +131,7 @@ function jouerAvecWebAudio() {
     const c = obtenirContexte()
     if (!c) return false
     if (c.state !== 'running') c.resume()
+    if (c.state !== 'running') return false
     note(c, 880, 0, 0.28)
     note(c, 1175, 0.22, 0.4)
     return true
@@ -109,24 +140,21 @@ function jouerAvecWebAudio() {
   }
 }
 
-// --- Déverrouillage au premier geste ----------------------------------
+// --- Déblocage pendant un geste de la personne ------------------------
 export function deverrouillerAudio() {
   try {
     const a = obtenirLecteur()
-    if (a) {
-      // Lecture muette dans le geste de la personne : le téléphone autorise
-      // ensuite la sonnerie à se déclencher toute seule.
+    if (a && !audioDebloque) {
       const numero = sonDemande
-      a.muted = true
       const promesse = a.play()
       const fin = () => {
+        audioDebloque = true
         // Une vraie sonnerie a été demandée entre-temps : on ne la coupe pas.
         if (sonDemande !== numero) return
         a.pause()
         a.currentTime = 0
-        a.muted = false
       }
-      if (promesse && promesse.then) promesse.then(fin, () => { a.muted = false })
+      if (promesse && promesse.then) promesse.then(fin, () => {})
       else fin()
     }
   } catch (e) {
@@ -134,19 +162,32 @@ export function deverrouillerAudio() {
   }
   try {
     const c = obtenirContexte()
-    if (c && c.state !== 'running') c.resume()
+    if (c) {
+      if (c.state !== 'running') c.resume()
+      // courte lecture silencieuse : c'est elle qui débloque Web Audio sur iPhone
+      const source = c.createBufferSource()
+      source.buffer = c.createBuffer(1, 1, 22050)
+      source.connect(c.destination)
+      source.start(0)
+    }
   } catch (e) {
     // audio indisponible - on ignore silencieusement
   }
 }
 
 if (typeof window !== 'undefined') {
-  const evenements = ['pointerdown', 'touchend', 'click', 'keydown']
-  const ouvrir = () => {
-    deverrouillerAudio()
-    evenements.forEach((nom) => window.removeEventListener(nom, ouvrir, true))
+  // "touchend" et "click" seulement : sur iPhone, "pointerdown" et
+  // "touchstart" ne comptent pas comme un geste. L'écouteur reste actif
+  // pour se réarmer après une mise en veille.
+  const auToucher = () => {
+    if (!audioDebloque || (contexte && contexte.state !== 'running')) deverrouillerAudio()
   }
-  evenements.forEach((nom) => window.addEventListener(nom, ouvrir, true))
+  ;['touchend', 'click', 'keydown'].forEach((nom) => window.addEventListener(nom, auToucher, true))
+}
+
+// État pour l'affichage : « pret » ou « attente » (un toucher est nécessaire)
+export function etatSon() {
+  return audioDebloque || contexteEnMarche() ? 'pret' : 'attente'
 }
 
 // Préférence de la personne (par appareil). Activée par défaut.
@@ -169,16 +210,24 @@ export function definirAlerteSonore(active) {
 // Sonnerie brève « ding-dong » (environ une demi-seconde).
 // Renvoie une promesse : true si le son a démarré, false s'il est bloqué.
 export function jouerSonnerie() {
+  // Android : petite vibration en plus (non pris en charge sur iPhone)
+  try {
+    if (navigator.vibrate) navigator.vibrate([180, 80, 180])
+  } catch (e) {
+    // vibration indisponible - on ignore
+  }
   const a = obtenirLecteur()
   if (a) {
     try {
       sonDemande += 1
-      a.muted = false
       a.currentTime = 0
       const promesse = a.play()
       if (promesse && promesse.then) {
         return promesse.then(
-          () => true,
+          () => {
+            audioDebloque = true
+            return true
+          },
           () => jouerAvecWebAudio()
         )
       }
