@@ -1992,6 +1992,15 @@ function App() {
     setAfficherAuth(true)
   }, [])
 
+  // Lien « Créer mon compte » des emails envoyés après une commande sans compte.
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    if (!parametres.has('inscription')) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+    setModeAuth('inscription')
+    setAfficherAuth(true)
+  }, [])
+
   // Lien d'invitation d'une équipe (ex: 2cdelivery.ch/?equipe=CODE) : ouvre
   // l'inscription entreprise, qui rattachera la personne comme employé.
   useEffect(() => {
@@ -3585,7 +3594,7 @@ function App() {
 
     supabase.functions
       .invoke('envoyer-facture-email', {
-        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64, copieEmail }
+        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64, copieEmail, aUnCompte: Boolean(data.user_id) }
       })
       .catch((erreurEmail) => {
         console.error("Erreur d'envoi automatique de la facture :", erreurEmail)

@@ -79,7 +79,30 @@ function gabarit(o: {
   lignes?: string[]
   blocs?: string
   note?: string
+  // false = la personne a commandé sans compte : on lui propose d'en créer un.
+  aUnCompte?: boolean
 }): string {
+  const blocCompte = o.aUnCompte === false
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F3EC;border-radius:12px;">
+        <tr><td style="padding:16px 18px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Créez votre compte 2C <span style="font-weight:400;color:#79705F;font-size:12px;">(facultatif)</span></div>
+          <div style="font-size:13px;color:#79705F;line-height:1.5;margin-bottom:12px;">À titre d'information : avec un compte gratuit, vous pouvez suivre vos commandes et retrouver toutes vos factures au même endroit.</div>
+          <a href="${SITE}/?inscription=1" style="display:inline-block;background:#FF6A13;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:999px;">Créer mon compte</a>
+        </td></tr>
+      </table>`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F3EC;border-radius:12px;">
+        <tr>
+          <td style="padding:16px 18px;vertical-align:middle;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Votre espace 2C</div>
+            <div style="font-size:13px;color:#79705F;line-height:1.5;margin-bottom:12px;">Suivez vos commandes et retrouvez vos factures depuis votre compte.</div>
+            <a href="${LIEN_COMPTE}" style="display:inline-block;background:#FF6A13;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:999px;">Accéder à mon compte</a>
+          </td>
+          <td width="120" align="center" style="padding:12px 16px 12px 0;vertical-align:middle;">
+            <img src="${SITE}/qr-compte.png" width="100" height="100" alt="QR code d'accès au compte" style="display:block;border-radius:6px;background:#FFFFFF;">
+            <div style="font-size:10px;color:#79705F;margin-top:4px;">Sur ordinateur ?<br>Scannez avec votre téléphone</div>
+          </td>
+        </tr>
+      </table>`
   const tableau = o.lignes && o.lignes.length > 0
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #EFEAE0;border-radius:10px;border-collapse:separate;margin:18px 0;">${o.lignes.join('')}</table>`
     : ''
@@ -109,19 +132,7 @@ function gabarit(o: {
       ${note}
     </td></tr>
     <tr><td style="background:#FFFFFF;padding:8px 24px 26px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F3EC;border-radius:12px;">
-        <tr>
-          <td style="padding:16px 18px;vertical-align:middle;">
-            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Votre espace 2C</div>
-            <div style="font-size:13px;color:#79705F;line-height:1.5;margin-bottom:12px;">Suivez vos commandes et retrouvez vos factures depuis votre compte.</div>
-            <a href="${LIEN_COMPTE}" style="display:inline-block;background:#FF6A13;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:999px;">Accéder à mon compte</a>
-          </td>
-          <td width="120" align="center" style="padding:12px 16px 12px 0;vertical-align:middle;">
-            <img src="${SITE}/qr-compte.png" width="100" height="100" alt="QR code d'accès au compte" style="display:block;border-radius:6px;background:#FFFFFF;">
-            <div style="font-size:10px;color:#79705F;margin-top:4px;">Sur ordinateur ?<br>Scannez avec votre téléphone</div>
-          </td>
-        </tr>
-      </table>
+      ${blocCompte}
     </td></tr>
     <tr><td style="background:#E8E3D8;border-radius:0 0 14px 14px;padding:14px 24px;text-align:center;font-size:12px;color:#79705F;line-height:1.6;">
       2C Delivery · Genève · <a href="mailto:contact@2cdelivery.ch" style="color:#79705F;">contact@2cdelivery.ch</a><br>
@@ -152,7 +163,8 @@ Deno.serve(async (req) => {
       nomEntreprise,
       emailResponsable,
       fraisLivraison,
-      modePaiement
+      modePaiement,
+      aUnCompte
     } = await req.json()
 
     if (!email) {
@@ -214,6 +226,7 @@ Deno.serve(async (req) => {
         ...lignesMontant
       ],
       blocs: blocCode,
+      aUnCompte: aUnCompte !== false,
       note: `Vous pouvez suivre l'avancement de votre livraison à tout moment depuis le site, via le menu ☰ → « Suivre ma commande ».`
     })
 

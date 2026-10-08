@@ -127,6 +127,7 @@ async function infosEmailCommande(commandeId: unknown) {
 
   const [commande] = await lire(`commandes?id=eq.${id}&select=user_id,chantier,technicien`)
   if (commande) {
+    infos.aUnCompte = Boolean(commande.user_id)
     if (commande.chantier) infos.chantier = commande.chantier
     if (commande.technicien) infos.technicien = commande.technicien
   }
