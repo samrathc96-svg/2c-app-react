@@ -131,7 +131,9 @@ begin
            'numero_suivi', c.numero_suivi,
            'chantier', c.chantier,
            'technicien', c.technicien,
-           'frais', c.frais_livraison
+           'frais', c.frais_livraison,
+           'produits_detail', c.produits_detail,
+           'produits_texte', c.produits
          ) order by c.created_at), '[]'::jsonb)
     into v_lignes
   from commandes c

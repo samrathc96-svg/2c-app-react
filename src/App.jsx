@@ -527,7 +527,49 @@ function construireFacturePDF(commande) {
   doc.text(`${montantFacture.toFixed(2)} CHF`, 195, y, { align: 'right' })
 
   if (livraisonSeule) {
-    y += 12
+    // Contenu de la commande : sert de preuve en cas de litige de livraison
+    // (à comparer avec ce que le fournisseur a remis au livreur).
+    y += 14
+    if (y > 240) {
+      doc.addPage()
+      y = 20
+    }
+    doc.setFillColor(...accent)
+    doc.rect(15, y - 5, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Contenu de la commande remis au livreur', 17, y)
+    doc.text('Qté', 190, y, { align: 'right' })
+    y += 8
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...encre)
+    const contenu = commande.produits_detail && commande.produits_detail.length > 0
+      ? commande.produits_detail
+      : [{ nom: commande.produits, quantite: null }]
+    contenu.forEach((ligne, index) => {
+      const nomLignes = doc.splitTextToSize(String(ligne.nom || ''), 150)
+      const hauteur = Math.max(7, nomLignes.length * 5)
+      if (y + hauteur > 270) {
+        doc.addPage()
+        y = 20
+      }
+      if (index % 2 === 1) {
+        doc.setFillColor(245, 242, 235)
+        doc.rect(15, y - 5, 180, hauteur, 'F')
+      }
+      doc.setFontSize(9)
+      doc.text(nomLignes, 17, y)
+      if (ligne.quantite !== null && ligne.quantite !== undefined) {
+        doc.text(String(ligne.quantite), 190, y, { align: 'right' })
+      }
+      y += hauteur
+    })
+    y += 8
+    if (y > 270) {
+      doc.addPage()
+      y = 20
+    }
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(...muted)
@@ -626,7 +668,12 @@ function construireFactureMensuellePDF(d) {
   ;(d.lignes || []).forEach((ligne, index) => {
     const detail = [ligne.chantier, ligne.technicien].filter(Boolean).join(' — ') || '—'
     const detailLignes = doc.splitTextToSize(detail, 95)
-    const hauteur = Math.max(7, detailLignes.length * 5)
+    // Produits de la livraison (preuve en cas de litige), en petit sous la ligne.
+    const produitsTexte = Array.isArray(ligne.produits_detail) && ligne.produits_detail.length > 0
+      ? ligne.produits_detail.map((p) => `${p.quantite} x ${p.nom}`).join(' ; ')
+      : ligne.produits_texte || ''
+    const produitsLignes = produitsTexte ? doc.splitTextToSize(`Contenu : ${produitsTexte}`, 170) : []
+    const hauteur = Math.max(7, detailLignes.length * 5) + produitsLignes.length * 4
     if (y + hauteur > 262) {
       doc.addPage()
       y = 20
@@ -641,6 +688,12 @@ function construireFactureMensuellePDF(d) {
     doc.text(String(ligne.numero_suivi || '—'), 40, y)
     doc.text(detailLignes, 72, y)
     doc.text(`${Number(ligne.frais || 0).toFixed(2)} CHF`, 193, y, { align: 'right' })
+    if (produitsLignes.length > 0) {
+      doc.setFontSize(8)
+      doc.setTextColor(...muted)
+      doc.text(produitsLignes, 17, y + Math.max(7, detailLignes.length * 5) - 1)
+      doc.setTextColor(...encre)
+    }
     y += hauteur
   })
 
