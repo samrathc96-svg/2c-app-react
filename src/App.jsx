@@ -2696,9 +2696,14 @@ function App() {
   // lien permanent.
   async function telechargerFacture(facture) {
     setTelechargementFactureId(facture.id)
+    // Nom du fichier téléchargé. Avec l'option "download", le serveur répond
+    // en pièce jointe : le téléchargement démarre dans la même page, sans
+    // ouvrir de nouvel onglet (les navigateurs mobiles bloquent un onglet
+    // ouvert après une attente réseau, d'où l'ancien "rien ne se passe").
+    const nomFichier = `Facture_${String(facture.numero_facture || facture.id).replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`
     const { data, error } = await supabase.storage
       .from('factures')
-      .createSignedUrl(facture.chemin_pdf, 60)
+      .createSignedUrl(facture.chemin_pdf, 120, { download: nomFichier })
     setTelechargementFactureId(null)
 
     if (error || !data) {
@@ -2707,7 +2712,13 @@ function App() {
       return
     }
 
-    window.open(data.signedUrl, '_blank')
+    const lien = document.createElement('a')
+    lien.href = data.signedUrl
+    lien.download = nomFichier
+    lien.rel = 'noopener'
+    document.body.appendChild(lien)
+    lien.click()
+    document.body.removeChild(lien)
   }
 
   function messageErreurAuth(error) {
