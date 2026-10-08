@@ -696,8 +696,34 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
 // Partie admin : comptes fournisseurs + produits à valider
 // ---------------------------------------------------------
 
-function CarteCompteFournisseur({ compte, metiersConnus, notifier, onModifie }) {
+// Place (ou met à jour) le fournisseur sur la carte : transforme l'adresse en
+// coordonnées (OpenStreetMap, gratuit) puis écrit dans la table "fournisseurs".
+// existant = point déjà présent sous ce nom (ou null).
+async function placerSurCarte({ nom, adresse, metier, existant }) {
+  const reponse = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(adresse)}`,
+    { headers: { 'Accept-Language': 'fr' } }
+  )
+  const resultats = await reponse.json()
+  if (!Array.isArray(resultats) || resultats.length === 0) {
+    return { ok: false, raison: 'adresse' }
+  }
+  const latitude = parseFloat(resultats[0].lat)
+  const longitude = parseFloat(resultats[0].lon)
+  const valeurs = { nom, adresse, metier: metier || null, latitude, longitude }
+  const { error } = existant
+    ? await supabase.from('fournisseurs').update(valeurs).eq('id', existant.id)
+    : await supabase.from('fournisseurs').insert(valeurs)
+  if (error) {
+    console.error("Erreur d'écriture sur la carte :", error)
+    return { ok: false, raison: 'base' }
+  }
+  return { ok: true }
+}
+
+function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, onModifie }) {
   const [nom, setNom] = useState(compte.nom_fournisseur)
+  const [adresse, setAdresse] = useState(compte.adresse || '')
   const [statut, setStatut] = useState(compte.statut)
   const [direct, setDirect] = useState(compte.publication_directe)
   const [metiers, setMetiers] = useState(compte.metiers || [])
@@ -705,6 +731,36 @@ function CarteCompteFournisseur({ compte, metiersConnus, notifier, onModifie }) 
   const [enCours, setEnCours] = useState(false)
 
   const choix = [...new Set([...metiersConnus, ...metiers])].sort((a, b) => a.localeCompare(b, 'fr'))
+  const existant = pointsCarte.find((f) => String(f.nom || '').trim().toLowerCase() === nom.trim().toLowerCase()) || null
+  const [carteEnCours, setCarteEnCours] = useState(false)
+
+  function messageCarte(resultat) {
+    if (resultat.ok) return null
+    return resultat.raison === 'adresse'
+      ? "Adresse introuvable pour la carte : précisez la rue, le code postal et la ville."
+      : "Le point n'a pas pu être écrit sur la carte."
+  }
+
+  async function mettreSurCarte() {
+    if (adresse.trim() === '') {
+      notifier("Indiquez d'abord l'adresse du fournisseur.")
+      return
+    }
+    setCarteEnCours(true)
+    try {
+      const resultat = await placerSurCarte({ nom: nom.trim(), adresse: adresse.trim(), metier: metiers[0], existant })
+      const message = messageCarte(resultat)
+      if (message) notifier(message)
+      else {
+        notifier(existant ? 'Position mise à jour sur la carte.' : 'Fournisseur placé sur la carte.', 'info')
+        onModifie()
+      }
+    } catch (e) {
+      console.error('Erreur de localisation :', e)
+      notifier('La localisation a échoué, réessayez dans un instant.')
+    }
+    setCarteEnCours(false)
+  }
 
   function basculer(m) {
     setMetiers((precedent) => (precedent.includes(m) ? precedent.filter((x) => x !== m) : [...precedent, m]))
@@ -724,15 +780,31 @@ function CarteCompteFournisseur({ compte, metiersConnus, notifier, onModifie }) 
       p_nom: nom,
       p_statut: statut,
       p_publication_directe: direct,
-      p_metiers: metiers
+      p_metiers: metiers,
+      p_adresse: adresse.trim()
     })
-    setEnCours(false)
     if (error) {
+      setEnCours(false)
       console.error('Erreur de mise à jour du compte fournisseur :', error)
       notifier("L'enregistrement a échoué.")
       return
     }
-    notifier('Compte fournisseur enregistré.', 'info')
+    // Compte validé, adresse connue, pas encore sur la carte : on l'y place
+    // automatiquement (un point déjà présent n'est jamais écrasé ici).
+    let messageFinal = 'Compte fournisseur enregistré.'
+    if (statut === 'valide' && adresse.trim() !== '' && !existant) {
+      try {
+        const resultat = await placerSurCarte({ nom: nom.trim(), adresse: adresse.trim(), metier: metiers[0], existant: null })
+        messageFinal = resultat.ok
+          ? 'Compte enregistré et fournisseur placé sur la carte.'
+          : `Compte enregistré. ${messageCarte(resultat)}`
+      } catch (e) {
+        console.error('Erreur de localisation :', e)
+        messageFinal = 'Compte enregistré, mais la localisation sur la carte a échoué : utilisez « Placer sur la carte ».'
+      }
+    }
+    setEnCours(false)
+    notifier(messageFinal, 'info')
     onModifie()
   }
 
@@ -755,8 +827,26 @@ function CarteCompteFournisseur({ compte, metiersConnus, notifier, onModifie }) 
 
       <label className="champ-admin-entreprise">
         <span>Nom du fournisseur sur le site (identique à celui de la carte)</span>
-        <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} />
+        <input type="text" list={`noms-carte-${compte.user_id}`} value={nom} onChange={(e) => setNom(e.target.value)} />
+        <datalist id={`noms-carte-${compte.user_id}`}>
+          {pointsCarte.map((f) => (
+            <option key={f.id} value={f.nom} />
+          ))}
+        </datalist>
       </label>
+
+      <label className="champ-admin-entreprise">
+        <span>Adresse (rue, code postal, ville)</span>
+        <input type="text" value={adresse} onChange={(e) => setAdresse(e.target.value)} />
+      </label>
+      <p className="souligne">
+        {existant
+          ? `Sur la carte : oui (${existant.adresse || 'adresse non renseignée'}).`
+          : 'Sur la carte : pas encore. Il y sera placé automatiquement à la validation du compte.'}
+      </p>
+      <button className="bouton-secondaire" disabled={carteEnCours || adresse.trim() === ''} onClick={mettreSurCarte}>
+        {carteEnCours ? 'Localisation…' : existant ? 'Mettre à jour la position sur la carte' : 'Placer sur la carte maintenant'}
+      </button>
 
       <label className="champ-admin-entreprise">
         <span>Statut</span>
@@ -801,8 +891,9 @@ function CarteCompteFournisseur({ compte, metiersConnus, notifier, onModifie }) 
   )
 }
 
-export function AdminComptesFournisseurs({ notifier, onCatalogueChange }) {
+export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteChange }) {
   const [comptes, setComptes] = useState([])
+  const [pointsCarte, setPointsCarte] = useState([])
   const [metiersConnus, setMetiersConnus] = useState([])
   const [enAttente, setEnAttente] = useState([])
   const [selection, setSelection] = useState([])
@@ -810,11 +901,13 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange }) {
   const [enCours, setEnCours] = useState(false)
 
   async function charger() {
-    const [rc, rm, rp] = await Promise.all([
+    const [rc, rm, rp, rf] = await Promise.all([
       supabase.rpc('admin_comptes_fournisseurs'),
       supabase.rpc('metiers_disponibles'),
-      supabase.rpc('admin_produits_en_attente')
+      supabase.rpc('admin_produits_en_attente'),
+      supabase.from('fournisseurs').select('id,nom,adresse,metier')
     ])
+    if (!rf.error) setPointsCarte(rf.data || [])
     if (rc.error) {
       console.error('Erreur de chargement des comptes fournisseurs :', rc.error)
       notifier('Impossible de charger les comptes fournisseurs (script SQL exécuté ?).')
@@ -913,11 +1006,15 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange }) {
       )}
       {comptes.map((c) => (
         <CarteCompteFournisseur
-          key={`${c.user_id}-${c.statut}-${c.nom_fournisseur}`}
+          key={`${c.user_id}-${c.statut}-${c.nom_fournisseur}-${c.adresse || ''}`}
           compte={c}
           metiersConnus={metiersConnus}
+          pointsCarte={pointsCarte}
           notifier={notifier}
-          onModifie={charger}
+          onModifie={() => {
+            charger()
+            if (onCarteChange) onCarteChange()
+          }}
         />
       ))}
     </>

@@ -44,6 +44,9 @@ create table if not exists fournisseur_comptes (
   created_at timestamptz not null default now()
 );
 
+-- Adresse du fournisseur (sert à le placer sur la carte et à calculer les distances)
+alter table fournisseur_comptes add column if not exists adresse text;
+
 alter table fournisseur_comptes enable row level security;
 
 create or replace function est_admin()
@@ -74,6 +77,7 @@ declare
   v_meta jsonb := coalesce(auth.jwt() -> 'user_metadata', '{}'::jsonb);
   v_nom text := nullif(trim(coalesce(v_meta ->> 'fournisseur_nom', '')), '');
   v_tel text := nullif(trim(coalesce(v_meta ->> 'fournisseur_telephone', '')), '');
+  v_adr text := nullif(trim(coalesce(v_meta ->> 'fournisseur_adresse', '')), '');
   v_c fournisseur_comptes%rowtype;
 begin
   if v_uid is null then
@@ -87,8 +91,8 @@ begin
     if v_nom is null then
       return null;
     end if;
-    insert into fournisseur_comptes (user_id, nom_fournisseur, telephone)
-    values (v_uid, left(v_nom, 120), left(v_tel, 40))
+    insert into fournisseur_comptes (user_id, nom_fournisseur, telephone, adresse)
+    values (v_uid, left(v_nom, 120), left(v_tel, 40), left(v_adr, 200))
     returning * into v_c;
   end if;
 
@@ -367,13 +371,15 @@ create policy "produits_upload_fournisseur" on storage.objects for insert to aut
 
 -- 5. Fonctions admin ---------------------------------------------------------------------
 
-create or replace function admin_comptes_fournisseurs()
+drop function if exists admin_comptes_fournisseurs();
+create function admin_comptes_fournisseurs()
 returns table (
   user_id uuid,
   nom_fournisseur text,
   email text,
   contact_nom text,
   telephone text,
+  adresse text,
   statut text,
   publication_directe boolean,
   metiers text[],
@@ -391,7 +397,7 @@ begin
     raise exception 'Accès refusé';
   end if;
   return query
-  select c.user_id, c.nom_fournisseur, p.email::text, p.nom::text, c.telephone, c.statut,
+  select c.user_id, c.nom_fournisseur, p.email::text, p.nom::text, c.telephone, c.adresse, c.statut,
          c.publication_directe, c.metiers, c.created_at,
          (select count(*) from produits x where x.fournisseur = c.nom_fournisseur),
          (select count(*) from produits x where x.fournisseur = c.nom_fournisseur
@@ -402,12 +408,14 @@ begin
 end;
 $$;
 
+drop function if exists admin_modifier_compte_fournisseur(uuid, text, text, boolean, text[]);
 create or replace function admin_modifier_compte_fournisseur(
   p_user uuid,
   p_nom text,
   p_statut text,
   p_publication_directe boolean,
-  p_metiers text[]
+  p_metiers text[],
+  p_adresse text default null
 )
 returns void
 language plpgsql
@@ -427,7 +435,8 @@ begin
   update fournisseur_comptes
      set nom_fournisseur = trim(p_nom), statut = p_statut,
          publication_directe = coalesce(p_publication_directe, false),
-         metiers = coalesce(p_metiers, '{}')
+         metiers = coalesce(p_metiers, '{}'),
+         adresse = nullif(trim(coalesce(p_adresse, '')), '')
    where user_id = p_user;
   if not found then
     raise exception 'Compte introuvable';
@@ -487,7 +496,7 @@ revoke all on function fournisseur_modifier_stock(text, int) from public, anon;
 revoke all on function fournisseur_supprimer_produit(text) from public, anon;
 revoke all on function fournisseur_importer_produits(jsonb) from public, anon;
 revoke all on function admin_comptes_fournisseurs() from public, anon;
-revoke all on function admin_modifier_compte_fournisseur(uuid, text, text, boolean, text[]) from public, anon;
+revoke all on function admin_modifier_compte_fournisseur(uuid, text, text, boolean, text[], text) from public, anon;
 revoke all on function admin_produits_en_attente() from public, anon;
 revoke all on function admin_decider_produits(text[], text) from public, anon;
 
@@ -500,7 +509,7 @@ grant execute on function fournisseur_modifier_stock(text, int) to authenticated
 grant execute on function fournisseur_supprimer_produit(text) to authenticated;
 grant execute on function fournisseur_importer_produits(jsonb) to authenticated;
 grant execute on function admin_comptes_fournisseurs() to authenticated;
-grant execute on function admin_modifier_compte_fournisseur(uuid, text, text, boolean, text[]) to authenticated;
+grant execute on function admin_modifier_compte_fournisseur(uuid, text, text, boolean, text[], text) to authenticated;
 grant execute on function admin_produits_en_attente() to authenticated;
 grant execute on function admin_decider_produits(text[], text) to authenticated;
 

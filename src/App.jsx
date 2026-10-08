@@ -1497,6 +1497,7 @@ function App() {
   const [accesInscriptionFournisseur, setAccesInscriptionFournisseur] = useState(false)
   const [nomFournisseurInscription, setNomFournisseurInscription] = useState('')
   const [telephoneFournisseurInscription, setTelephoneFournisseurInscription] = useState('')
+  const [adresseFournisseurInscription, setAdresseFournisseurInscription] = useState('')
   const [compteFournisseur, setCompteFournisseur] = useState(null)
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
@@ -2475,16 +2476,17 @@ function App() {
     chargerProduits()
   }, [])
 
-  useEffect(() => {
-    async function chargerFournisseursCarte() {
-      const { data, error } = await supabase.from('fournisseurs').select('*')
-      if (error) {
-        // La table n'existe peut-être pas encore : la carte reste simplement vide.
-        console.error('Chargement des fournisseurs de la carte :', error)
-        return
-      }
-      setFournisseursCarte(data || [])
+  async function chargerFournisseursCarte() {
+    const { data, error } = await supabase.from('fournisseurs').select('*')
+    if (error) {
+      // La table n'existe peut-être pas encore : la carte reste simplement vide.
+      console.error('Chargement des fournisseurs de la carte :', error)
+      return
     }
+    setFournisseursCarte(data || [])
+  }
+
+  useEffect(() => {
     chargerFournisseursCarte()
   }, [])
 
@@ -2873,6 +2875,10 @@ function App() {
         setErreurInscription("Merci d'indiquer le nom de votre société.")
         return
       }
+      if (adresseFournisseurInscription.trim() === '') {
+        setErreurInscription("Merci d'indiquer l'adresse de votre société (rue, code postal, ville) : elle sert à vous placer sur la carte.")
+        return
+      }
       if (nomInscription.trim() === '') {
         setErreurInscription("Merci d'indiquer votre nom et prénom.")
         return
@@ -2918,7 +2924,8 @@ function App() {
           ...(inscriptionFournisseur
             ? {
                 fournisseur_nom: nomFournisseurInscription.trim(),
-                fournisseur_telephone: telephoneFournisseurInscription.trim()
+                fournisseur_telephone: telephoneFournisseurInscription.trim(),
+                fournisseur_adresse: adresseFournisseurInscription.trim()
               }
             : {})
         }
@@ -2946,6 +2953,7 @@ function App() {
       setNomEntrepriseInscription('')
       setNomFournisseurInscription('')
       setTelephoneFournisseurInscription('')
+      setAdresseFournisseurInscription('')
       setInvitationEquipe(null)
     }
   }
@@ -4865,6 +4873,12 @@ function App() {
                         placeholder="Nom de votre société (fournisseur)"
                         value={nomFournisseurInscription}
                         onChange={(e) => setNomFournisseurInscription(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Adresse (rue, code postal, ville)"
+                        value={adresseFournisseurInscription}
+                        onChange={(e) => setAdresseFournisseurInscription(e.target.value)}
                       />
                       <input
                         type="tel"
@@ -7086,7 +7100,7 @@ function App() {
       {espace === 'comptesFournisseursAdmin' && role === 'admin' && (
         <>
           <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
-          <AdminComptesFournisseurs notifier={afficherNotification} onCatalogueChange={chargerProduits} />
+          <AdminComptesFournisseurs notifier={afficherNotification} onCatalogueChange={chargerProduits} onCarteChange={chargerFournisseursCarte} />
         </>
       )}
 
