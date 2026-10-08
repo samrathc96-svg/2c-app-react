@@ -4778,3 +4778,29 @@ a.bouton-secondaire {
 .lignes-commande-fournisseur tfoot td.prix {
   color: var(--couleur-encre);
 }
+
+/* Adresse de livraison en trois champs : code postal court + ville */
+.champ-livraison .ligne-code-ville {
+  display: flex;
+  gap: 8px;
+}
+
+.champ-livraison .ligne-code-ville input:first-child {
+  flex: 0 0 110px;
+  min-width: 0;
+}
+
+.champ-livraison .ligne-code-ville input:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.avertissement-annulation {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--rayon-s);
+  background: rgba(200, 40, 40, 0.1);
+  color: #b32121;
+  font-size: 13px;
+  font-weight: 600;
+}

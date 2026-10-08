@@ -39,7 +39,7 @@ export function totalCommande(commande) {
 // Étape de la commande du point de vue du fournisseur
 export function etapeCommande(commande) {
   const livraison = commande.livraison_statut
-  if (livraison === 'Annulée') return { cle: 'annulee', libelle: 'Annulée', aPreparer: false }
+  if (livraison === 'Annulée' || commande.rembourse) return { cle: 'annulee', libelle: 'Annulée', aPreparer: false }
   if (livraison === 'Livrée') return { cle: 'livree', libelle: 'Livrée', aPreparer: false }
   if (livraison === 'En cours') return { cle: 'recuperee', libelle: 'Récupérée par le livreur', aPreparer: false }
   if (commande.prepare_le) return { cle: 'preparee', libelle: 'Préparée', aPreparer: false }
@@ -157,11 +157,12 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
   }
 
   const compteurs = useMemo(() => {
-    const c = { a_preparer: 0, preparees: 0, toutes: commandes.length }
+    const c = { a_preparer: 0, preparees: 0, annulees: 0, toutes: commandes.length }
     commandes.forEach((cmd) => {
       const etape = etapeCommande(cmd)
       if (etape.aPreparer) c.a_preparer += 1
       else if (etape.cle === 'preparee') c.preparees += 1
+      else if (etape.cle === 'annulee') c.annulees += 1
     })
     return c
   }, [commandes])
@@ -170,6 +171,7 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
     if (filtre === 'toutes') return true
     const etape = etapeCommande(cmd)
     if (filtre === 'a_preparer') return etape.aPreparer
+    if (filtre === 'annulees') return etape.cle === 'annulee'
     return etape.cle === 'preparee'
   })
 
@@ -181,6 +183,9 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
         </button>
         <button className={filtre === 'preparees' ? 'actif' : ''} onClick={() => setFiltre('preparees')}>
           Préparées ({compteurs.preparees})
+        </button>
+        <button className={filtre === 'annulees' ? 'actif' : ''} onClick={() => setFiltre('annulees')}>
+          Annulées ({compteurs.annulees})
         </button>
         <button className={filtre === 'toutes' ? 'actif' : ''} onClick={() => setFiltre('toutes')}>
           Toutes ({compteurs.toutes})
@@ -260,6 +265,12 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
                     </tr>
                   </tfoot>
                 </table>
+
+                {etape.cle === 'annulee' && (
+                  <p className="avertissement-annulation">
+                    Cette commande a été annulée : inutile de la préparer.
+                  </p>
+                )}
 
                 <div className="actions-fournisseur">
                   {peutMarquer && (

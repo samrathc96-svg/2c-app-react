@@ -1591,10 +1591,27 @@ function App() {
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
   const [nomClient, setNomClient] = useState('')
   const [adresseClient, setAdresseClient] = useState('')
+  // Adresse de livraison saisie en trois champs ; adresseClient en est la
+  // version complète ("Rue du Rhône 12, 1204 Genève"), utilisée partout ailleurs.
+  const [rueClient, setRueClient] = useState('')
+  const [codePostalClient, setCodePostalClient] = useState('')
+  const [villeClient, setVilleClient] = useState('')
   const [telephoneClient, setTelephoneClient] = useState('')
   const [emailClient, setEmailClient] = useState('')
   const [technicienCommande, setTechnicienCommande] = useState('')
   const [chantierCommande, setChantierCommande] = useState('')
+
+  function composerAdresse(rue, codePostal, ville) {
+    const fin = [codePostal.trim(), ville.trim()].filter(Boolean).join(' ')
+    return [rue.trim(), fin].filter(Boolean).join(', ')
+  }
+
+  function modifierAdresse(rue, codePostal, ville) {
+    setRueClient(rue)
+    setCodePostalClient(codePostal)
+    setVilleClient(ville)
+    setAdresseClient(composerAdresse(rue, codePostal, ville))
+  }
 
   const [courses, setCourses] = useState([])
   const [chargementCourses, setChargementCourses] = useState(true)
@@ -2104,7 +2121,12 @@ function App() {
           const sauvegarde = JSON.parse(brut)
           setPanier(sauvegarde.panier || [])
           setNomClient(sauvegarde.nomClient || '')
-          setAdresseClient(sauvegarde.adresseClient || '')
+          if (sauvegarde.rueClient || sauvegarde.codePostalClient || sauvegarde.villeClient) {
+            modifierAdresse(sauvegarde.rueClient || '', sauvegarde.codePostalClient || '', sauvegarde.villeClient || '')
+          } else {
+            // ancienne sauvegarde : adresse en un seul morceau
+            modifierAdresse(sauvegarde.adresseClient || '', '', '')
+          }
           setTelephoneClient(sauvegarde.telephoneClient || '')
           setEmailClient(sauvegarde.emailClient || '')
           setVue('panier')
@@ -3249,7 +3271,7 @@ function App() {
     try {
       window.localStorage.setItem(
         'panierEnAttente2C',
-        JSON.stringify({ panier, nomClient, adresseClient, telephoneClient, emailClient })
+        JSON.stringify({ panier, nomClient, adresseClient, rueClient, codePostalClient, villeClient, telephoneClient, emailClient })
       )
     } catch (e) {
       // stockage indisponible - le paiement fonctionne quand même
@@ -3428,7 +3450,7 @@ function App() {
       // stockage indisponible - on ignore silencieusement
     }
     setPanier([])
-    setAdresseClient('')
+    modifierAdresse('', '', '')
     setTelephoneClient('')
     setTechnicienCommande('')
     setChantierCommande('')
@@ -3465,11 +3487,21 @@ function App() {
     }
     if (
       nomClient.trim() === '' ||
-      adresseClient.trim() === '' ||
+      rueClient.trim() === '' ||
+      codePostalClient.trim() === '' ||
+      villeClient.trim() === '' ||
       telephoneClient.trim() === '' ||
       emailClient.trim() === ''
     ) {
-      afficherNotification("Merci de renseigner le nom, l'adresse de livraison, le téléphone et l'email.")
+      afficherNotification("Merci de renseigner le nom, l'adresse de livraison complète (rue, code postal, ville), le téléphone et l'email.")
+      return
+    }
+    if (!/\d/.test(rueClient)) {
+      afficherNotification("Merci d'indiquer le numéro dans l'adresse (par exemple : Rue du Rhône 12).")
+      return
+    }
+    if (!/^\d{4,5}$/.test(codePostalClient.trim())) {
+      afficherNotification('Le code postal doit comporter 4 chiffres (5 pour la France voisine).')
       return
     }
     if (role === 'entreprise' && (technicienCommande.trim() === '' || chantierCommande.trim() === '')) {
@@ -3557,7 +3589,7 @@ function App() {
       setNomClient('')
       setEmailClient('')
     }
-    setAdresseClient('')
+    modifierAdresse('', '', '')
     setTelephoneClient('')
     setTechnicienCommande('')
     setChantierCommande('')
@@ -5477,10 +5509,29 @@ function App() {
                 )}
                 <input
                   type="text"
-                  placeholder="Adresse de livraison"
-                  value={adresseClient}
-                  onChange={(e) => setAdresseClient(e.target.value)}
+                  placeholder="Rue et numéro (ex : Rue du Rhône 12)"
+                  autoComplete="address-line1"
+                  value={rueClient}
+                  onChange={(e) => modifierAdresse(e.target.value, codePostalClient, villeClient)}
                 />
+                <div className="ligne-code-ville">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Code postal"
+                    autoComplete="postal-code"
+                    maxLength={5}
+                    value={codePostalClient}
+                    onChange={(e) => modifierAdresse(rueClient, e.target.value.replace(/\D/g, ''), villeClient)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Ville"
+                    autoComplete="address-level2"
+                    value={villeClient}
+                    onChange={(e) => modifierAdresse(rueClient, codePostalClient, e.target.value)}
+                  />
+                </div>
                 <input
                   type="tel"
                   placeholder="Téléphone (pour te joindre en cas de souci)"

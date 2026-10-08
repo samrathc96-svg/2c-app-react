@@ -9,6 +9,8 @@
 --    livraison, produits, quantités, prix.
 --    Il ne voit NI le téléphone NI l'email du client.
 --  * Il peut marquer une commande comme "préparée".
+--  * Une commande annulée (ou remboursée) reste dans son historique, avec la
+--    mention "Annulée" : il sait qu'il ne doit plus la préparer.
 --  * Le lien commande -> fournisseur se fait par le produit (produits.fournisseur).
 -- =====================================================================
 
@@ -83,6 +85,7 @@ begin
             select co.statut from courses co where co.commande_id::text = c.id::text limit 1
           ),
           'prepare_le', pr.prepare_le,
+          'rembourse', coalesce(c.rembourse, false),
           'lignes', l.lignes
         ) as ligne
       from commandes c
@@ -99,7 +102,6 @@ begin
         limit 1
       ) ent on true
       where jsonb_array_length(l.lignes) > 0
-        and coalesce(c.rembourse, false) = false
       order by c.created_at desc
       limit 200
     ) x
