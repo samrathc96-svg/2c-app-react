@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { CommandesFournisseur } from './CommandesFournisseur'
-import { alerteSonoreActivee, definirAlerteSonore, deverrouillerAudio, jouerSonnerie } from './alerteSonore'
+import { alerteSonoreActivee, definirAlerteSonore, jouerSonnerie } from './alerteSonore'
 
 // =========================================================
 // Espace fournisseur (version 1) + validation côté admin
@@ -199,10 +199,7 @@ function ReglagesAlerte({ notifier }) {
     const nouveau = !sonActif
     definirAlerteSonore(nouveau)
     setSonActif(nouveau)
-    if (nouveau) {
-      deverrouillerAudio()
-      jouerSonnerie()
-    }
+    if (nouveau) jouerSonnerie()
   }
 
   async function activerNotifications() {
@@ -222,8 +219,9 @@ function ReglagesAlerte({ notifier }) {
       <button
         className="bouton-secondaire"
         onClick={() => {
-          deverrouillerAudio()
-          if (!jouerSonnerie()) notifier("Le son n'est pas disponible sur cet appareil.")
+          jouerSonnerie().then((ok) => {
+            if (!ok) notifier('Son bloqué par ce téléphone : vérifiez le volume et le mode silencieux, puis réessayez.')
+          })
         }}
       >
         <i className="bi bi-volume-up"></i> Tester le son
@@ -233,7 +231,7 @@ function ReglagesAlerte({ notifier }) {
           <i className="bi bi-megaphone"></i> Activer les notifications
         </button>
       )}
-      <small>La sonnerie retentit quand une nouvelle commande est à préparer, tant que le site est ouvert (pensez à monter le volume).</small>
+      <small>La sonnerie retentit quand une nouvelle commande est à préparer, tant que le site est ouvert et l'écran allumé. Touchez le bouton de test une fois après avoir ouvert la page, montez le volume et désactivez le mode silencieux.</small>
     </div>
   )
 }
