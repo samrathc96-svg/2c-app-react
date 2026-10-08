@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, nomClient, numeroFacture, pdfBase64, copieEmail } = await req.json()
+    const { email, nomClient, numeroFacture, pdfBase64, copieEmail, mensuelle, periode } = await req.json()
 
     if (!email || !pdfBase64) {
       return reponseJson({ error: 'Champs manquants' }, 400)
@@ -79,6 +79,30 @@ Deno.serve(async (req) => {
     const piece = {
       filename: `Facture_${String(numeroFacture ?? '').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`,
       content: pdfBase64
+    }
+
+    // Facture mensuelle (envoyée au responsable d'une entreprise)
+    if (mensuelle === true) {
+      const htmlMensuelle = `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1E1B17;">
+          <h2 style="color: #FF6A13;">Votre facture mensuelle</h2>
+          <p>Bonjour ${echapper(nomClient)},</p>
+          <p>Vous trouverez en pièce jointe votre <strong>facture mensuelle</strong> 2C Delivery (n° ${echapper(numeroFacture)})${periode ? `, qui regroupe les livraisons effectuées sur la période : ${echapper(periode)}` : ''}.</p>
+          <p>Elle concerne uniquement les frais de livraison. Le détail de chaque livraison et le contenu des commandes figurent dans le document.</p>
+          ${PIED}
+        </div>
+      `
+      const envoiMensuelle = await envoyerEmail(
+        resendApiKey,
+        email,
+        `Facture mensuelle 2C – ${echapper(numeroFacture)}${periode ? ' – ' + echapper(periode) : ''}`,
+        htmlMensuelle,
+        piece
+      )
+      if (!envoiMensuelle.ok) {
+        return reponseJson({ error: envoiMensuelle.resultat }, envoiMensuelle.status)
+      }
+      return reponseJson({ success: true, copieEnvoyee: false })
     }
 
     // 1) Facture au client (la personne qui a commandé)

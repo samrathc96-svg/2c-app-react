@@ -596,6 +596,20 @@ function construireFacturePDF(commande) {
   return { doc, numeroFacture }
 }
 
+// Libellé de la période d'une facture mensuelle : "octobre 2026" si elle couvre
+// un mois entier, sinon "du 01.10.2026 au 15.10.2026".
+function libellePeriodeFacture(d) {
+  const debut = new Date(d.periode_debut)
+  const fin = new Date(d.periode_fin)
+  const memeMois = debut.getFullYear() === fin.getFullYear() && debut.getMonth() === fin.getMonth()
+  const jourFin = new Date(fin.getFullYear(), fin.getMonth() + 1, 0).getDate()
+  if (memeMois && debut.getDate() === 1 && fin.getDate() === jourFin) {
+    return debut.toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })
+  }
+  const f = (v) => v.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return `du ${f(debut)} au ${f(fin)}`
+}
+
 // Facture mensuelle des frais de livraison d'une entreprise (mode "mensuel").
 // `d` = données renvoyées par la base (admin_creer_facture_mensuelle).
 function construireFactureMensuellePDF(d) {
@@ -630,8 +644,16 @@ function construireFactureMensuellePDF(d) {
   doc.text(`N° ${d.numero}`, 195, y + 7, { align: 'right' })
   doc.text(`Date : ${dateCH(d.emise_le)}`, 195, y + 13, { align: 'right' })
   doc.text(`Période : ${dateCH(d.periode_debut)} au ${dateCH(d.periode_fin)}`, 195, y + 19, { align: 'right' })
+  doc.setFontSize(9)
+  doc.setTextColor(...muted)
+  doc.text(
+    `Récapitulatif mensuel : ${(d.lignes || []).length} livraison${(d.lignes || []).length > 1 ? 's' : ''} — ${libellePeriodeFacture(d)}`,
+    195, y + 25, { align: 'right' }
+  )
+  doc.setFontSize(10)
+  doc.setTextColor(...encre)
 
-  y += 30
+  y += 34
   doc.setDrawColor(...accent)
   doc.setLineWidth(0.6)
   doc.line(15, y, 195, y)
@@ -1179,16 +1201,27 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
 
   async function calculerFacture() {
     setEnCours(true)
-    const { debut, fin } = bornesMois()
-    setApercuFacture(await onApercuFacture(entreprise.id, debut, fin))
-    setEnCours(false)
+    try {
+      const { debut, fin } = bornesMois()
+      setApercuFacture(await onApercuFacture(entreprise.id, debut, fin))
+    } catch (e) {
+      console.error("Erreur de calcul de l'aperçu :", e)
+    } finally {
+      setEnCours(false)
+    }
   }
 
   async function creerFacture() {
     setEnCours(true)
-    const { debut, fin } = bornesMois()
-    const ok = await onCreerFacture(entreprise.id, debut, fin)
-    setEnCours(false)
+    let ok = false
+    try {
+      const { debut, fin } = bornesMois()
+      ok = await onCreerFacture(entreprise.id, debut, fin)
+    } catch (e) {
+      console.error('Erreur inattendue à la création de la facture mensuelle :', e)
+    } finally {
+      setEnCours(false)
+    }
     if (ok) {
       setApercuFacture(null)
       setVersionFactures((v) => v + 1)
@@ -2124,7 +2157,9 @@ function App() {
         email: donnees.responsable_email,
         nomClient: donnees.entreprise_nom,
         numeroFacture: donnees.numero,
-        pdfBase64
+        pdfBase64,
+        mensuelle: true,
+        periode: libellePeriodeFacture(donnees)
       }
     })
     if (erreurEmail) console.error("Erreur d'envoi de la facture mensuelle :", erreurEmail)
@@ -2149,7 +2184,13 @@ function App() {
       )
       return false
     }
-    const resultat = await publierFactureMensuelle(data)
+    let resultat
+    try {
+      resultat = await publierFactureMensuelle(data)
+    } catch (e) {
+      console.error('Erreur de fabrication du PDF de la facture mensuelle :', e)
+      resultat = { pdf: false, email: false }
+    }
     if (!resultat.pdf) {
       afficherNotification(`Facture ${data.numero} créée, mais son PDF n'a pas pu être enregistré : utilisez « Renvoyer » dans la liste.`)
     } else if (!resultat.email) {

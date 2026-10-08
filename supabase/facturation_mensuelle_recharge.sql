@@ -13,7 +13,25 @@
 
 -- 1. Colonnes et séquence ---------------------------------------------------
 
-alter table commandes add column if not exists facture_mensuelle_id uuid;
+-- L'identifiant d'une facture (table factures) est un nombre entier (bigint).
+-- Si une version précédente de ce script a créé la colonne en uuid, on la corrige
+-- (elle est vide : aucune facture mensuelle n'avait pu être créée).
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'commandes'
+      and column_name = 'facture_mensuelle_id' and data_type = 'uuid'
+  ) then
+    alter table commandes drop column facture_mensuelle_id;
+  end if;
+end $$;
+alter table commandes add column if not exists facture_mensuelle_id bigint;
+
+-- Anciennes versions des fonctions (paramètre uuid) : remplacées plus bas.
+drop function if exists _donnees_facture_mensuelle(uuid);
+drop function if exists admin_donnees_facture_mensuelle(uuid);
+drop function if exists admin_factures_mensuelles(uuid);
 alter table tarif_livraison add column if not exists delai_paiement_jours int not null default 10
   check (delai_paiement_jours >= 0);
 create sequence if not exists facture_mensuelle_seq;
@@ -100,7 +118,7 @@ revoke all on function _commandes_a_facturer(uuid, date, date) from public, anon
 
 -- 4. Données d'une facture mensuelle (pour fabriquer le PDF) ----------------------
 
-create or replace function _donnees_facture_mensuelle(p_facture_id uuid)
+create or replace function _donnees_facture_mensuelle(p_facture_id bigint)
 returns jsonb
 language plpgsql
 stable
@@ -132,8 +150,8 @@ begin
            'chantier', c.chantier,
            'technicien', c.technicien,
            'frais', c.frais_livraison,
-           'produits_detail', c.produits_detail,
-           'produits_texte', c.produits
+           'produits_detail', to_jsonb(c) -> 'produits_detail',
+           'produits_texte', to_jsonb(c) ->> 'produits'
          ) order by c.created_at), '[]'::jsonb)
     into v_lignes
   from commandes c
@@ -158,7 +176,7 @@ begin
 end;
 $$;
 
-revoke all on function _donnees_facture_mensuelle(uuid) from public, anon, authenticated;
+revoke all on function _donnees_facture_mensuelle(bigint) from public, anon, authenticated;
 
 -- 5. Fonctions admin ---------------------------------------------------------
 
@@ -193,7 +211,7 @@ declare
   v_nb int;
   v_total numeric;
   v_numero text;
-  v_fid uuid;
+  v_fid bigint;
 begin
   if not est_admin() then
     raise exception 'Accès refusé';
@@ -236,7 +254,7 @@ begin
 end;
 $$;
 
-create or replace function admin_donnees_facture_mensuelle(p_facture_id uuid)
+create or replace function admin_donnees_facture_mensuelle(p_facture_id bigint)
 returns jsonb
 language plpgsql
 stable
@@ -253,7 +271,7 @@ $$;
 
 -- Factures mensuelles déjà émises pour une entreprise (pour renvoyer / régénérer un PDF)
 create or replace function admin_factures_mensuelles(p_entreprise uuid)
-returns table (facture_id uuid, numero text, periode_debut text, montant numeric, emise_le timestamptz)
+returns table (facture_id bigint, numero text, periode_debut text, montant numeric, emise_le timestamptz)
 language plpgsql
 stable
 security definer
@@ -293,10 +311,13 @@ create policy "factures_admin_select" on storage.objects for select to authentic
 revoke all on function admin_modifier_delai_paiement(int) from public, anon;
 revoke all on function admin_apercu_facture_mensuelle(uuid, date, date) from public, anon;
 revoke all on function admin_creer_facture_mensuelle(uuid, date, date) from public, anon;
-revoke all on function admin_donnees_facture_mensuelle(uuid) from public, anon;
+revoke all on function admin_donnees_facture_mensuelle(bigint) from public, anon;
 revoke all on function admin_factures_mensuelles(uuid) from public, anon;
 grant execute on function admin_modifier_delai_paiement(int) to authenticated;
 grant execute on function admin_apercu_facture_mensuelle(uuid, date, date) to authenticated;
 grant execute on function admin_creer_facture_mensuelle(uuid, date, date) to authenticated;
-grant execute on function admin_donnees_facture_mensuelle(uuid) to authenticated;
+grant execute on function admin_donnees_facture_mensuelle(bigint) to authenticated;
 grant execute on function admin_factures_mensuelles(uuid) to authenticated;
+
+-- Demande à l'API de reconnaître les fonctions tout de suite
+notify pgrst, 'reload schema';
