@@ -77,8 +77,20 @@ function enAdresseData(octets) {
   return 'data:audio/wav;base64,' + btoa(texte)
 }
 
+// Sur iPhone/iPad, un élément <audio> fait apparaître le lecteur de musique du
+// téléphone (écran verrouillé, centre de contrôle) : on n'y utilise que Web Audio.
+function estIphoneOuIpad() {
+  try {
+    const ua = navigator.userAgent || ''
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  } catch (e) {
+    return false
+  }
+}
+
 function obtenirLecteur() {
   if (lecteur) return lecteur
+  if (estIphoneOuIpad()) return null
   try {
     lecteur = new Audio()
     lecteur.preload = 'auto'
@@ -96,15 +108,7 @@ function obtenirLecteur() {
 function obtenirContexte() {
   const ContexteAudio = window.AudioContext || window.webkitAudioContext
   if (!ContexteAudio) return null
-  if (!contexte) {
-    // iOS 17+ : fait jouer Web Audio même si le bouton silencieux est activé.
-    try {
-      if (navigator.audioSession) navigator.audioSession.type = 'playback'
-    } catch (e) {
-      // option indisponible - on ignore
-    }
-    contexte = new ContexteAudio()
-  }
+  if (!contexte) contexte = new ContexteAudio()
   return contexte
 }
 

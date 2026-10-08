@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { etapeCommande } from './CommandesFournisseur'
 import { alerteSonoreActivee, jouerSonnerie } from './alerteSonore'
+import { pushActifLocalement } from './notificationsPush'
 
 // Alerte du fournisseur : tant que son site est ouvert (n'importe quelle
 // page), on vérifie régulièrement s'il y a une nouvelle commande à préparer.
@@ -42,7 +43,10 @@ export function useAlerteFournisseur(compte, notifier) {
         ? `Nouvelle commande à préparer : ${nouvelles[0].numero_suivi}`
         : `${nouvelles.length} nouvelles commandes à préparer`
       let sonOk = true
-      if (alerteSonoreActivee()) sonOk = await jouerSonnerie()
+      // Notifications push actives sur cet appareil : c'est la notification du
+      // téléphone qui sonne, inutile de doubler avec la sonnerie de la page.
+      const pushActif = pushActifLocalement()
+      if (!pushActif && alerteSonoreActivee()) sonOk = await jouerSonnerie()
       if (notifierRef.current) {
         notifierRef.current(
           sonOk ? texte : `${texte} (son bloqué : touchez l'écran une fois pour l'activer)`,

@@ -345,6 +345,8 @@ function estimerPrixTransformation(formeEntree, tailleEntree, formeSortie, taill
 // Sonnerie brève de notification (livreur, client) : voir alerteSonore.js.
 // Échoue silencieusement si l'audio n'est pas disponible.
 function jouerSonNotification() {
+  // Notifications push actives : c'est la notification du téléphone qui sonne
+  if (pushActifLocalement()) return
   jouerSonnerie()
 }
 

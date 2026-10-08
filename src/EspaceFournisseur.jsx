@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { CommandesFournisseur } from './CommandesFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
+import { pushActifLocalement } from './notificationsPush'
 import { alerteSonoreActivee, definirAlerteSonore, etatSon, jouerSonnerie } from './alerteSonore'
 
 // =========================================================
@@ -193,10 +194,14 @@ const FORMULAIRE_VIDE = {
 function ReglagesAlerte({ notifier }) {
   const [sonActif, setSonActif] = useState(alerteSonoreActivee())
   const [etat, setEtat] = useState(etatSon())
+  const [pushActif, setPushActif] = useState(pushActifLocalement())
 
   // L'état du son peut changer après le premier toucher : on le relit régulièrement.
   useEffect(() => {
-    const minuterie = setInterval(() => setEtat(etatSon()), 1000)
+    const minuterie = setInterval(() => {
+      setEtat(etatSon())
+      setPushActif(pushActifLocalement())
+    }, 1000)
     return () => clearInterval(minuterie)
   }, [])
 
@@ -206,6 +211,10 @@ function ReglagesAlerte({ notifier }) {
     setSonActif(nouveau)
     if (nouveau) jouerSonnerie().then(() => setEtat(etatSon()))
   }
+
+  // Notifications push actives : la notification du téléphone fait déjà sonner,
+  // on n'affiche pas de second réglage de son (qui ouvrirait le lecteur audio sur iPhone).
+  if (pushActif) return null
 
   return (
     <div className="reglages-alerte">
@@ -229,7 +238,7 @@ function ReglagesAlerte({ notifier }) {
           ? 'Son prêt sur cet appareil.'
           : 'Son en attente : touchez le bouton « Tester le son » une fois pour l\'activer.'}
       </small>
-      <small>La sonnerie retentit aussi dans la page (site ouvert, écran allumé). Touchez « Tester le son » une fois après avoir ouvert la page et montez le volume.</small>
+      <small>Sans notifications, la sonnerie ne retentit que dans la page (site ouvert, écran allumé). Touchez « Tester le son » une fois après avoir ouvert la page et montez le volume.</small>
     </div>
   )
 }
