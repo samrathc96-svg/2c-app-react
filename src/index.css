@@ -4427,3 +4427,206 @@ body.marketplace {
   padding: 0;
   accent-color: var(--couleur-accent);
 }
+
+/* =========================================================
+   Espace fournisseur
+   ========================================================= */
+.espace-fournisseur {
+  width: 100%;
+}
+
+.bandeau-fournisseur {
+  background: var(--couleur-accent-clair);
+  border: 1px solid rgba(255, 106, 19, 0.35);
+  border-radius: var(--rayon-m);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0 16px;
+  color: var(--couleur-encre);
+}
+
+.bandeau-fournisseur.bandeau-info {
+  background: var(--couleur-carte);
+  border-color: var(--couleur-bordure);
+  color: var(--couleur-muted);
+}
+
+.actions-fournisseur {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.actions-fournisseur .valider,
+.actions-fournisseur .bouton-secondaire {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+.carte-produit-fournisseur,
+.carte-import-fournisseur {
+  margin-bottom: 16px;
+}
+
+.carte-produit-fournisseur input,
+.carte-produit-fournisseur select {
+  width: 100%;
+}
+
+.photo-produit-fournisseur {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0;
+}
+
+.photo-produit-fournisseur img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--rayon-s);
+  border: 1px solid var(--couleur-bordure);
+}
+
+.liste-apercu-import {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 12px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-s);
+  background: var(--couleur-blanc);
+}
+
+.liste-apercu-import li {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--couleur-bordure);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.liste-apercu-import li:last-child {
+  border-bottom: none;
+}
+
+.liste-apercu-import li.ligne-erreur {
+  background: rgba(200, 40, 40, 0.08);
+}
+
+.liste-apercu-import li em {
+  color: #b32121;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.filtres-fournisseur {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.filtres-fournisseur input {
+  flex: 1;
+  min-width: 0;
+}
+
+.liste-produits-fournisseur {
+  list-style: none;
+  margin: 8px 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.produit-fournisseur {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-m);
+  padding: 10px 12px;
+  box-shadow: var(--ombre-s);
+}
+
+.produit-fournisseur > img,
+.produit-fournisseur .image-vide {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--rayon-s);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--couleur-fond);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--couleur-muted);
+}
+
+.infos-produit-fournisseur {
+  flex: 1 1 180px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.actions-produit-fournisseur {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stock-fournisseur {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: var(--couleur-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.stock-fournisseur input {
+  width: 72px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.badge-statut-produit {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--couleur-fond);
+  color: var(--couleur-muted);
+}
+
+.badge-statut-produit.statut-publie {
+  background: rgba(40, 140, 70, 0.14);
+  color: #1f7a3d;
+}
+
+.badge-statut-produit.statut-en_attente {
+  background: var(--couleur-accent-clair);
+  color: #b84a00;
+}
+
+.badge-statut-produit.statut-refuse {
+  background: rgba(200, 40, 40, 0.12);
+  color: #b32121;
+}
+
+.carte-entreprise-admin .case-fournisseur {
+  margin: 6px 0 10px;
+}

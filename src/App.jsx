@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
+import { EspaceFournisseur, AdminComptesFournisseurs } from './EspaceFournisseur'
 import './App.css'
 
 // =========================================================
@@ -94,6 +95,8 @@ const ESPACES_SANS_PANNEAUX_DESKTOP = [
   'catalogueAdmin',
   'fournisseursAdmin',
   'entreprisesAdmin',
+  'comptesFournisseursAdmin',
+  'fournisseurEspace',
   'livreur',
   'livreurEnAttente',
   'livreursListe'
@@ -1487,6 +1490,14 @@ function App() {
   // l'accueil), révélé uniquement via un lien contenant ?livreur, partagé
   // directement avec les candidats recrutés en physique.
   const [accesRecrutementLivreur, setAccesRecrutementLivreur] = useState(false)
+  // Inscription fournisseur : révélée uniquement par le lien ?fournisseur
+  // (partagé avec les fournisseurs partenaires). Le compte reste "en attente"
+  // jusqu'à validation par 2C ; il est lié au profil par la table
+  // fournisseur_comptes (le rôle du profil reste "client").
+  const [accesInscriptionFournisseur, setAccesInscriptionFournisseur] = useState(false)
+  const [nomFournisseurInscription, setNomFournisseurInscription] = useState('')
+  const [telephoneFournisseurInscription, setTelephoneFournisseurInscription] = useState('')
+  const [compteFournisseur, setCompteFournisseur] = useState(null)
 
   const [nomUtilisateur, setNomUtilisateur] = useState('')
   // Disponibilité du livreur connecté (bascule lui-même) et état d'envoi
@@ -1981,6 +1992,42 @@ function App() {
     }
   }, [])
 
+  // Lien d'inscription fournisseur (2cdelivery.ch/?fournisseur).
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    if (!parametres.has('fournisseur')) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+    setAccesInscriptionFournisseur(true)
+    setRoleChoisi('fournisseur')
+    setModeAuth('inscription')
+    setAfficherAuth(true)
+  }, [])
+
+  // Compte fournisseur : rattaché à la connexion à partir des données de
+  // l'inscription (la base crée la demande "en attente" la première fois).
+  useEffect(() => {
+    const nomMeta = session && session.user && session.user.user_metadata
+      ? session.user.user_metadata.fournisseur_nom
+      : null
+    if (!session || !nomMeta) {
+      setCompteFournisseur(null)
+      return undefined
+    }
+    let annule = false
+    supabase.rpc('initialiser_compte_fournisseur').then(({ data, error }) => {
+      if (annule) return
+      if (error) {
+        console.error('Erreur de rattachement du compte fournisseur :', error)
+        setCompteFournisseur(null)
+        return
+      }
+      setCompteFournisseur(data || null)
+    })
+    return () => {
+      annule = true
+    }
+  }, [session])
+
   // Lien « Accéder à mon compte » des emails et QR code des factures
   // (2cdelivery.ch/?compte=1) : ouvre le panneau du compte (connexion si
   // la personne n'est pas connectée). Le QR ne contient aucun secret.
@@ -2404,17 +2451,27 @@ function App() {
     }
   }, [role])
 
-  useEffect(() => {
-    async function chargerProduits() {
-      const { data, error } = await supabase.from('produits').select('*')
-      if (error) {
-        console.error('Erreur de chargement :', error)
-      } else {
-        setProduitsBruts(data)
-        setMetiers(grouperProduits(data))
-      }
-      setChargement(false)
+  // Catalogue public : seuls les produits "publiés" sont affichés (les
+  // produits d'un fournisseur en attente de validation restent cachés).
+  // Si la colonne n'existe pas encore (script SQL fournisseur pas exécuté),
+  // on retombe sur l'ancien chargement sans filtre.
+  async function chargerProduits() {
+    let { data, error } = await supabase.from('produits').select('*').eq('statut_validation', 'publie')
+    if (error) {
+      const secours = await supabase.from('produits').select('*')
+      data = secours.data
+      error = secours.error
     }
+    if (error) {
+      console.error('Erreur de chargement :', error)
+    } else {
+      setProduitsBruts(data)
+      setMetiers(grouperProduits(data))
+    }
+    setChargement(false)
+  }
+
+  useEffect(() => {
     chargerProduits()
   }, [])
 
@@ -2810,6 +2867,17 @@ function App() {
       setErreurInscription('Le mot de passe doit contenir au moins 8 caractères.')
       return
     }
+    const inscriptionFournisseur = roleChoisi === 'fournisseur'
+    if (inscriptionFournisseur) {
+      if (nomFournisseurInscription.trim() === '') {
+        setErreurInscription("Merci d'indiquer le nom de votre société.")
+        return
+      }
+      if (nomInscription.trim() === '') {
+        setErreurInscription("Merci d'indiquer votre nom et prénom.")
+        return
+      }
+    }
     const inscriptionEntreprise = roleChoisi === 'entreprise'
     const viaInvitation = inscriptionEntreprise && invitationEquipe && invitationEquipe.nom
     if (inscriptionEntreprise && invitationEquipe && !invitationEquipe.nom) {
@@ -2842,9 +2910,17 @@ function App() {
       options: {
         emailRedirectTo: window.location.origin,
         data: {
-          role: roleChoisi,
+          // Le rôle du profil reste "client" pour un fournisseur : son accès
+          // à l'espace fournisseur passe par la table fournisseur_comptes.
+          role: inscriptionFournisseur ? 'client' : roleChoisi,
           nom: nomInscription,
-          ...donneesEntreprise
+          ...donneesEntreprise,
+          ...(inscriptionFournisseur
+            ? {
+                fournisseur_nom: nomFournisseurInscription.trim(),
+                fournisseur_telephone: telephoneFournisseurInscription.trim()
+              }
+            : {})
         }
       }
     })
@@ -2868,6 +2944,8 @@ function App() {
       setMotDePasseInscription('')
       setNomInscription('')
       setNomEntrepriseInscription('')
+      setNomFournisseurInscription('')
+      setTelephoneFournisseurInscription('')
       setInvitationEquipe(null)
     }
   }
@@ -4387,12 +4465,15 @@ function App() {
           { cle: 'admin', icone: 'speedometer2', libelle: 'Tableau de bord', court: 'Tableau' },
           { cle: 'catalogueAdmin', icone: 'box-seam', libelle: 'Catalogue', court: 'Catalogue' },
           { cle: 'fournisseursAdmin', icone: 'geo-alt', libelle: 'Fournisseurs', court: 'Carte' },
+          { cle: 'comptesFournisseursAdmin', icone: 'shop', libelle: 'Comptes fournisseurs', court: 'Comptes' },
           { cle: 'entreprisesAdmin', icone: 'building', libelle: 'Entreprises', court: 'Entrepr.' },
           { cle: 'livreursListe', icone: 'people', libelle: 'Livreurs', court: 'Livreurs' }
         ]
-      : [
-          { cle: role === 'livreur' ? 'livreur' : 'livreurEnAttente', icone: 'bicycle', libelle: 'Mes courses', court: 'Mes courses' }
-        ]
+      : espace === 'fournisseurEspace'
+        ? []
+        : [
+            { cle: role === 'livreur' ? 'livreur' : 'livreurEnAttente', icone: 'bicycle', libelle: 'Mes courses', court: 'Mes courses' }
+          ]
 
   // Points de la carte : un fournisseur est "actif" (cliquable) dès qu'il a
   // des produits au catalogue sous le même nom, sinon il est "bientôt".
@@ -4431,7 +4512,7 @@ function App() {
 
   return (
     <div className="mise-en-page">
-    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'entreprisesAdmin', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
+    <div className={`app${role === 'admin' && ['admin', 'catalogueAdmin', 'fournisseursAdmin', 'entreprisesAdmin', 'comptesFournisseursAdmin', 'livreursListe'].includes(espace) ? ' app-large' : ''}${modeMarketplace ? ' app-marketplace' : ''}${espaceGestion ? ' app-gestion' : ''}`}>
       {notification && (
         <div className={`notification notification-${notification.type}`}>
           {notification.message}
@@ -4598,6 +4679,11 @@ function App() {
               <button onClick={() => { setEspace('apropos'); setAfficherMenu(false) }}>
                 <i className="bi bi-info-circle"></i> Qui sommes-nous
               </button>
+              {compteFournisseur && (
+                <button onClick={() => { setEspace('fournisseurEspace'); setAfficherMenu(false) }}>
+                  <i className="bi bi-shop"></i> Mon espace fournisseur
+                </button>
+              )}
               {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && entreprise.role_entreprise === 'responsable' && (
                 <button onClick={() => { setEspace('equipe'); setAfficherMenu(false) }}>
                   <i className="bi bi-people"></i> Mon équipe
@@ -4614,6 +4700,9 @@ function App() {
                   </button>
                   <button onClick={() => { setEspace('fournisseursAdmin'); setAfficherMenu(false) }}>
                     <i className="bi bi-geo-alt"></i> Gérer les fournisseurs
+                  </button>
+                  <button onClick={() => { setEspace('comptesFournisseursAdmin'); setAfficherMenu(false) }}>
+                    <i className="bi bi-shop"></i> Comptes fournisseurs
                   </button>
                 </>
               )}
@@ -4759,12 +4848,31 @@ function App() {
                     </div>
                   ) : (
                     <div className="choix-role">
+                      {accesInscriptionFournisseur && (
+                        <button className={roleChoisi === 'fournisseur' ? 'actif' : ''} onClick={() => setRoleChoisi('fournisseur')}>Fournisseur</button>
+                      )}
                       <button className={roleChoisi === 'client' ? 'actif' : ''} onClick={() => setRoleChoisi('client')}>Client</button>
                       <button className={roleChoisi === 'entreprise' ? 'actif' : ''} onClick={() => setRoleChoisi('entreprise')}>Entreprise</button>
                       {accesRecrutementLivreur && (
                         <button className={roleChoisi === 'livreur' ? 'actif' : ''} onClick={() => setRoleChoisi('livreur')}>Livreur</button>
                       )}
                     </div>
+                  )}
+                  {roleChoisi === 'fournisseur' && (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="Nom de votre société (fournisseur)"
+                        value={nomFournisseurInscription}
+                        onChange={(e) => setNomFournisseurInscription(e.target.value)}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone (facultatif)"
+                        value={telephoneFournisseurInscription}
+                        onChange={(e) => setTelephoneFournisseurInscription(e.target.value)}
+                      />
+                    </>
                   )}
                   {roleChoisi === 'entreprise' && !invitationEquipe && (
                     <input
@@ -4776,7 +4884,7 @@ function App() {
                   )}
                   <input
                     type="text"
-                    placeholder={roleChoisi === 'entreprise' ? 'Votre nom et prénom' : 'Nom'}
+                    placeholder={roleChoisi === 'entreprise' || roleChoisi === 'fournisseur' ? 'Votre nom et prénom' : 'Nom'}
                     value={nomInscription}
                     onChange={(e) => setNomInscription(e.target.value)}
                   />
@@ -4811,6 +4919,13 @@ function App() {
                     <p className="souligne-configurateur">
                       Vous commanderez au nom de l'entreprise, avec votre propre session. Le
                       code de livraison vous sera communiqué à chaque commande.
+                    </p>
+                  )}
+                  {roleChoisi === 'fournisseur' && (
+                    <p className="souligne-configurateur">
+                      Votre inscription sera examinée par 2C avant validation. Une fois votre compte validé,
+                      vous gérez vous-même vos produits, vos photos et votre stock depuis votre espace
+                      fournisseur (formulaire ou import de fichier).
                     </p>
                   )}
                   {roleChoisi === 'livreur' && (
@@ -4900,6 +5015,11 @@ function App() {
                     Mon équipe
                   </button>
                 )}
+                {compteFournisseur && espace !== 'fournisseurEspace' && (
+                  <button className="valider" onClick={() => { setEspace('fournisseurEspace'); setAfficherAuth(false) }}>
+                    Mon espace fournisseur
+                  </button>
+                )}
                 {role === 'livreur' && espace !== 'livreur' && (
                   <button className="valider" onClick={() => { setEspace('livreur'); setAfficherAuth(false) }}>
                     Aller à mon espace livreur
@@ -4915,7 +5035,7 @@ function App() {
                     Aller à mon espace admin
                   </button>
                 )}
-                {(espace === 'livreur' || espace === 'admin' || espace === 'livreurEnAttente') && (
+                {(espace === 'livreur' || espace === 'admin' || espace === 'livreurEnAttente' || espace === 'fournisseurEspace' || espace === 'comptesFournisseursAdmin') && (
                   <button className="valider" onClick={() => { setEspace('catalogue'); setAfficherAuth(false) }}>
                     Voir le catalogue
                   </button>
@@ -6961,6 +7081,22 @@ function App() {
             </div>
           )}
         </>
+      )}
+
+      {espace === 'comptesFournisseursAdmin' && role === 'admin' && (
+        <>
+          <p className="retour retour-gestion" onClick={() => setEspace('admin')}>← Retour au tableau de bord</p>
+          <AdminComptesFournisseurs notifier={afficherNotification} onCatalogueChange={chargerProduits} />
+        </>
+      )}
+
+      {espace === 'fournisseurEspace' && compteFournisseur && (
+        <EspaceFournisseur
+          compte={compteFournisseur}
+          onRetour={() => setEspace('catalogue')}
+          notifier={afficherNotification}
+          onCatalogueChange={chargerProduits}
+        />
       )}
 
       {espace === 'fournisseursAdmin' && role === 'admin' && (
