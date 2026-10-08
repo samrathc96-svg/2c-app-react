@@ -583,6 +583,8 @@ function construireFacturePDF(commande) {
     )
   }
 
+  ajouterQrCompte(doc, y)
+
   if (INFOS_ENTREPRISE.donneesTest) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
@@ -594,6 +596,32 @@ function construireFacturePDF(commande) {
   }
 
   return { doc, numeroFacture }
+}
+
+// QR code d'accès au compte (lien : https://2cdelivery.ch/?compte=1), dessiné
+// en vectoriel dans les PDF. "1" = module noir.
+const QR_COMPTE = ["1111111010001000001111111", "1000001000100110001000001", "1011101001000110101011101", "1011101001101110001011101", "1011101001100110101011101", "1000001000111110001000001", "1111111010101010101111111", "0000000010100110100000000", "1101101001100011101000001", "0101100001110011000111110", "0110001010111111011001001", "0000010011111011000001111", "1010101101010001001000001", "1001100100010011100110010", "1111111110100101011011111", "1000100100000010101101101", "1111111111101110111110110", "0000000011000100100010110", "1111111001010000101010001", "1000001000110101100010010", "1011101010111001111110010", "1011101010110100111000011", "1011101001010100110011111", "1000001010101010001110111", "1111111010111000101001001"]
+
+function ajouterQrCompte(doc, yContenu) {
+  if (yContenu > 228) doc.addPage()
+  const taille = 28
+  const module = taille / QR_COMPTE.length
+  const x0 = 195 - taille
+  const y0 = 245
+  doc.setFillColor(0, 0, 0)
+  QR_COMPTE.forEach((ligne, r) => {
+    for (let k = 0; k < ligne.length; k += 1) {
+      if (ligne[k] === '1') doc.rect(x0 + k * module, y0 + r * module, module + 0.02, module + 0.02, 'F')
+    }
+  })
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(30, 27, 23)
+  doc.text('Votre espace 2C', 15, y0 + 6)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(121, 112, 95)
+  doc.text('Retrouvez vos commandes et vos factures depuis votre compte :', 15, y0 + 12)
+  doc.text('2cdelivery.ch  (ou scannez le QR code)', 15, y0 + 17)
 }
 
 // Libellé de la période d'une facture mensuelle : "octobre 2026" si elle couvre
@@ -761,6 +789,8 @@ function construireFactureMensuellePDF(d) {
     y += 5
     doc.text(`IBAN : ${INFOS_ENTREPRISE.iban} — référence : ${d.numero}`, 15, y)
   }
+
+  ajouterQrCompte(doc, y)
 
   if (INFOS_ENTREPRISE.donneesTest) {
     doc.setFontSize(8)
@@ -1949,6 +1979,17 @@ function App() {
       setAfficherAuth(true)
       window.history.replaceState({}, document.title, window.location.pathname)
     }
+  }, [])
+
+  // Lien « Accéder à mon compte » des emails et QR code des factures
+  // (2cdelivery.ch/?compte=1) : ouvre le panneau du compte (connexion si
+  // la personne n'est pas connectée). Le QR ne contient aucun secret.
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    if (!parametres.has('compte')) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+    setModeAuth('connexion')
+    setAfficherAuth(true)
   }, [])
 
   // Lien d'invitation d'une équipe (ex: 2cdelivery.ch/?equipe=CODE) : ouvre

@@ -57,12 +57,81 @@ async function envoyerEmail(cleResend: string | undefined, destinataire: string,
   return { ok: reponse.ok, status: reponse.status, resultat }
 }
 
-const PIED = `
-  <p style="margin-top: 30px; color: #79705F; font-size: 13px;">
-    — L'équipe 2C<br>
-    Du rayon au chantier, en un clic.
-  </p>
-`
+// ---------------------------------------------------------------------------
+// Mise en page commune des emails 2C Delivery (même bloc dans chaque fonction).
+// Le logo et le QR code sont servis par le site (dossier public/) :
+//   /pwa-192x192.png et /qr-compte.png
+// ---------------------------------------------------------------------------
+const SITE = 'https://2cdelivery.ch'
+const LIEN_COMPTE = `${SITE}/?compte=1`
+
+// Ligne d'un tableau "libellé / valeur" (la valeur est du HTML déjà échappé).
+function ligneTableau(libelle: string, valeurHtml: string): string {
+  return `<tr>
+    <td style="padding:10px 14px;border-bottom:1px solid #EFEAE0;color:#79705F;font-size:13px;width:36%;vertical-align:top;">${libelle}</td>
+    <td style="padding:10px 14px;border-bottom:1px solid #EFEAE0;color:#1E1B17;font-size:14px;vertical-align:top;">${valeurHtml}</td>
+  </tr>`
+}
+
+function gabarit(o: {
+  titre: string
+  intro: string
+  lignes?: string[]
+  blocs?: string
+  note?: string
+}): string {
+  const tableau = o.lignes && o.lignes.length > 0
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #EFEAE0;border-radius:10px;border-collapse:separate;margin:18px 0;">${o.lignes.join('')}</table>`
+    : ''
+  const note = o.note
+    ? `<p style="margin:16px 0 0;color:#79705F;font-size:13px;line-height:1.5;">${o.note}</p>`
+    : ''
+  return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F6F3EC;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F3EC;">
+<tr><td align="center" style="padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;font-family:Arial,Helvetica,sans-serif;color:#1E1B17;">
+    <tr><td style="background:#E8E3D8;border-radius:14px 14px 0 0;padding:18px 24px;border-bottom:4px solid #FF6A13;">
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+        <td style="padding-right:14px;"><img src="${SITE}/pwa-192x192.png" width="52" height="52" alt="2C" style="display:block;border-radius:10px;"></td>
+        <td style="vertical-align:middle;">
+          <div style="font-size:20px;font-weight:700;color:#1E1B17;">2C Delivery</div>
+          <div style="font-size:12px;color:#79705F;">Du rayon au chantier, en un clic.</div>
+        </td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="background:#FFFFFF;padding:26px 24px 8px;">
+      <h1 style="margin:0 0 10px;font-size:22px;line-height:1.3;color:#FF6A13;">${o.titre}</h1>
+      <div style="font-size:15px;line-height:1.55;">${o.intro}</div>
+      ${tableau}
+      ${o.blocs ?? ''}
+      ${note}
+    </td></tr>
+    <tr><td style="background:#FFFFFF;padding:8px 24px 26px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F3EC;border-radius:12px;">
+        <tr>
+          <td style="padding:16px 18px;vertical-align:middle;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Votre espace 2C</div>
+            <div style="font-size:13px;color:#79705F;line-height:1.5;margin-bottom:12px;">Suivez vos commandes et retrouvez vos factures depuis votre compte.</div>
+            <a href="${LIEN_COMPTE}" style="display:inline-block;background:#FF6A13;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:999px;">Accéder à mon compte</a>
+          </td>
+          <td width="120" align="center" style="padding:12px 16px 12px 0;vertical-align:middle;">
+            <img src="${SITE}/qr-compte.png" width="100" height="100" alt="QR code d'accès au compte" style="display:block;border-radius:6px;background:#FFFFFF;">
+            <div style="font-size:10px;color:#79705F;margin-top:4px;">Sur ordinateur ?<br>Scannez avec votre téléphone</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+    <tr><td style="background:#E8E3D8;border-radius:0 0 14px 14px;padding:14px 24px;text-align:center;font-size:12px;color:#79705F;line-height:1.6;">
+      2C Delivery · Genève · <a href="mailto:contact@2cdelivery.ch" style="color:#79705F;">contact@2cdelivery.ch</a><br>
+      Besoin d'aide ? Répondez simplement à cet email.
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body></html>`
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -107,14 +176,16 @@ Deno.serve(async (req) => {
       mensuel: 'facturée dans la facture mensuelle'
     }
     const libellePaiement = frais !== null ? libellesPaiement[String(modePaiement ?? '')] ?? '' : ''
-    const ligneMontant = frais !== null
-      ? `<p><strong>Valeur des produits :</strong> ${Number(total).toFixed(2)} CHF <span style="color:#79705F;">(facturée séparément par le fournisseur)</span></p>
-         <p><strong>Livraison 2C :</strong> ${frais.toFixed(2)} CHF${libellePaiement ? ` <span style="color:#79705F;">(${echapper(libellePaiement)})</span>` : ''}</p>`
-      : `<p><strong>Total :</strong> ${Number(total).toFixed(2)} CHF</p>`
+    const lignesMontant = frais !== null
+      ? [
+          ligneTableau('Valeur des produits', `${Number(total).toFixed(2)} CHF <span style="color:#79705F;font-size:12px;">(facturée séparément par le fournisseur)</span>`),
+          ligneTableau('Livraison 2C', `<strong>${frais.toFixed(2)} CHF</strong>${libellePaiement ? ` <span style="color:#79705F;font-size:12px;">(${echapper(libellePaiement)})</span>` : ''}`)
+        ]
+      : [ligneTableau('Total', `<strong>${Number(total).toFixed(2)} CHF</strong>`)]
 
     const blocCode = code
       ? `
-        <div style="margin: 22px 0; padding: 16px; border: 2px dashed #FF6A13; border-radius: 12px; text-align: center;">
+        <div style="margin: 18px 0; padding: 16px; border: 2px dashed #FF6A13; border-radius: 12px; text-align: center; background: #FFF7F0;">
           <div style="font-size: 13px; color: #79705F;">Code de livraison</div>
           <div style="font-size: 36px; font-weight: 700; letter-spacing: 10px; margin: 6px 0;">${echapper(code)}</div>
           <div style="font-size: 12px; color: #79705F;">
@@ -125,26 +196,26 @@ Deno.serve(async (req) => {
       `
       : ''
 
-    const detailsEntreprise =
-      (nomEntreprise ? `<p><strong>Entreprise :</strong> ${echapper(nomEntreprise)}</p>` : '') +
-      (chantier ? `<p><strong>Chantier :</strong> ${echapper(chantier)}</p>` : '') +
-      (technicien ? `<p><strong>Commandé par :</strong> ${echapper(technicien)}</p>` : '')
+    const lignesEntreprise = [
+      nomEntreprise ? ligneTableau('Entreprise', echapper(nomEntreprise)) : '',
+      chantier ? ligneTableau('Chantier', echapper(chantier)) : '',
+      technicien ? ligneTableau('Commandé par', echapper(technicien)) : ''
+    ].filter(Boolean)
 
     // 1) Email au client (la personne qui commande)
-    const htmlClient = `
-      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1E1B17;">
-        <h2 style="color: #FF6A13;">Merci pour votre commande, ${echapper(nomClient)} !</h2>
-        <p>Votre commande a bien été enregistrée chez 2C.</p>
-        ${detailsEntreprise}
-        <p><strong>Produits :</strong> ${echapper(produits)}</p>
-        <p><strong>Adresse de livraison :</strong> ${echapper(adresse)}</p>
-        ${ligneMontant}
-        <p><strong>Numéro de suivi :</strong> ${echapper(numeroSuivi)}</p>
-        ${blocCode}
-        <p>Vous pouvez suivre l'avancement de votre livraison à tout moment depuis le site, via le menu ☰ → "Suivre ma commande".</p>
-        ${PIED}
-      </div>
-    `
+    const htmlClient = gabarit({
+      titre: `Merci pour votre commande, ${echapper(nomClient)} !`,
+      intro: '<p style="margin:0;">Votre commande a bien été enregistrée chez 2C. Voici le récapitulatif :</p>',
+      lignes: [
+        ligneTableau('N° de suivi', `<strong>${echapper(numeroSuivi)}</strong>`),
+        ...lignesEntreprise,
+        ligneTableau('Produits', echapper(produits)),
+        ligneTableau('Adresse de livraison', echapper(adresse)),
+        ...lignesMontant
+      ],
+      blocs: blocCode,
+      note: `Vous pouvez suivre l'avancement de votre livraison à tout moment depuis le site, via le menu ☰ → « Suivre ma commande ».`
+    })
 
     const envoiClient = await envoyerEmail(
       resendApiKey,
@@ -159,22 +230,18 @@ Deno.serve(async (req) => {
     // 2) Bon de commande au responsable de l'entreprise (sans le code)
     let copieEnvoyee = false
     if (copieVers && copieVers.toLowerCase() !== String(email).trim().toLowerCase()) {
-      const htmlBon = `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1E1B17;">
-          <h2 style="color: #FF6A13;">Bon de commande</h2>
-          <p>Une commande vient d'être passée au nom de votre entreprise.</p>
-          <p><strong>Numéro de suivi :</strong> ${echapper(numeroSuivi)}</p>
-          ${detailsEntreprise}
-          <p><strong>Produits :</strong> ${echapper(produits)}</p>
-          <p><strong>Adresse de livraison :</strong> ${echapper(adresse)}</p>
-          ${ligneMontant}
-          <p style="color: #79705F; font-size: 13px;">
-            Le code de livraison a été remis uniquement à la personne qui a passé la commande.
-            Vous recevrez la facture par email une fois la livraison effectuée.
-          </p>
-          ${PIED}
-        </div>
-      `
+      const htmlBon = gabarit({
+        titre: 'Bon de commande',
+        intro: "<p style=\"margin:0;\">Une commande vient d'être passée au nom de votre entreprise.</p>",
+        lignes: [
+          ligneTableau('N° de suivi', `<strong>${echapper(numeroSuivi)}</strong>`),
+          ...lignesEntreprise,
+          ligneTableau('Produits', echapper(produits)),
+          ligneTableau('Adresse de livraison', echapper(adresse)),
+          ...lignesMontant
+        ],
+        note: "Le code de livraison a été remis uniquement à la personne qui a passé la commande. Vous recevrez la facture par email une fois la livraison effectuée."
+      })
       const sujetBon = `Bon de commande – ${echapper(numeroSuivi)}${chantier ? ` – ${echapper(chantier)}` : ''}`
       const envoiBon = await envoyerEmail(resendApiKey, copieVers, sujetBon, htmlBon)
       copieEnvoyee = envoiBon.ok
