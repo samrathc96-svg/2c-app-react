@@ -17,6 +17,7 @@ const INFOS_ENTREPRISE = {
   contact: 'contact@2cdelivery.ch • Téléphone à compléter',
   tvaNumero: null, // ex: 'CHE-123.456.789 TVA'
   tvaTaux: null,   // ex: 8.1 (en %), une fois le statut TVA connu
+  iban: null,      // ex: 'CH00 0000 0000 0000 0000 0' : affiché sur les factures mensuelles
   donneesTest: true
 }
 
@@ -553,6 +554,149 @@ function construireFacturePDF(commande) {
   return { doc, numeroFacture }
 }
 
+// Facture mensuelle des frais de livraison d'une entreprise (mode "mensuel").
+// `d` = données renvoyées par la base (admin_creer_facture_mensuelle).
+function construireFactureMensuellePDF(d) {
+  const doc = new jsPDF()
+  const accent = [255, 106, 19]
+  const encre = [30, 27, 23]
+  const muted = [121, 112, 95]
+  const dateCH = (v) => new Date(v).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const montant = Number(d.montant_total || 0)
+
+  let y = 20
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  doc.setTextColor(...encre)
+  doc.text(INFOS_ENTREPRISE.nom, 15, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...muted)
+  doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
+  doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
+  if (INFOS_ENTREPRISE.tvaNumero) doc.text(`N° TVA : ${INFOS_ENTREPRISE.tvaNumero}`, 15, y + 16)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(...accent)
+  doc.text('FACTURE MENSUELLE', 195, y, { align: 'right' })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...encre)
+  doc.text(`N° ${d.numero}`, 195, y + 7, { align: 'right' })
+  doc.text(`Date : ${dateCH(d.emise_le)}`, 195, y + 13, { align: 'right' })
+  doc.text(`Période : ${dateCH(d.periode_debut)} au ${dateCH(d.periode_fin)}`, 195, y + 19, { align: 'right' })
+
+  y += 30
+  doc.setDrawColor(...accent)
+  doc.setLineWidth(0.6)
+  doc.line(15, y, 195, y)
+  y += 10
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.text('Facturé à', 15, y)
+  y += 6
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.text(d.entreprise_nom || '—', 15, y)
+  y += 5
+  if (d.responsable_nom) { doc.text(d.responsable_nom, 15, y); y += 5 }
+  if (d.responsable_email) { doc.text(d.responsable_email, 15, y); y += 5 }
+  y += 8
+
+  const entete = () => {
+    doc.setFillColor(...accent)
+    doc.rect(15, y - 5, 180, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Date', 17, y)
+    doc.text('Suivi', 40, y)
+    doc.text('Chantier / commandé par', 72, y)
+    doc.text('Livraison', 193, y, { align: 'right' })
+    y += 8
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...encre)
+  }
+  entete()
+
+  ;(d.lignes || []).forEach((ligne, index) => {
+    const detail = [ligne.chantier, ligne.technicien].filter(Boolean).join(' — ') || '—'
+    const detailLignes = doc.splitTextToSize(detail, 95)
+    const hauteur = Math.max(7, detailLignes.length * 5)
+    if (y + hauteur > 262) {
+      doc.addPage()
+      y = 20
+      entete()
+    }
+    if (index % 2 === 1) {
+      doc.setFillColor(245, 242, 235)
+      doc.rect(15, y - 5, 180, hauteur, 'F')
+    }
+    doc.setFontSize(9)
+    doc.text(dateCH(ligne.date), 17, y)
+    doc.text(String(ligne.numero_suivi || '—'), 40, y)
+    doc.text(detailLignes, 72, y)
+    doc.text(`${Number(ligne.frais || 0).toFixed(2)} CHF`, 193, y, { align: 'right' })
+    y += hauteur
+  })
+
+  if (y > 235) {
+    doc.addPage()
+    y = 20
+  }
+  y += 5
+  doc.setDrawColor(...muted)
+  doc.setLineWidth(0.2)
+  doc.line(15, y, 195, y)
+  y += 8
+  doc.setFontSize(10)
+  if (INFOS_ENTREPRISE.tvaTaux) {
+    const sousTotal = montant / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
+    doc.text('Sous-total HT', 140, y)
+    doc.text(`${sousTotal.toFixed(2)} CHF`, 195, y, { align: 'right' })
+    y += 6
+    doc.text(`TVA (${INFOS_ENTREPRISE.tvaTaux}%)`, 140, y)
+    doc.text(`${(montant - sousTotal).toFixed(2)} CHF`, 195, y, { align: 'right' })
+    y += 6
+  } else {
+    doc.setFontSize(8)
+    doc.setTextColor(...muted)
+    doc.text('TVA non applicable', 140, y)
+    doc.setFontSize(10)
+    doc.setTextColor(...encre)
+    y += 6
+  }
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Total à payer', 140, y)
+  doc.text(`${montant.toFixed(2)} CHF`, 195, y, { align: 'right' })
+
+  y += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...muted)
+  doc.text(`Frais de livraison 2C Delivery uniquement : les produits sont facturés séparément par le fournisseur.`, 15, y)
+  y += 5
+  doc.text(`À régler avant le ${dateCH(d.echeance)} (${d.delai_jours} jours), par virement.`, 15, y)
+  if (INFOS_ENTREPRISE.iban) {
+    y += 5
+    doc.text(`IBAN : ${INFOS_ENTREPRISE.iban} — référence : ${d.numero}`, 15, y)
+  }
+
+  if (INFOS_ENTREPRISE.donneesTest) {
+    doc.setFontSize(8)
+    doc.text(
+      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
+      15, 285
+    )
+  }
+  return doc
+}
+
 function retirerAccents(texte) {
   return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -941,7 +1085,7 @@ function PageEquipe({ entreprise, onRetour, afficherNotification }) {
 
 // Fiche d'une entreprise dans l'admin : statut, mode de paiement convenu,
 // plafond et fournisseurs avec lesquels un accord existe.
-function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistrer, solde, encours, onCrediter }) {
+function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistrer, solde, encours, onCrediter, onApercuFacture, onCreerFacture, onListerFactures, onRenvoyerFacture }) {
   const [statut, setStatut] = useState(entreprise.statut)
   const [mode, setMode] = useState(entreprise.mode_paiement)
   const [plafond, setPlafond] = useState(
@@ -951,6 +1095,52 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   const [enCours, setEnCours] = useState(false)
   const [montantCredit, setMontantCredit] = useState('')
   const [noteCredit, setNoteCredit] = useState('')
+  const [mois, setMois] = useState(() => {
+    const maintenant = new Date()
+    const precedent = new Date(maintenant.getFullYear(), maintenant.getMonth() - 1, 1)
+    return `${precedent.getFullYear()}-${String(precedent.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [apercuFacture, setApercuFacture] = useState(null)
+  const [facturesEmises, setFacturesEmises] = useState([])
+  const [versionFactures, setVersionFactures] = useState(0)
+
+  const mensuelEnregistre = entreprise.mode_paiement === 'mensuel'
+  useEffect(() => {
+    if (!mensuelEnregistre) return
+    let annule = false
+    onListerFactures(entreprise.id).then((liste) => {
+      if (!annule) setFacturesEmises(liste || [])
+    })
+    return () => {
+      annule = true
+    }
+  }, [mensuelEnregistre, entreprise.id, versionFactures])
+
+  // Bornes du mois choisi : du 1er inclus au 1er du mois suivant exclu.
+  function bornesMois() {
+    const [annee, m] = mois.split('-').map(Number)
+    const suivant = new Date(Date.UTC(annee, m, 1))
+    const fin = `${suivant.getUTCFullYear()}-${String(suivant.getUTCMonth() + 1).padStart(2, '0')}-01`
+    return { debut: `${mois}-01`, fin }
+  }
+
+  async function calculerFacture() {
+    setEnCours(true)
+    const { debut, fin } = bornesMois()
+    setApercuFacture(await onApercuFacture(entreprise.id, debut, fin))
+    setEnCours(false)
+  }
+
+  async function creerFacture() {
+    setEnCours(true)
+    const { debut, fin } = bornesMois()
+    const ok = await onCreerFacture(entreprise.id, debut, fin)
+    setEnCours(false)
+    if (ok) {
+      setApercuFacture(null)
+      setVersionFactures((v) => v + 1)
+    }
+  }
 
   async function crediter() {
     const montant = Number(montantCredit.replace(',', '.'))
@@ -1065,6 +1255,49 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
         </label>
       )}
 
+      {mode === 'mensuel' && mensuelEnregistre && (
+        <div className="champ-admin-entreprise bloc-facturation-mensuelle">
+          <span>Facture mensuelle (livraisons effectuées, pas encore facturées)</span>
+          <input
+            type="month"
+            value={mois}
+            onChange={(e) => {
+              setMois(e.target.value)
+              setApercuFacture(null)
+            }}
+          />
+          <button className="bouton-secondaire" disabled={enCours || !mois} onClick={calculerFacture}>
+            Calculer
+          </button>
+          {apercuFacture && (
+            <p className="souligne">
+              {apercuFacture.nb === 0
+                ? 'Aucune livraison à facturer sur ce mois.'
+                : `${apercuFacture.nb} livraison(s) à facturer : ${Number(apercuFacture.total).toFixed(2)} CHF.`}
+            </p>
+          )}
+          {apercuFacture && apercuFacture.nb > 0 && (
+            <button className="valider" disabled={enCours} onClick={creerFacture}>
+              Créer et envoyer la facture au responsable
+            </button>
+          )}
+          {facturesEmises.length > 0 && (
+            <ul className="liste-factures-emises">
+              {facturesEmises.map((f) => (
+                <li key={f.facture_id}>
+                  <span>
+                    {f.numero} — {new Date(f.periode_debut).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })} — {Number(f.montant).toFixed(2)} CHF
+                  </span>
+                  <button className="bouton-secondaire" disabled={enCours} onClick={() => onRenvoyerFacture(f.facture_id)}>
+                    Renvoyer
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="champ-admin-entreprise">
         <span>Fournisseurs avec accord (commande sur compte)</span>
         {tousLesFournisseurs.length === 0 ? (
@@ -1129,7 +1362,7 @@ function App() {
   const [entreprise, setEntreprise] = useState(null)
   const [entreprisesAdmin, setEntreprisesAdmin] = useState([])
   const [soldesAdmin, setSoldesAdmin] = useState({})
-  const [tarifAdmin, setTarifAdmin] = useState({ forfait: '', km_inclus: '', prix_km: '' })
+  const [tarifAdmin, setTarifAdmin] = useState({ forfait: '', km_inclus: '', prix_km: '', delai_paiement_jours: '' })
   const [roleChoisi, setRoleChoisi] = useState('client')
   const [erreurInscription, setErreurInscription] = useState('')
   const [messageInscription, setMessageInscription] = useState('')
@@ -1254,6 +1487,9 @@ function App() {
   const [statutsEquipe, setStatutsEquipe] = useState({})
   // Mode de paiement / tarif de livraison de l'entreprise du compte connecté
   const [infosPaiement, setInfosPaiement] = useState(null)
+  const [versionInfosPaiement, setVersionInfosPaiement] = useState(0)
+  const [montantRecharge, setMontantRecharge] = useState('')
+  const [rechargeEnCours, setRechargeEnCours] = useState(false)
   const [chargementFactures, setChargementFactures] = useState(true)
   const [telechargementFactureId, setTelechargementFactureId] = useState(null)
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null)
@@ -1650,6 +1886,23 @@ function App() {
     })
   }, [])
 
+  // Retour depuis la recharge du solde prépayé (?recharge=ok ou ?recharge=annule).
+  useEffect(() => {
+    const parametres = new URLSearchParams(window.location.search)
+    const retour = parametres.get('recharge')
+    if (!retour) return
+    window.history.replaceState({}, document.title, window.location.pathname)
+    if (retour === 'ok') {
+      afficherNotification('Paiement reçu : le solde de votre entreprise est mis à jour.', 'info')
+      // Le crédit est fait par le serveur en quelques secondes : on relit le solde.
+      ;[0, 3000, 7000].forEach((delai) => {
+        setTimeout(() => setVersionInfosPaiement((v) => v + 1), delai)
+      })
+    } else {
+      afficherNotification("Recharge annulée : rien n'a été débité.", 'info')
+    }
+  }, [])
+
   // Retour depuis la page de paiement Stripe (?paiement=ok ou ?paiement=annule).
   useEffect(() => {
     const parametres = new URLSearchParams(window.location.search)
@@ -1775,7 +2028,8 @@ function App() {
     setTarifAdmin({
       forfait: String(data.forfait),
       km_inclus: String(data.km_inclus),
-      prix_km: String(data.prix_km)
+      prix_km: String(data.prix_km),
+      delai_paiement_jours: data.delai_paiement_jours === undefined ? '10' : String(data.delai_paiement_jours)
     })
   }
 
@@ -1785,6 +2039,99 @@ function App() {
       chargerTarifAdmin()
     }
   }, [role])
+
+  async function apercuFactureMensuelle(id, debut, fin) {
+    const { data, error } = await supabase.rpc('admin_apercu_facture_mensuelle', {
+      p_entreprise: id,
+      p_debut: debut,
+      p_fin: fin
+    })
+    if (error) {
+      console.error("Erreur d'aperçu de la facture mensuelle :", error)
+      afficherNotification("Impossible de calculer l'aperçu de la facture.")
+      return null
+    }
+    return data
+  }
+
+  // Fabrique le PDF, le dépose dans le dossier du responsable et l'envoie par email.
+  async function publierFactureMensuelle(donnees) {
+    const doc = construireFactureMensuellePDF(donnees)
+    const { error: erreurUpload } = await supabase.storage
+      .from('factures')
+      .upload(donnees.chemin_pdf, doc.output('blob'), { contentType: 'application/pdf', upsert: true })
+    if (erreurUpload) {
+      console.error("Erreur d'enregistrement du PDF de la facture mensuelle :", erreurUpload)
+      return { pdf: false, email: false }
+    }
+    if (!donnees.responsable_email) return { pdf: true, email: false }
+    const pdfBase64 = doc.output('datauristring').split(',')[1]
+    const { error: erreurEmail } = await supabase.functions.invoke('envoyer-facture-email', {
+      body: {
+        email: donnees.responsable_email,
+        nomClient: donnees.entreprise_nom,
+        numeroFacture: donnees.numero,
+        pdfBase64
+      }
+    })
+    if (erreurEmail) console.error("Erreur d'envoi de la facture mensuelle :", erreurEmail)
+    return { pdf: true, email: !erreurEmail }
+  }
+
+  async function creerFactureMensuelle(id, debut, fin) {
+    const { data, error } = await supabase.rpc('admin_creer_facture_mensuelle', {
+      p_entreprise: id,
+      p_debut: debut,
+      p_fin: fin
+    })
+    if (error || !data) {
+      console.error('Erreur de création de la facture mensuelle :', error)
+      const message = (error && error.message) || ''
+      afficherNotification(
+        message.includes('Aucune livraison')
+          ? 'Aucune livraison à facturer sur cette période.'
+          : message.includes('Aucun responsable')
+            ? "Cette entreprise n'a pas de responsable actif."
+            : "La facture n'a pas pu être créée."
+      )
+      return false
+    }
+    const resultat = await publierFactureMensuelle(data)
+    if (!resultat.pdf) {
+      afficherNotification(`Facture ${data.numero} créée, mais son PDF n'a pas pu être enregistré : utilisez « Renvoyer » dans la liste.`)
+    } else if (!resultat.email) {
+      afficherNotification(`Facture ${data.numero} créée, mais l'email n'est pas parti : utilisez « Renvoyer » dans la liste.`)
+    } else {
+      afficherNotification(`Facture ${data.numero} créée et envoyée à ${data.responsable_email}.`, 'info')
+    }
+    chargerEntreprisesAdmin()
+    return true
+  }
+
+  async function listerFacturesMensuelles(id) {
+    const { data, error } = await supabase.rpc('admin_factures_mensuelles', { p_entreprise: id })
+    if (error) {
+      console.error('Erreur de chargement des factures mensuelles :', error)
+      return []
+    }
+    return data || []
+  }
+
+  async function renvoyerFactureMensuelle(factureId) {
+    const { data, error } = await supabase.rpc('admin_donnees_facture_mensuelle', { p_facture_id: factureId })
+    if (error || !data) {
+      console.error('Erreur de relecture de la facture mensuelle :', error)
+      afficherNotification("Impossible de relire cette facture.")
+      return
+    }
+    const resultat = await publierFactureMensuelle(data)
+    afficherNotification(
+      resultat.pdf && resultat.email
+        ? `Facture ${data.numero} renvoyée à ${data.responsable_email}.`
+        : "L'envoi a échoué, réessayez dans un instant.",
+      resultat.pdf && resultat.email ? 'info' : undefined
+    )
+  }
 
   async function enregistrerTarifAdmin() {
     const nombre = (v) => Number(String(v).replace(',', '.'))
@@ -1804,6 +2151,15 @@ function App() {
       console.error("Erreur d'enregistrement du tarif :", error)
       afficherNotification("L'enregistrement du tarif a échoué.")
       return
+    }
+    const delai = Number(String(tarifAdmin.delai_paiement_jours).replace(',', '.'))
+    if (Number.isInteger(delai) && delai >= 0) {
+      const { error: erreurDelai } = await supabase.rpc('admin_modifier_delai_paiement', { p_jours: delai })
+      if (erreurDelai) {
+        console.error("Erreur d'enregistrement du délai de paiement :", erreurDelai)
+        afficherNotification("Le tarif est enregistré, mais pas le délai de paiement (SQL de la facture mensuelle lancé ?).")
+        return
+      }
     }
     afficherNotification('Tarif de livraison enregistré.', 'info')
   }
@@ -2128,7 +2484,7 @@ function App() {
     return () => {
       annule = true
     }
-  }, [session, role, entreprise])
+  }, [session, role, entreprise, versionInfosPaiement])
 
   useEffect(() => {
     async function chargerMesAvis() {
@@ -2779,6 +3135,32 @@ function App() {
       return "Le compte de votre entreprise est suspendu. Contactez 2C Delivery."
     }
     return null
+  }
+
+  // Recharge du solde prépayé par carte (responsable uniquement, vérifié côté serveur).
+  async function lancerRecharge() {
+    const montant = Number(String(montantRecharge).replace(',', '.'))
+    if (!Number.isFinite(montant) || montant < 20 || montant > 5000) {
+      afficherNotification('Choisissez un montant entre 20 et 5000 CHF.')
+      return
+    }
+    setRechargeEnCours(true)
+    const { data, error } = await supabase.functions.invoke('creer-paiement', {
+      body: { action: 'recharge', montant }
+    })
+    if (error || !data || !data.url) {
+      setRechargeEnCours(false)
+      let message = "La recharge n'a pas pu être lancée, réessayez."
+      try {
+        const corps = await error.context.json()
+        if (corps && corps.error) message = corps.error
+      } catch (e) {
+        // on garde le message par défaut
+      }
+      afficherNotification(message)
+      return
+    }
+    window.location.href = data.url
   }
 
   // Compte entreprise : seule la livraison est payée sur le site.
@@ -4326,6 +4708,28 @@ function App() {
                     {infosPaiement.mode_paiement === 'mensuel' && infosPaiement.encours_mensuel !== null && infosPaiement.encours_mensuel !== undefined &&
                       ` — en cours : ${Number(infosPaiement.encours_mensuel).toFixed(2)} / ${Number(infosPaiement.plafond_mensuel || 0).toFixed(2)} CHF`}
                   </p>
+                )}
+                {compteEntrepriseActif() && infosPaiement && infosPaiement.mode_paiement === 'prepaye' &&
+                  entreprise.role_entreprise === 'responsable' && (
+                  <div className="bloc-recharge">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Montant à recharger (20 à 5000 CHF)"
+                      value={montantRecharge}
+                      onChange={(e) => setMontantRecharge(e.target.value)}
+                    />
+                    <div className="boutons-montants">
+                      {[50, 100, 200].map((m) => (
+                        <button key={m} className="bouton-secondaire" onClick={() => setMontantRecharge(String(m))}>
+                          {m} CHF
+                        </button>
+                      ))}
+                    </div>
+                    <button className="valider" disabled={rechargeEnCours || montantRecharge.trim() === ''} onClick={lancerRecharge}>
+                      {rechargeEnCours ? 'Redirection...' : 'Recharger par carte'}
+                    </button>
+                  </div>
                 )}
                 {messageAccesEntreprise() && (
                   <p className="erreur-code-livraison">{messageAccesEntreprise()}</p>
@@ -6359,6 +6763,15 @@ function App() {
                 onChange={(e) => setTarifAdmin({ ...tarifAdmin, prix_km: e.target.value })}
               />
             </label>
+            <label className="champ-admin-entreprise">
+              <span>Délai de paiement des factures mensuelles (jours)</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={tarifAdmin.delai_paiement_jours}
+                onChange={(e) => setTarifAdmin({ ...tarifAdmin, delai_paiement_jours: e.target.value })}
+              />
+            </label>
             <p className="souligne">
               Prix = forfait + (km au-delà des km inclus) × prix par km, arrondi à 5 centimes. Tant que le
               prix par km est à 0, le prix reste fixe. La distance est estimée du ou des fournisseurs
@@ -6384,6 +6797,10 @@ function App() {
                   solde={soldesAdmin[e.id] ? soldesAdmin[e.id].solde_prepaye : 0}
                   encours={soldesAdmin[e.id] ? soldesAdmin[e.id].encours_mensuel : 0}
                   onCrediter={crediterPrepayeAdmin}
+                  onApercuFacture={apercuFactureMensuelle}
+                  onCreerFacture={creerFactureMensuelle}
+                  onListerFactures={listerFacturesMensuelles}
+                  onRenvoyerFacture={renvoyerFactureMensuelle}
                 />
               ))}
             </div>

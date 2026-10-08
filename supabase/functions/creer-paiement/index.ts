@@ -9,6 +9,8 @@
 //   mensuel -> aucun paiement maintenant (plafond contrôlé), facture mensuelle.
 // Les autres clients (particuliers, invités) paient leurs produits en ligne
 // comme avant.
+// Action "recharge" : le responsable d'une entreprise en mode prépayé recharge
+// son solde par carte (le crédit est fait par le webhook Stripe).
 // Secrets requis : STRIPE_SECRET_KEY (SUPABASE_URL et
 // SUPABASE_SERVICE_ROLE_KEY sont fournis automatiquement par Supabase).
 
@@ -176,6 +178,61 @@ async function infosEmailCommande(commandeId: unknown) {
   return infos
 }
 
+// Recharge du solde prépayé par le responsable de l'entreprise.
+async function recharger(req: Request, corps: { montant?: unknown }) {
+  const userId = await utilisateurConnecte(req)
+  if (!userId) return reponse({ error: 'Connectez-vous pour recharger votre solde.' }, 401)
+
+  const [membre] = await lire(
+    `entreprise_membres?user_id=eq.${encodeURIComponent(userId)}&select=entreprise_id,actif,role_entreprise,entreprises(nom,statut,mode_paiement)`
+  )
+  const ent = membre ? (Array.isArray(membre.entreprises) ? membre.entreprises[0] : membre.entreprises) : null
+  if (!membre || !membre.actif || membre.role_entreprise !== 'responsable' || !ent) {
+    return reponse({ error: "Seul le responsable de l'entreprise peut recharger le solde." }, 403)
+  }
+  if (ent.statut === 'suspendue') {
+    return reponse({ error: 'Le compte de votre entreprise est suspendu. Contactez 2C Delivery.' }, 403)
+  }
+  if (ent.mode_paiement !== 'prepaye') {
+    return reponse({ error: "Votre entreprise n'est pas en mode compte prépayé." }, 400)
+  }
+
+  const montant = Math.round(Number(corps.montant) * 100) / 100
+  if (!Number.isFinite(montant) || montant < 20 || montant > 5000) {
+    return reponse({ error: 'Le montant de la recharge doit être compris entre 20 et 5000 CHF.' }, 400)
+  }
+
+  const [profil] = await lire(`profils?id=eq.${encodeURIComponent(userId)}&select=email`)
+
+  const form = new URLSearchParams()
+  form.set('mode', 'payment')
+  form.set('locale', 'fr')
+  if (profil?.email) form.set('customer_email', String(profil.email))
+  form.set('metadata[type]', 'recharge')
+  form.set('metadata[entreprise_id]', String(membre.entreprise_id))
+  form.set('success_url', `${SITE_URL}/?recharge=ok`)
+  form.set('cancel_url', `${SITE_URL}/?recharge=annule`)
+  form.set('line_items[0][quantity]', '1')
+  form.set('line_items[0][price_data][currency]', 'chf')
+  form.set('line_items[0][price_data][unit_amount]', String(Math.round(montant * 100)))
+  form.set('line_items[0][price_data][product_data][name]', `Recharge du solde prépayé – ${ent.nom}`)
+
+  const rs = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${STRIPE_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: form
+  })
+  const session = await rs.json()
+  if (!rs.ok || !session.url) {
+    console.error('Erreur Stripe (recharge) :', session)
+    return reponse({ error: 'La recharge n’a pas pu être lancée, réessayez.' }, 502)
+  }
+  return reponse({ url: session.url })
+}
+
 // Traduit les messages d'erreur de la base en messages clairs.
 function messageErreurEntreprise(texte: string): { message: string; status: number } {
   if (texte.includes('Solde prépayé insuffisant')) {
@@ -205,7 +262,9 @@ Deno.serve(async (req) => {
   try {
     if (!STRIPE_KEY) return reponse({ error: 'Paiement non configuré.' }, 500)
 
-    const { panier, nomClient, adresse, telephone, email, chantier, technicien } = await req.json()
+    const corpsRequete = await req.json()
+    if (corpsRequete.action === 'recharge') return await recharger(req, corpsRequete)
+    const { panier, nomClient, adresse, telephone, email, chantier, technicien } = corpsRequete
 
     const texte = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
     const nom = texte(nomClient, 120)

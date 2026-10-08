@@ -171,6 +171,24 @@ Deno.serve(async (req) => {
   if (!types.includes(evenement.type)) return new Response('ignoré', { status: 200 })
 
   const session = evenement.data.object
+  // Recharge du solde prépayé d'une entreprise : on crédite, c'est tout.
+  if (session.metadata?.type === 'recharge') {
+    if (session.payment_status !== 'paid') return new Response('pas encore payé', { status: 200 })
+    const rr = await rest('rpc/crediter_prepaye_stripe', {
+      method: 'POST',
+      body: JSON.stringify({
+        p_session_id: session.id,
+        p_entreprise: session.metadata.entreprise_id,
+        p_montant: Number(session.amount_total) / 100
+      })
+    })
+    if (!rr.ok) {
+      console.error('crediter_prepaye_stripe a échoué :', await rr.text())
+      return new Response('erreur', { status: 500 })
+    }
+    return new Response('ok', { status: 200 })
+  }
+
   const carteReservee = session.metadata?.mode_paiement === 'carte_entreprise'
   if (session.payment_status !== 'paid') {
     const autorisee = carteReservee && session.payment_intent && (await autorisationValide(session.payment_intent))
