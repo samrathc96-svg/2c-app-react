@@ -899,6 +899,16 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
   const [selection, setSelection] = useState([])
   const [chargement, setChargement] = useState(true)
   const [enCours, setEnCours] = useState(false)
+  const lienInscription = `${window.location.origin}/?fournisseur`
+
+  async function copierLien() {
+    try {
+      await navigator.clipboard.writeText(lienInscription)
+      notifier('Lien copié.', 'info')
+    } catch (e) {
+      notifier('Copie impossible : sélectionnez le lien dans le champ et copiez-le à la main.')
+    }
+  }
 
   async function charger() {
     const [rc, rm, rp, rf] = await Promise.all([
@@ -962,6 +972,23 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
         du fournisseur doit être identique à celui de la carte (c'est lui qui relie produits, accords entreprises
         et calcul de distance).
       </p>
+
+      <div className="carte-auth carte-lien-fournisseur">
+        <h3>Lien d'inscription fournisseur</h3>
+        <p className="souligne">
+          Envoyez ce lien au fournisseur (email, message…) : il ouvre directement le formulaire d'inscription
+          fournisseur. Il n'est visible nulle part ailleurs sur le site.
+        </p>
+        <input type="text" readOnly value={lienInscription} onFocus={(e) => e.target.select()} />
+        <div className="actions-fournisseur">
+          <button className="valider" onClick={copierLien}>
+            <i className="bi bi-clipboard"></i> Copier le lien
+          </button>
+          <a className="bouton-secondaire" href={lienInscription} target="_blank" rel="noopener noreferrer">
+            Ouvrir le lien
+          </a>
+        </div>
+      </div>
 
       {enAttente.length > 0 && (
         <div className="carte-auth">

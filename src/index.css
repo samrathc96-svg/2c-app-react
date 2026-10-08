@@ -4630,3 +4630,14 @@ body.marketplace {
 .carte-entreprise-admin .case-fournisseur {
   margin: 6px 0 10px;
 }
+
+.carte-lien-fournisseur input {
+  width: 100%;
+}
+
+a.bouton-secondaire {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
