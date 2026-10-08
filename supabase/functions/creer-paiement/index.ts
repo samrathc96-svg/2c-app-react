@@ -411,6 +411,16 @@ Deno.serve(async (req) => {
             })
           }).catch((e) => console.error('Email de confirmation :', e))
         }
+        // Bon de commande envoyé à chaque fournisseur concerné
+        await fetch(`${SUPABASE_URL}/functions/v1/envoyer-bon-commande-fournisseur`, {
+          method: 'POST',
+          headers: {
+            apikey: SERVICE_KEY,
+            Authorization: `Bearer ${SERVICE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ commandeId: commande.id })
+        }).catch((e) => console.error('Bon de commande fournisseur :', e))
         return reponse({ commande })
       }
 

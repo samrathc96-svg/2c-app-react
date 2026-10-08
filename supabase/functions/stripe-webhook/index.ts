@@ -260,5 +260,19 @@ Deno.serve(async (req) => {
     }).catch((e) => console.error('Email de confirmation :', e))
   }
 
+  // 3) Bon de commande envoyé à chaque fournisseur concerné (une seule fois :
+  //    même garde que la confirmation, et la fonction évite aussi les doublons)
+  if (aEnvoyer.length > 0) {
+    await fetch(`${SUPABASE_URL}/functions/v1/envoyer-bon-commande-fournisseur`, {
+      method: 'POST',
+      headers: {
+        apikey: SERVICE_KEY,
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ commandeId: commande.id })
+    }).catch((e) => console.error('Bon de commande fournisseur :', e))
+  }
+
   return new Response('ok', { status: 200 })
 })

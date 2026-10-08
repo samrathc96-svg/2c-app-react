@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { CommandesFournisseur } from './CommandesFournisseur'
 
 // =========================================================
 // Espace fournisseur (version 1) + validation côté admin
@@ -200,6 +201,19 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
   const [importEnCours, setImportEnCours] = useState(false)
   const [resultatImport, setResultatImport] = useState(null)
   const champFichier = useRef(null)
+  const [onglet, setOnglet] = useState('catalogue')
+  const [aPreparer, setAPreparer] = useState(0)
+
+  // Pastille "commandes à préparer" sur l'onglet Commandes
+  async function chargerAPreparer() {
+    const { data, error } = await supabase.rpc('fournisseur_commandes_a_preparer')
+    // Erreur (ex. SQL des commandes pas encore exécuté) : on n'affiche simplement pas de pastille.
+    setAPreparer(!error && Number.isFinite(Number(data)) ? Number(data) : 0)
+  }
+
+  useEffect(() => {
+    if (valide) chargerAPreparer()
+  }, [valide])
 
   async function charger() {
     const { data, error } = await supabase.rpc('fournisseur_mes_produits')
@@ -435,10 +449,40 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
 
   const peutAgir = valide && metiersAutorises.length > 0
 
+  const barreOnglets = valide ? (
+    <div className="choix-role onglets-fournisseur">
+      <button className={onglet === 'catalogue' ? 'actif' : ''} onClick={() => setOnglet('catalogue')}>
+        Catalogue
+      </button>
+      <button
+        className={onglet === 'commandes' ? 'actif' : ''}
+        onClick={() => {
+          setOnglet('commandes')
+          chargerAPreparer()
+        }}
+      >
+        Commandes
+        {aPreparer > 0 && <span className="pastille-commandes">{aPreparer}</span>}
+      </button>
+    </div>
+  ) : null
+
+  if (valide && onglet === 'commandes') {
+    return (
+      <div className="espace-fournisseur">
+        <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
+        <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
+        {barreOnglets}
+        <CommandesFournisseur compte={compte} notifier={notifier} onChangement={chargerAPreparer} />
+      </div>
+    )
+  }
+
   return (
     <div className="espace-fournisseur">
       <p className="retour retour-gestion" onClick={onRetour}>← Retour au catalogue</p>
       <h3>Espace fournisseur — {compte.nom_fournisseur}</h3>
+      {barreOnglets}
       {bandeau}
 
       {peutAgir && (
