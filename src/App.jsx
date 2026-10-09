@@ -4972,7 +4972,7 @@ function App() {
             </nav>
 
             <div className="tiroir-pied">
-              <span className="tiroir-pied-logo"><span>2C</span></span>
+              <Logo2C variante="pied" />
               <span>Fournisseurs de plusieurs métiers, livrés où vous en avez besoin.</span>
             </div>
           </aside>

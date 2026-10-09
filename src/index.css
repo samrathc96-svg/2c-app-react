@@ -2741,19 +2741,32 @@ body.marketplace {
   color: var(--couleur-encre);
 }
 
-/* Menu de gauche : logo en haut de liste, croix de fermeture à droite */
+/* Menu de gauche : logo centré en haut de liste, croix de fermeture à droite */
 .tiroir-tete {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 3px solid transparent;
-  border-image: linear-gradient(90deg, var(--couleur-accent) 55px, transparent 55px) 1;
+  justify-content: center;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+}
+
+.tiroir-tete::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 55px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--couleur-accent);
+  transform: translateX(-50%);
 }
 
 .tiroir-tete .tiroir-fermer {
-  margin: 0 -10px 0 0;
+  position: absolute;
+  top: 0;
+  right: -10px;
+  margin: 0;
 }
 
 .tiroir-logo {
@@ -2762,6 +2775,15 @@ body.marketplace {
   padding: 4px 0 0;
   cursor: pointer;
 }
+
+/* Bas du menu : logo sans fond noir */
+.logo-2c-pied {
+  --logo-taille: 30px;
+  --logo-mot: 8px;
+  --logo-espace: 2px;
+  flex: none;
+}
+
 
 .entete-actions {
   display: flex;
@@ -4141,7 +4163,7 @@ body.marketplace {
   padding-top: 20px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
