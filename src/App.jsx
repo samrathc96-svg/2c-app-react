@@ -9,6 +9,7 @@ import { pushActifLocalement } from './notificationsPush'
 import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } from './ColisCourse'
 import { messageErreur } from './BoxLivraison'
 import { LogoFournisseurImage } from './LogoFournisseur'
+import Logo2C from './Logo2C'
 import './App.css'
 
 // =========================================================
@@ -4769,7 +4770,7 @@ function App() {
           </button>
 
           <button className="entete-logo" aria-label="2C Delivery, retour au catalogue" onClick={ouvrirCatalogue}>
-            <span className="entete-logo-accent">2C</span> Delivery
+            <Logo2C variante="entete" />
           </button>
           {espaceGestion && (
             <span className="entete-etiquette">{role === 'admin' ? 'Admin' : 'Livreur'}</span>
@@ -4842,9 +4843,14 @@ function App() {
       {afficherMenu && (
         <div className="overlay-menu" onClick={() => setAfficherMenu(false)}>
           <aside className="tiroir-menu" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
-            <button className="tiroir-fermer" aria-label="Fermer le menu" onClick={() => setAfficherMenu(false)}>
-              <i className="bi bi-x-lg"></i>
-            </button>
+            <div className="tiroir-tete">
+              <button className="tiroir-logo" aria-label="2C Delivery, retour au catalogue" onClick={() => { setAfficherMenu(false); ouvrirCatalogue() }}>
+                <Logo2C variante="menu" />
+              </button>
+              <button className="tiroir-fermer" aria-label="Fermer le menu" onClick={() => setAfficherMenu(false)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
 
             {session ? (
               <div className="tiroir-compte">

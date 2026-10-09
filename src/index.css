@@ -2660,6 +2660,9 @@ body.marketplace {
 }
 
 .entete-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   justify-self: center;
   min-height: 44px;
   border: 0;
@@ -2674,6 +2677,90 @@ body.marketplace {
 
 .entete-logo-accent {
   color: var(--couleur-accent);
+}
+
+/* Logo d'origine : « 2 » noir et « C » orange qui se chevauchent,
+   « Deli » orange et « very » noir en dessous */
+.logo-2c {
+  --logo-taille: 32px;
+  --logo-mot: 9px;
+  --logo-espace: 3px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.logo-2c-menu {
+  --logo-taille: 56px;
+  --logo-mot: 11px;
+  --logo-espace: 4px;
+}
+
+.logo-2c-glyphes {
+  position: relative;
+  display: block;
+  width: calc(var(--logo-taille) * 0.92);
+  height: calc(var(--logo-taille) * 0.74);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: var(--logo-taille);
+  font-weight: 800;
+}
+
+.logo-2c-glyphes span {
+  position: absolute;
+  top: -0.12em;
+  line-height: 1;
+}
+
+.logo-2c-lettre {
+  left: 0.19em;
+  color: var(--couleur-accent);
+}
+
+.logo-2c-chiffre {
+  left: 0;
+  color: var(--couleur-encre);
+}
+
+.logo-2c-mot {
+  margin: 4px calc(var(--logo-espace) * -1) 0 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: var(--logo-mot);
+  font-weight: 700;
+  letter-spacing: var(--logo-espace);
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.logo-2c-deli {
+  color: var(--couleur-accent);
+}
+
+.logo-2c-very {
+  color: var(--couleur-encre);
+}
+
+/* Menu de gauche : logo en haut de liste, croix de fermeture à droite */
+.tiroir-tete {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--couleur-accent) 55px, transparent 55px) 1;
+}
+
+.tiroir-tete .tiroir-fermer {
+  margin: 0 -10px 0 0;
+}
+
+.tiroir-logo {
+  border: 0;
+  background: transparent;
+  padding: 4px 0 0;
+  cursor: pointer;
 }
 
 .entete-actions {
