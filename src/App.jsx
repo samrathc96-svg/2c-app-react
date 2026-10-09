@@ -4773,7 +4773,7 @@ function App() {
             <Logo2C variante="entete" />
           </button>
           {espaceGestion && (
-            <span className="entete-etiquette">{role === 'admin' ? 'Admin' : 'Livreur'}</span>
+            <span className="entete-etiquette">{role === 'admin' ? 'Admin' : espace === 'fournisseurEspace' ? 'Fournisseur' : 'Livreur'}</span>
           )}
 
           {espace === 'catalogue' && (
@@ -4865,7 +4865,7 @@ function App() {
                         ? (entreprise && entreprise.statut === 'ok'
                             ? `${entreprise.role_entreprise === 'responsable' ? 'Responsable' : 'Employé'} · ${entreprise.entreprise_nom}`
                             : 'Entreprise')
-                        : 'Client'}
+                        : compteFournisseur ? 'Fournisseur' : 'Client'}
                   </small>
                 </span>
               </div>
@@ -5214,7 +5214,7 @@ function App() {
                       ? (entreprise && entreprise.statut === 'ok'
                           ? (entreprise.role_entreprise === 'responsable' ? 'Responsable d\'entreprise' : 'Employé')
                           : 'Entreprise')
-                      : 'Client'
+                      : compteFournisseur ? 'Fournisseur' : 'Client'
                   }
                 </p>
                 {role === 'entreprise' && entreprise && entreprise.statut === 'ok' && (
