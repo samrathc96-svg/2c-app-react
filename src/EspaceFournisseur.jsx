@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { CommandesFournisseur } from './CommandesFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
+import { CarteLogoFournisseur, LogoFournisseurImage } from './LogoFournisseur'
 import { pushActifLocalement } from './notificationsPush'
 import { alerteSonoreActivee, definirAlerteSonore, etatSon, jouerSonnerie } from './alerteSonore'
 
@@ -553,6 +554,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
         <>
           <ActivationNotifications notifier={notifier} sujet="des nouvelles commandes à préparer" />
           <ReglagesAlerte notifier={notifier} />
+          <CarteLogoFournisseur compte={compte} notifier={notifier} onChange={onCatalogueChange} />
         </>
       )}
       {bandeau}
@@ -837,7 +839,7 @@ async function placerSurCarte({ nom, adresse, metier, existant }) {
   return { ok: true }
 }
 
-function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, onModifie }) {
+function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, onModifie, logoUrl }) {
   const [nom, setNom] = useState(compte.nom_fournisseur)
   const [adresse, setAdresse] = useState(compte.adresse || '')
   const [statut, setStatut] = useState(compte.statut)
@@ -924,6 +926,18 @@ function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, 
     onModifie()
   }
 
+  async function retirerLogo() {
+    if (!window.confirm(`Retirer le logo de « ${compte.nom_fournisseur} » du site ?`)) return
+    const { error } = await supabase.rpc('admin_retirer_logo', { p_user: compte.user_id })
+    if (error) {
+      console.error('Erreur de retrait du logo :', error)
+      notifier('Le logo n\'a pas pu être retiré.')
+      return
+    }
+    notifier('Logo retiré.', 'info')
+    onModifie()
+  }
+
   return (
     <div className="carte-auth carte-entreprise-admin">
       <div className="entete-entreprise-admin">
@@ -935,6 +949,16 @@ function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, 
           {new Date(compte.created_at).toLocaleDateString('fr-CH')}
         </span>
       </div>
+      {logoUrl && (
+        <div className="logo-admin-fournisseur">
+          <div className="apercu-logo-fournisseur apercu-logo-petit">
+            <LogoFournisseurImage url={logoUrl} nom={compte.nom_fournisseur} />
+          </div>
+          <button className="bouton-secondaire" onClick={retirerLogo}>
+            Retirer son logo
+          </button>
+        </div>
+      )}
       <p className="souligne">
         Contact : {compte.contact_nom || '—'}
         {compte.email ? ` (${compte.email})` : ''}
@@ -1015,6 +1039,7 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
   const [selection, setSelection] = useState([])
   const [chargement, setChargement] = useState(true)
   const [enCours, setEnCours] = useState(false)
+  const [logosAdmin, setLogosAdmin] = useState({})
   const lienInscription = `${window.location.origin}/?fournisseur`
 
   async function copierLien() {
@@ -1027,12 +1052,14 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
   }
 
   async function charger() {
-    const [rc, rm, rp, rf] = await Promise.all([
+    const [rc, rm, rp, rf, rl] = await Promise.all([
       supabase.rpc('admin_comptes_fournisseurs'),
       supabase.rpc('metiers_disponibles'),
       supabase.rpc('admin_produits_en_attente'),
-      supabase.from('fournisseurs').select('id,nom,adresse,metier')
+      supabase.from('fournisseurs').select('id,nom,adresse,metier'),
+      supabase.rpc('admin_logos_fournisseurs')
     ])
+    setLogosAdmin(!rl.error && rl.data && typeof rl.data === 'object' ? rl.data : {})
     if (!rf.error) setPointsCarte(rf.data || [])
     if (rc.error) {
       console.error('Erreur de chargement des comptes fournisseurs :', rc.error)
@@ -1151,12 +1178,14 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
         <CarteCompteFournisseur
           key={`${c.user_id}-${c.statut}-${c.nom_fournisseur}-${c.adresse || ''}`}
           compte={c}
+          logoUrl={logosAdmin[c.user_id] || null}
           metiersConnus={metiersConnus}
           pointsCarte={pointsCarte}
           notifier={notifier}
           onModifie={() => {
             charger()
             if (onCarteChange) onCarteChange()
+            if (onCatalogueChange) onCatalogueChange()
           }}
         />
       ))}

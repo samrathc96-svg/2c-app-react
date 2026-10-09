@@ -8,6 +8,7 @@ import { ActivationNotifications } from './ActivationNotifications'
 import { pushActifLocalement } from './notificationsPush'
 import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } from './ColisCourse'
 import { messageErreur } from './BoxLivraison'
+import { LogoFournisseurImage } from './LogoFournisseur'
 import './App.css'
 
 // =========================================================
@@ -1653,6 +1654,7 @@ function App() {
   const [liberationAConfirmer, setLiberationAConfirmer] = useState(null)
   const [liberationEnCours, setLiberationEnCours] = useState(false)
   const coursesRef = useRef([])
+  const [logosFournisseurs, setLogosFournisseurs] = useState({})
   const courseSelectionneeRef = useRef(null)
 
   const [mesCommandes, setMesCommandes] = useState([])
@@ -2564,7 +2566,19 @@ function App() {
   // produits d'un fournisseur en attente de validation restent cachés).
   // Si la colonne n'existe pas encore (script SQL fournisseur pas exécuté),
   // on retombe sur l'ancien chargement sans filtre.
+  // Logos des fournisseurs validés : { "Nom du fournisseur": "https://…" }
+  async function chargerLogos() {
+    const { data, error } = await supabase.from('fournisseur_logos_publics').select('nom_fournisseur,logo_url')
+    if (error || !Array.isArray(data)) return
+    const carte = {}
+    data.forEach((l) => {
+      if (l.nom_fournisseur && l.logo_url) carte[l.nom_fournisseur] = l.logo_url
+    })
+    setLogosFournisseurs(carte)
+  }
+
   async function chargerProduits() {
+    chargerLogos()
     let { data, error } = await supabase.from('produits').select('*').eq('statut_validation', 'publie')
     if (error) {
       const secours = await supabase.from('produits').select('*')
@@ -5437,7 +5451,7 @@ function App() {
                         className="carte-fournisseur"
                         onClick={() => ouvrirFournisseur(fournisseur.nom)}
                       >
-                        <span className="visuel-fournisseur"><i className="bi bi-shop"></i></span>
+                        <span className={`visuel-fournisseur${logosFournisseurs[fournisseur.nom] ? ' avec-logo' : ''}`}><LogoFournisseurImage url={logosFournisseurs[fournisseur.nom]} nom={fournisseur.nom} /></span>
                         <span className="texte-fournisseur">
                           <span className="nom-fournisseur">{fournisseur.nom}</span>
                           <span className="detail-fournisseur">{fournisseur.categories.slice(0, 3).join(', ')}</span>
@@ -5541,7 +5555,13 @@ function App() {
                   <button className="retour-rond" aria-label="Retour" onClick={retourAccueil}>
                     <i className="bi bi-chevron-left"></i>
                   </button>
-                  <i className="bi bi-shop"></i>
+                  {logosFournisseurs[fournisseurActif] ? (
+                    <span className="logo-cover">
+                      <LogoFournisseurImage url={logosFournisseurs[fournisseurActif]} nom={fournisseurActif} />
+                    </span>
+                  ) : (
+                    <i className="bi bi-shop"></i>
+                  )}
                 </div>
                 <div className="entete-fournisseur">
                   <h3>{fournisseurActif}</h3>
