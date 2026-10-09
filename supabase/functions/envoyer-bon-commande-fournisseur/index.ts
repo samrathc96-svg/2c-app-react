@@ -14,7 +14,8 @@
 //
 // En plus de l'email, la fonction envoie des notifications push (téléphone
 // verrouillé, comme un SMS) : au fournisseur concerné (commande à préparer)
-// et à tous les livreurs disponibles (nouvelle course). Ces envois sont
+// et, pour une commande sans fournisseur inscrit, aux livreurs disponibles
+// (nouvelle course ; sinon l'alerte livreurs part au clic « Commande prête »). Ces envois sont
 // facultatifs : si les notifications push ne sont pas installées, la commande
 // et les emails ne sont pas affectés.
 //
@@ -234,14 +235,10 @@ Deno.serve(async (req) => {
     )
     if (!commande) return reponseJson({ error: 'Commande introuvable' }, 404)
 
-    // Les livreurs disponibles sont prévenus d'une nouvelle course (push)
-    await pousser({
-      audience: 'livreurs',
-      titre: 'Nouvelle course disponible',
-      corps: String(commande.adresse ?? '').slice(0, 120),
-      url: '/',
-      tag: `course-${commande.id}`
-    })
+    // Les livreurs ne sont plus prévenus ici : la course devient visible (et
+    // l'alerte part) quand le fournisseur clique « Commande prête ». Seules les
+    // commandes sans fournisseur inscrit sont déjà prêtes : l'alerte part alors.
+    await pousser({ action: 'course_prete', commandeId: String(commande.id) })
 
     const detail: any[] = Array.isArray(commande.produits_detail) ? commande.produits_detail : []
     const idsProduits = [...new Set(detail.map((l) => l?.id).filter((v) => v !== undefined && v !== null))]

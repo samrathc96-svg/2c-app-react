@@ -3,7 +3,7 @@
 // sans aucune bibliothèque externe : protocole Web Push (RFC 8030, 8291,
 // 8292) écrit avec les fonctions de chiffrement intégrées.
 //
-// Trois usages, selon le champ "action" du corps JSON :
+// Usages, selon le champ "action" du corps JSON :
 //  * "cle"     : renvoie la clé publique d'envoi (VAPID) au navigateur qui
 //                veut s'abonner. Les clés sont fabriquées automatiquement la
 //                toute première fois et rangées dans la table push_config.
@@ -14,6 +14,16 @@
 //                au serveur (clé "service role") : un appel venant du
 //                navigateur est refusé. Destinataires : "userIds" (liste)
 //                et/ou "audience": "livreurs" (livreurs disponibles).
+//  * "course_prete"    : un fournisseur (ou l'admin) vient de cliquer
+//                « Commande prête » : alerte les livreurs disponibles (une seule
+//                fois par course) ou le livreur qui a déjà pris la course.
+//                Appelable par le fournisseur concerné, l'admin, ou le serveur.
+//  * "course_relancee" : un livreur vient de libérer une course (colis trop
+//                volumineux) : alerte les autres livreurs et l'admin.
+//  * "balayage"        : appelée chaque minute par la tâche planifiée (Cron) :
+//                rappels aux fournisseurs qui tardent (toutes les 10 min),
+//                alerte admin après 20 min, et envois « prête / relancée »
+//                restés en attente (navigateur fermé trop vite).
 //
 // Les abonnements expirés (téléphone désinstallé, autorisation retirée)
 // sont supprimés automatiquement.
@@ -283,6 +293,150 @@ function nettoyerMessage(brut: any): Message {
   }
 }
 
+// ---------- Commande prête, relance, rappels ----------
+
+// Appelle une fonction SQL réservée au serveur
+async function rpc(nom: string, args: Record<string, unknown>): Promise<any> {
+  try {
+    const r = await rest(`rpc/${nom}`, { method: 'POST', body: JSON.stringify(args) })
+    if (!r.ok) {
+      console.error('Fonction SQL en échec :', nom, await r.text().catch(() => ''))
+      return null
+    }
+    const texte = await r.text()
+    return texte ? JSON.parse(texte) : null
+  } catch (e) {
+    console.error('Fonction SQL en échec :', nom, e)
+    return null
+  }
+}
+
+async function admins(): Promise<string[]> {
+  const lignes = await lire('profils?role=eq.admin&select=id')
+  return lignes.map((l) => String(l.id))
+}
+
+type Colis = { fournisseur?: string | null; box?: string | null; nb?: number | null }
+
+function tailleColis(c: Colis): string {
+  const nb = Number(c?.nb ?? 1)
+  const taille = c?.box ? `taille ${c.box}` : ''
+  if (nb > 1) return `${nb} colis${taille ? ' ' + taille : ''}`
+  return taille
+}
+
+function resumeColis(colis: Colis[]): string {
+  return colis
+    .map((c) => [c.fournisseur, tailleColis(c)].filter(Boolean).join(' · '))
+    .join(' + ')
+}
+
+function adresseCourte(a: unknown): string {
+  return String(a ?? '').replace(/\s+/g, ' ').trim().slice(0, 90)
+}
+
+// Un colis vient d'être déclaré prêt : prévient les livreurs (une seule fois
+// par course) ou le livreur qui a déjà pris la course.
+async function annoncerPrete(commandeId: string, fournisseur: string | null) {
+  const r = await rpc('reclamer_push_prete', { p_commande: commandeId, p_fournisseur: fournisseur })
+  if (!r) return { envoye: false }
+  if (r.cas === 'livreur') {
+    const detail = [tailleColis({ box: r.box, nb: r.nb })].filter(Boolean).join(' · ')
+    const res = await envoyerAUtilisateurs([String(r.livreur_id)], {
+      titre: `Colis prêt chez ${r.fournisseur}`,
+      corps: detail || 'Tu peux passer le récupérer.',
+      url: '/',
+      tag: `course-${commandeId}`
+    })
+    return { envoye: true, cas: 'livreur', ...res }
+  }
+  const colis: Colis[] = Array.isArray(r.colis) ? r.colis : []
+  const total = Number(r.total ?? 0)
+  const lignes: string[] = []
+  if (colis.length > 0) lignes.push(`Chez ${resumeColis(colis)}`)
+  if (total > colis.length && colis.length > 0) lignes.push(`Colis ${colis.length}/${total} prêt`)
+  lignes.push(`Livraison ${adresseCourte(r.adresse)}`)
+  const res = await envoyerAUtilisateurs(await livreursDisponibles(), {
+    titre: 'Nouvelle course à récupérer',
+    corps: lignes.join(' · '),
+    url: '/',
+    tag: `course-${commandeId}`
+  })
+  return { envoye: true, cas: 'tous', ...res }
+}
+
+// Un livreur vient de libérer une course : les autres livreurs et l'admin sont prévenus
+async function annoncerRelance(livreurId: string, commandeId: string) {
+  const r = await rpc('reclamer_push_liberation', { p_user: livreurId, p_commande: commandeId })
+  if (!r) return { envoye: false }
+  const colis: Colis[] = Array.isArray(r.colis) ? r.colis : []
+  const detail = colis.length > 0 ? resumeColis(colis) : adresseCourte(r.adresse)
+  const autres = (await livreursDisponibles()).filter((id) => id !== livreurId)
+  const aLivreurs = await envoyerAUtilisateurs(autres, {
+    titre: 'Course relancée : colis trop volumineux',
+    corps: `À récupérer chez ${detail}. Un autre livreur n'a pas pu la prendre.`,
+    url: '/',
+    tag: `course-${commandeId}`
+  })
+  const nb = Number(r.nb ?? 1)
+  const numero = String(r.numero ?? commandeId)
+  const aAdmin = await envoyerAUtilisateurs(await admins(), {
+    titre: nb >= 2 ? `Course libérée ${nb} fois` : 'Course libérée par un livreur',
+    corps:
+      nb >= 2
+        ? `${numero} · ${detail}. Il faut peut-être une autre solution.`
+        : `${numero} · ${detail}. Colis trop volumineux, elle est reproposée.`,
+    url: '/',
+    tag: `liberation-${commandeId}`
+  })
+  return { envoye: true, livreurs: aLivreurs, admin: aAdmin }
+}
+
+// Rappels aux fournisseurs, alerte admin, envois restés en attente
+async function balayage() {
+  const bilan = { rappels: 0, alertesAdmin: 0, pretes: 0, relances: 0 }
+
+  const rappels = await rpc('rappels_a_envoyer', {})
+  for (const r of Array.isArray(rappels) ? rappels : []) {
+    const numero = String(r.numero ?? r.commande_id)
+    if (r.rappel && Array.isArray(r.user_ids) && r.user_ids.length > 0) {
+      await envoyerAUtilisateurs(r.user_ids.map(String), {
+        titre: 'Rappel : commande non prête',
+        corps: `${numero} attend depuis ${r.age_min} min. Prépare-la et clique « Commande prête ».`,
+        url: '/?ouvrir=commandes',
+        tag: `rappel-${r.commande_id}-${r.fournisseur}`.slice(0, 60)
+      })
+      bilan.rappels++
+    }
+    if (r.alerter_admin) {
+      await envoyerAUtilisateurs(await admins(), {
+        titre: 'Commande non prête depuis 20 min',
+        corps: `${numero} · ${r.fournisseur}`,
+        url: '/',
+        tag: `retard-${r.commande_id}-${r.fournisseur}`.slice(0, 60)
+      })
+      bilan.alertesAdmin++
+    }
+  }
+
+  const attente = await rpc('pushes_prete_en_attente', {})
+  for (const a of Array.isArray(attente) ? attente : []) {
+    const res = await annoncerPrete(String(a.commande_id), a.fournisseur ?? null)
+    if (res.envoye) bilan.pretes++
+  }
+
+  // Libérations dont l'alerte n'est pas partie (plus de 30 s, moins de 2 h)
+  const il = (ms: number) => new Date(Date.now() - ms).toISOString()
+  const liberations = await lire(
+    `course_liberations?notifie_le=is.null&cree_le=lt.${encodeURIComponent(il(30000))}&cree_le=gt.${encodeURIComponent(il(2 * 3600 * 1000))}&select=livreur_id,commande_id&limit=10`
+  )
+  for (const l of liberations) {
+    const res = await annoncerRelance(String(l.livreur_id), String(l.commande_id))
+    if (res.envoye) bilan.relances++
+  }
+  return bilan
+}
+
 export async function traiter(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (SERVICE_KEY === '') return reponseJson({ error: 'Configuration serveur incomplète' }, 500)
@@ -319,6 +473,38 @@ export async function traiter(req: Request): Promise<Response> {
       if (corps.audience === 'livreurs') destinataires.push(...(await livreursDisponibles()))
       const resultat = await envoyerAUtilisateurs(destinataires, nettoyerMessage(corps))
       return reponseJson({ success: true, ...resultat })
+    }
+
+    if (action === 'course_prete') {
+      const commandeId = String(corps.commandeId ?? '')
+      if (!commandeId) return reponseJson({ error: 'commandeId manquant' }, 400)
+      let fournisseur: string | null = null
+      if (autorisation !== `Bearer ${SERVICE_KEY}`) {
+        // Appel du navigateur : fournisseur concerné (ou admin) uniquement
+        const utilisateur = await utilisateurDuJeton(autorisation)
+        if (!utilisateur) return reponseJson({ error: 'Connexion requise' }, 401)
+        fournisseur = await rpc('autoriser_declaration_prete', {
+          p_user: utilisateur,
+          p_commande: commandeId,
+          p_fournisseur: corps.fournisseur ? String(corps.fournisseur) : null
+        })
+        if (!fournisseur) return reponseJson({ error: 'Non autorisé' }, 403)
+      }
+      return reponseJson({ success: true, ...(await annoncerPrete(commandeId, fournisseur)) })
+    }
+
+    if (action === 'course_relancee') {
+      const commandeId = String(corps.commandeId ?? '')
+      if (!commandeId) return reponseJson({ error: 'commandeId manquant' }, 400)
+      const utilisateur = await utilisateurDuJeton(autorisation)
+      if (!utilisateur) return reponseJson({ error: 'Connexion requise' }, 401)
+      return reponseJson({ success: true, ...(await annoncerRelance(utilisateur, commandeId)) })
+    }
+
+    if (action === 'balayage') {
+      // Sans danger pour n'importe quel appelant : les délais et l'envoi unique
+      // sont contrôlés côté base ; la réponse ne contient que des totaux.
+      return reponseJson({ success: true, ...(await balayage()) })
     }
 
     return reponseJson({ error: 'Action inconnue' }, 400)

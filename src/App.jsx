@@ -6,6 +6,8 @@ import { jouerSonnerie } from './alerteSonore'
 import { useAlerteFournisseur } from './useAlerteFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
 import { pushActifLocalement } from './notificationsPush'
+import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } from './ColisCourse'
+import { messageErreur } from './BoxLivraison'
 import './App.css'
 
 // =========================================================
@@ -1646,6 +1648,12 @@ function App() {
   const [erreurCodeLivraison, setErreurCodeLivraison] = useState('')
   const [validationLivraisonEnCours, setValidationLivraisonEnCours] = useState(false)
   const [priseEnChargeAConfirmer, setPriseEnChargeAConfirmer] = useState(null)
+  // Colis de chaque course (taille des box, prêt ou non), voir courses_colis() en SQL
+  const [colisCourses, setColisCourses] = useState({})
+  const [liberationAConfirmer, setLiberationAConfirmer] = useState(null)
+  const [liberationEnCours, setLiberationEnCours] = useState(false)
+  const coursesRef = useRef([])
+  const courseSelectionneeRef = useRef(null)
 
   const [mesCommandes, setMesCommandes] = useState([])
   const [chargementCommandes, setChargementCommandes] = useState(true)
@@ -1767,6 +1775,8 @@ function App() {
 
   // Les plus récentes d'abord, pour les retrouver facilement.
   const plusRecenteDabord = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))
+  coursesRef.current = courses
+  courseSelectionneeRef.current = courseSelectionnee
   const coursesDisponibles = coursesActives.filter((course) => !course.livreur_id).sort(plusRecenteDabord)
   const coursesMoi = session ? coursesActives.filter((course) => course.livreur_id === session.user.id).sort(plusRecenteDabord) : []
   const coursesLivreesMoi = session ? coursesLivrees.filter((course) => course.livreur_id === session.user.id).sort(plusRecenteDabord) : []
@@ -2611,6 +2621,45 @@ function App() {
     chargerCourses()
   }, [session])
 
+  // Colis des courses (livreur et admin). Sans le SQL « Commande prête » installé,
+  // la fonction n'existe pas : on garde simplement une liste vide.
+  async function chargerColis() {
+    const { data, error } = await supabase.rpc('courses_colis')
+    if (!error && data && typeof data === 'object' && !Array.isArray(data)) setColisCourses(data)
+  }
+
+  const signatureCourses = courses
+    .map((c) => `${c.id}:${c.livreur_id || ''}:${c.prete_le || ''}:${c.statut}`)
+    .join('|')
+
+  useEffect(() => {
+    if (!session || (role !== 'livreur' && role !== 'admin')) return undefined
+    chargerColis()
+    return undefined
+  }, [session, role, signatureCourses])
+
+  // Toutes les 20 s (et au retour sur l'application) : le livreur voit les courses
+  // devenues prêtes ou prises par un autre, les colis qui se préparent.
+  useEffect(() => {
+    if (!session || (role !== 'livreur' && role !== 'admin')) return undefined
+    async function actualiser() {
+      if (document.visibilityState === 'hidden') return
+      await chargerColis()
+      // Liste des courses du livreur : rechargée seulement hors détail, pour ne pas
+      // décaler la course ouverte à l'écran.
+      if (role === 'livreur' && courseSelectionneeRef.current === null) {
+        const { data, error } = await supabase.from('courses').select('*')
+        if (!error && Array.isArray(data)) setCourses(data)
+      }
+    }
+    const minuteur = setInterval(actualiser, 20000)
+    document.addEventListener('visibilitychange', actualiser)
+    return () => {
+      clearInterval(minuteur)
+      document.removeEventListener('visibilitychange', actualiser)
+    }
+  }, [session, role])
+
   useEffect(() => {
     // Même logique pour le direct : inutile de s'abonner sans compte,
     // la base ne laissera de toute façon rien passer.
@@ -2625,15 +2674,16 @@ function App() {
           )
           // Alerte livreur : une nouvelle course vient d'apparaître et
           // n'est encore prise par personne — visuel (bandeau) + son.
-          if (role === 'livreur' && disponibleLivreur && !payload.new.livreur_id && payload.new.statut === 'À livrer') {
-            afficherNotification('Nouvelle course disponible !', 'info')
+          // (seulement si la course est déjà prête à être récupérée)
+          if (role === 'livreur' && disponibleLivreur && !payload.new.livreur_id && payload.new.statut === 'À livrer' && payload.new.prete_le) {
+            afficherNotification('Nouvelle course à récupérer !', 'info')
             jouerSonNotification()
             // Notification navigateur : visible même si l'onglet n'est pas
             // au premier plan (permission à activer une fois via le bouton
             // dédié de l'espace livreur). Échoue silencieusement sinon.
             if (!pushActifLocalement() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               try {
-                const notifNavigateur = new Notification('Nouvelle course disponible !', {
+                const notifNavigateur = new Notification('Nouvelle course à récupérer !', {
                   body: `${payload.new.client || 'Client'} — ${payload.new.adresse || ''}`,
                   tag: `course-${payload.new.id}`
                 })
@@ -2647,9 +2697,31 @@ function App() {
             }
           }
         } else if (payload.eventType === 'UPDATE') {
+          // Une course qui devient visible pour ce livreur (« Commande prête » cliqué,
+          // ou course libérée par un autre livreur) arrive comme une mise à jour d'une
+          // course inconnue : on l'ajoute et on prévient.
+          const etaitConnue = coursesRef.current.some((c) => c.id === payload.new.id)
           setCourses((precedentes) =>
-            precedentes.map((c) => (c.id === payload.new.id ? payload.new : c))
+            precedentes.some((c) => c.id === payload.new.id)
+              ? precedentes.map((c) => (c.id === payload.new.id ? payload.new : c))
+              : role === 'livreur' || role === 'admin'
+                ? [...precedentes, payload.new]
+                : precedentes
           )
+          if (
+            !etaitConnue &&
+            role === 'livreur' &&
+            disponibleLivreur &&
+            !payload.new.livreur_id &&
+            payload.new.statut === 'À livrer' &&
+            payload.new.prete_le
+          ) {
+            afficherNotification(
+              payload.new.relancee_le ? 'Course relancée : colis trop volumineux pour un autre livreur.' : 'Nouvelle course à récupérer !',
+              'info'
+            )
+            jouerSonNotification()
+          }
           // Suivi client en direct : on prévient le client (ou l'entreprise)
           // quand sa commande passe à une étape qui le concerne, une seule
           // fois par changement grâce à dernierStatutNotifieRef.
@@ -3993,20 +4065,61 @@ function App() {
 
   async function prendreEnCharge(index) {
     const course = courses[index]
-    const { error } = await supabase
+    // « .is('livreur_id', null) » : si un autre livreur vient de la prendre, rien n'est modifié
+    const { data, error } = await supabase
       .from('courses')
       .update({ livreur_id: session.user.id })
       .eq('id', course.id)
+      .is('livreur_id', null)
+      .select('id')
 
     if (error) {
       console.error('Erreur de prise en charge :', error)
-      afficherNotification('Impossible de prendre cette course, réessaie.')
+      afficherNotification(messageErreur(error, 'Impossible de prendre cette course, réessaie.'))
+      setPriseEnChargeAConfirmer(null)
+      return
+    }
+    if (Array.isArray(data) && data.length === 0) {
+      afficherNotification('Cette course vient d\'être prise par un autre livreur.')
+      setPriseEnChargeAConfirmer(null)
+      setCourseSelectionnee(null)
+      setCourses((precedentes) => precedentes.filter((c) => c.id !== course.id))
       return
     }
 
     setCourses(courses.map((c, i) => (i === index ? { ...c, livreur_id: session.user.id } : c)))
     setPriseEnChargeAConfirmer(null)
     afficherNotification('Commande prise en charge.', 'info')
+  }
+
+  // « Colis trop volumineux pour moi » : la course repart chez les autres livreurs
+  async function libererColisVolumineux(index) {
+    const course = courses[index]
+    if (!course) return
+    setLiberationEnCours(true)
+    try {
+      const { data, error } = await supabase.rpc('livreur_liberer_course', { p_course: course.id })
+      if (error) {
+        console.error('Erreur de libération (colis trop volumineux) :', error)
+        afficherNotification(messageErreur(error, 'Impossible de libérer cette course, réessaie.'))
+        setLiberationAConfirmer(null)
+        return
+      }
+      const commandeId = (data && data.commande_id) || course.commande_id
+      setLiberationAConfirmer(null)
+      setCourseSelectionnee(null)
+      setCourses((precedentes) => precedentes.filter((c) => c.id !== course.id))
+      afficherNotification('Course libérée : les autres livreurs sont prévenus.', 'info')
+      try {
+        await supabase.functions.invoke('notifications-push', {
+          body: { action: 'course_relancee', commandeId: String(commandeId) }
+        })
+      } catch (e) {
+        console.warn('Alerte « course relancée » non envoyée :', e)
+      }
+    } finally {
+      setLiberationEnCours(false)
+    }
   }
 
   async function libererCourse(index) {
@@ -6593,7 +6706,7 @@ function App() {
               <ul className="liste-courses">
                 {coursesDisponibles.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
-                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}</span>
+                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}<br /><PucesColis course={course} infos={colisCourses[course.id]} /></span>
                     <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
@@ -6606,7 +6719,7 @@ function App() {
               <ul className="liste-courses">
                 {coursesMoi.map((course) => (
                   <li key={course.id} onClick={() => setCourseSelectionnee(courses.findIndex((c) => c.id === course.id))}>
-                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}</span>
+                    <span>{course.client}<br /><span className="souligne">{course.adresse} — {course.statut}</span>{course.created_at && <><br /><span className="souligne"><i className="bi bi-clock"></i> {dateHeureCourse(course)}</span></>}<br /><PucesColis course={course} infos={colisCourses[course.id]} /></span>
                     <span className="prix">{(course.prix || 0).toFixed(2)} CHF</span>
                   </li>
                 ))}
@@ -6644,6 +6757,8 @@ function App() {
                 const retraits = fournisseursDeLaCourse(course, produitsTous, fournisseursCarte)
                 const adressesRetrait = retraits.filter((r) => r.adresse).map((r) => r.adresse)
                 return (
+                  <>
+                  <CarteColisLivreur course={course} infos={colisCourses[course.id]} />
                   <div className="tournee-livreur">
                     <h4>Tournée</h4>
                     <ol>
@@ -6695,6 +6810,7 @@ function App() {
                       </a>
                     )}
                   </div>
+                  </>
                 )
               })()}
               {courses[courseSelectionnee].chantier && (
@@ -6810,10 +6926,26 @@ function App() {
 
               {courses[courseSelectionnee].livreur_id === session.user.id &&
                 courses[courseSelectionnee].statut === 'À livrer' && (
-                  <button className="bouton-annuler" onClick={() => libererCourse(courseSelectionnee)}>
-                    Ce n'est pas moi, libérer cette course
-                  </button>
+                  <>
+                    <button className="bouton-annuler" onClick={() => libererCourse(courseSelectionnee)}>
+                      Ce n'est pas moi, libérer cette course
+                    </button>
+                    <button
+                      className="lien-colis-volumineux"
+                      onClick={() => setLiberationAConfirmer(courses[courseSelectionnee].id)}
+                    >
+                      📦 Colis trop volumineux pour moi
+                    </button>
+                    <p className="note-livreur">Disponible tant que tu n'as pas démarré la livraison.</p>
+                  </>
                 )}
+
+              <FeuilleLiberation
+                ouverte={liberationAConfirmer !== null && liberationAConfirmer === courses[courseSelectionnee].id}
+                enCours={liberationEnCours}
+                onConfirmer={() => libererColisVolumineux(courseSelectionnee)}
+                onAnnuler={() => setLiberationAConfirmer(null)}
+              />
             </>
           )}
         </>
@@ -6826,6 +6958,15 @@ function App() {
             <h2>Tableau de bord</h2>
             <p className="souligne">Vue d'ensemble des commandes et de l'activité.</p>
           </div>
+
+          <ActivationNotifications notifier={afficherNotification} sujet="des alertes (commande non prête, course libérée)" />
+
+          <AlertesBoxAdmin
+            courses={courses}
+            colis={colisCourses}
+            notifier={afficherNotification}
+            recharger={chargerColis}
+          />
 
           {demandesLivreur.length > 0 && (
             <div className="carte-faq">
@@ -7033,6 +7174,7 @@ function App() {
                             <option key={statut} value={statut}>{statut}</option>
                           ))}
                         </select>
+                        <PucesColis course={course} infos={colisCourses[course.id]} admin />
                       </td>
                       <td>
                         <select

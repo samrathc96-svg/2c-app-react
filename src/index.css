@@ -4825,3 +4825,93 @@ a.bouton-secondaire {
 .bloc-notifications-active { border-color: #A5D6A7; }
 .bloc-notifications-active .notifs-titre { color: #2E7D32; }
 .bloc-notifications-refuse .notifs-titre, .bloc-notifications-non-supporte .notifs-titre { color: #B3261E; }
+
+/* ===== Box de livraison : « Commande prête » ===== */
+.choix-box { margin: 12px 0 4px; }
+.titre-choix-box { font-weight: 700; margin: 0 0 4px; font-size: 0.95rem; }
+.grille-box { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 6px; }
+.tuile-box {
+  background: var(--couleur-blanc); border: 2px solid var(--couleur-bordure); border-radius: var(--rayon-m);
+  padding: 10px 2px 8px; text-align: center; cursor: pointer; font-family: inherit; color: var(--couleur-encre);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; min-height: 64px;
+}
+.tuile-box.choisie { border-color: var(--couleur-accent); background: var(--couleur-accent-clair); }
+.tuile-box:disabled { opacity: 0.55; cursor: not-allowed; }
+.tuile-box strong { font-size: 0.92rem; }
+.picto-box { display: inline-block; background: #D9B98A; border: 1.5px solid #8A6B3F; border-radius: 3px; position: relative; }
+.picto-box::after { content: ""; position: absolute; left: 0; right: 0; top: 34%; height: 1.5px; background: rgba(138, 107, 63, 0.35); }
+.dimensions-box { font-size: 0.82rem; color: var(--couleur-muted); text-align: center; margin: 4px 0 2px; min-height: 34px; }
+.compteur-colis {
+  display: flex; align-items: center; justify-content: space-between; background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure); border-radius: var(--rayon-m); padding: 8px 12px; margin-top: 8px;
+}
+.compteur-colis .plus-moins { display: flex; align-items: center; gap: 14px; }
+.compteur-colis button {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-carte); font-size: 1.2rem; cursor: pointer; font-family: inherit; color: var(--couleur-encre); padding: 0;
+}
+.compteur-colis button:disabled { opacity: 0.4; cursor: not-allowed; }
+.compteur-colis output { font-weight: 800; min-width: 22px; text-align: center; }
+.note-box { font-size: 0.8rem; color: var(--couleur-muted); margin: 8px 2px 0; }
+.resume-prete {
+  background: rgba(40, 140, 70, 0.12); border: 1px solid rgba(40, 140, 70, 0.3); color: #1f5a23;
+  border-radius: var(--rayon-m); padding: 10px 12px; font-size: 0.9rem; margin: 10px 0;
+}
+.resume-prete small { display: block; color: #3d7a41; margin-top: 2px; }
+.puce-colis {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; padding: 3px 9px;
+  border-radius: 999px; margin: 6px 6px 0 0; background: #E4EEFB; color: #1F4E8C;
+}
+.puce-colis.prete { background: rgba(40, 140, 70, 0.14); color: #1f7a3d; }
+.puce-colis.attente { background: #FFF3D6; color: #7A5300; }
+.puce-colis.relancee { background: var(--couleur-accent-clair); color: #B24400; }
+.puce-colis.partiel { background: #EFE7FA; color: #5B3A99; }
+
+/* ===== Colis d'une course (livreur / admin) ===== */
+.puces-colis { display: inline-flex; flex-wrap: wrap; }
+.carte-colis {
+  background: var(--couleur-blanc); border: 1px solid var(--couleur-bordure); border-radius: var(--rayon-m);
+  padding: 12px 13px; margin: 10px 0;
+}
+.carte-colis h4 { margin: 0 0 6px; font-size: 0.95rem; }
+.carte-colis ul { list-style: none; margin: 0; padding: 0; }
+.carte-colis li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; padding: 6px 0; border-bottom: 1px dashed var(--couleur-bordure); }
+.carte-colis li:last-child { border-bottom: none; }
+.carte-colis-nom { font-weight: 600; font-size: 0.92rem; }
+.carte-colis .puce-colis { margin-top: 0; }
+.lien-colis-volumineux {
+  display: block; width: 100%; background: none; border: none; text-align: center; margin-top: 12px;
+  font-size: 0.9rem; color: #b32121; text-decoration: underline; cursor: pointer; font-family: inherit;
+}
+.note-livreur { text-align: center; font-size: 0.8rem; color: var(--couleur-muted); margin: 4px 0 0; }
+
+.voile-feuille {
+  position: fixed; inset: 0; background: rgba(30, 27, 23, 0.45); display: flex; align-items: flex-end;
+  justify-content: center; z-index: 1000;
+}
+.feuille-bas {
+  background: var(--couleur-blanc); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+  border-radius: 20px 20px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom));
+}
+.feuille-bas h4 { margin: 0 0 6px; font-size: 1.05rem; }
+.feuille-bas p { margin: 0 0 8px; color: var(--couleur-muted); font-size: 0.9rem; }
+.feuille-bas .valider { width: 100%; margin-top: 10px; }
+.feuille-bas .bouton-feuille { width: 100%; margin-top: 8px; }
+
+.alertes-box { margin: 0 0 16px; }
+.alerte-box {
+  background: rgba(200, 40, 40, 0.1); border: 1px solid rgba(200, 40, 40, 0.28); color: #7a1c16;
+  border-radius: var(--rayon-m); padding: 10px 12px; font-size: 0.88rem; margin: 0 0 10px;
+}
+.alerte-box small { display: block; margin-top: 4px; color: #7a1c16; opacity: 0.85; }
+.alerte-box .bouton-petit { margin-top: 8px; }
+.historique-liberations {
+  background: var(--couleur-blanc); border: 1px solid var(--couleur-bordure); border-radius: var(--rayon-m);
+  padding: 10px 12px; font-size: 0.88rem;
+}
+.historique-liberations summary { cursor: pointer; font-weight: 700; }
+.historique-liberations ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.historique-liberations li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--couleur-bordure); }
+.historique-liberations li:last-child { border-bottom: none; }
+.historique-liberations small { color: var(--couleur-muted); white-space: nowrap; }
+.tableau-admin .puces-colis { display: flex; margin-top: 4px; max-width: 260px; }

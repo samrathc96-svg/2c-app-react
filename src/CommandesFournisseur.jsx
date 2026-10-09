@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { ChoixBox, annoncerCommandePrete, libelleBox, messageErreur, useBoxes } from './BoxLivraison'
 
 // =========================================================
 // Commandes reçues par un fournisseur (onglet "Commandes")
@@ -7,7 +8,8 @@ import { supabase } from './supabaseClient'
 // Le fournisseur voit les commandes qui contiennent SES produits (et
 // uniquement ses lignes) : n° de commande, client / entreprise, chantier,
 // adresse de livraison, produits à préparer. Il peut imprimer le bon et
-// marquer la commande "préparée". Il ne voit ni le téléphone ni l'email du
+// cliquer « Commande prête » en indiquant la box utilisée (XS à XL) et le
+// nombre de colis : c'est ce clic qui rend la course visible des livreurs. Il ne voit ni le téléphone ni l'email du
 // client. Toute la sécurité est dans les fonctions SQL.
 
 function echapperHtml(texte) {
@@ -42,7 +44,7 @@ export function etapeCommande(commande) {
   if (livraison === 'Annulée' || commande.rembourse) return { cle: 'annulee', libelle: 'Annulée', aPreparer: false }
   if (livraison === 'Livrée') return { cle: 'livree', libelle: 'Livrée', aPreparer: false }
   if (livraison === 'En cours') return { cle: 'recuperee', libelle: 'Récupérée par le livreur', aPreparer: false }
-  if (commande.prepare_le) return { cle: 'preparee', libelle: 'Préparée', aPreparer: false }
+  if (commande.prepare_le) return { cle: 'preparee', libelle: 'Prête', aPreparer: false }
   return { cle: 'a_preparer', libelle: 'À préparer', aPreparer: true }
 }
 
@@ -119,6 +121,11 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
   const [chargement, setChargement] = useState(true)
   const [filtre, setFiltre] = useState('a_preparer')
   const [enCours, setEnCours] = useState(null)
+  const boxes = useBoxes()
+  // Choix en cours par commande : { [id]: { box, nb } } ; modification : id de la commande rouverte
+  const [choix, setChoix] = useState({})
+  const [modification, setModification] = useState(null)
+  const [annulation, setAnnulation] = useState(null)
 
   async function charger() {
     const { data, error } = await supabase.rpc('fournisseur_mes_commandes')
@@ -139,19 +146,62 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
     return () => window.removeEventListener('commandes-fournisseur-maj', charger)
   }, [])
 
-  async function marquer(commande, prepare) {
+  function choixDe(commande) {
+    return choix[commande.id] || { box: commande.box || null, nb: Number(commande.nb_colis || 1) }
+  }
+
+  function changerChoix(commande, morceau) {
+    setChoix((avant) => ({ ...avant, [commande.id]: { ...choixDe(commande), ...morceau } }))
+  }
+
+  // Clic sur « Commande prête » (ou « Enregistrer » en modification)
+  async function declarerPrete(commande) {
+    const { box, nb } = choixDe(commande)
+    if (!box) {
+      notifier('Choisis la taille de la box.')
+      return
+    }
+    const dejaPrete = Boolean(commande.prepare_le)
     setEnCours(commande.id)
     try {
-      const { error } = await supabase.rpc('fournisseur_marquer_prepare', {
+      const { error } = await supabase.rpc('fournisseur_marquer_prete', {
         p_commande: commande.id,
-        p_prepare: prepare
+        p_box: box,
+        p_nb: nb
       })
       if (error) {
-        console.error('Erreur de mise à jour de la commande :', error)
-        notifier("La commande n'a pas pu être mise à jour.")
+        console.error('Erreur « commande prête » :', error)
+        notifier(messageErreur(error, "La commande n'a pas pu être marquée prête."))
         return
       }
-      notifier(prepare ? 'Commande marquée comme préparée.' : 'Commande remise « à préparer ».')
+      setModification(null)
+      notifier(dejaPrete ? 'Taille enregistrée.' : 'Commande prête : les livreurs sont prévenus.')
+      if (!dejaPrete) annoncerCommandePrete(commande.id)
+      await charger()
+      if (onChangement) onChangement()
+    } finally {
+      setEnCours(null)
+    }
+  }
+
+  // Annule le « prête » (possible tant qu'aucun livreur n'a pris la course)
+  async function annulerPrete(commande) {
+    setEnCours(commande.id)
+    try {
+      const { error } = await supabase.rpc('fournisseur_demarquer_prete', { p_commande: commande.id })
+      if (error) {
+        console.error('Erreur d\'annulation « prête » :', error)
+        notifier(messageErreur(error, "L'annulation n'a pas pu être faite."))
+        return
+      }
+      setAnnulation(null)
+      setModification(null)
+      setChoix((avant) => {
+        const suite = { ...avant }
+        delete suite[commande.id]
+        return suite
+      })
+      notifier('Commande remise « à préparer ».')
       await charger()
       if (onChangement) onChangement()
     } finally {
@@ -185,7 +235,7 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
           À préparer ({compteurs.a_preparer})
         </button>
         <button className={filtre === 'preparees' ? 'actif' : ''} onClick={() => setFiltre('preparees')}>
-          Préparées ({compteurs.preparees})
+          Prêtes ({compteurs.preparees})
         </button>
         <button className={filtre === 'annulees' ? 'actif' : ''} onClick={() => setFiltre('annulees')}>
           Annulées ({compteurs.annulees})
@@ -207,7 +257,8 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
         <ul className="liste-commandes-fournisseur">
           {visibles.map((cmd) => {
             const etape = etapeCommande(cmd)
-            const peutMarquer = etape.cle === 'a_preparer' || etape.cle === 'preparee'
+            const choixCmd = choixDe(cmd)
+            const modifiable = etape.cle === 'preparee' && !cmd.course_prise
             return (
               <li key={cmd.id} className="commande-fournisseur">
                 <div className="entete-commande-fournisseur">
@@ -275,22 +326,106 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
                   </p>
                 )}
 
-                <div className="actions-fournisseur">
-                  {peutMarquer && (
+                {etape.cle === 'a_preparer' && (
+                  <div className="bloc-prete">
+                    <p className="titre-choix-box">Dans quelle box as-tu rangé la commande ?</p>
+                    <ChoixBox
+                      boxes={boxes}
+                      box={choixCmd.box}
+                      nb={choixCmd.nb}
+                      desactive={enCours === cmd.id}
+                      onBox={(box) => changerChoix(cmd, { box })}
+                      onNb={(nb) => changerChoix(cmd, { nb })}
+                    />
                     <button
-                      className={etape.cle === 'a_preparer' ? 'valider' : 'bouton-secondaire'}
-                      disabled={enCours === cmd.id}
-                      onClick={() => marquer(cmd, etape.cle === 'a_preparer')}
+                      className="valider"
+                      disabled={enCours === cmd.id || !choixCmd.box}
+                      onClick={() => declarerPrete(cmd)}
                     >
-                      {etape.cle === 'a_preparer' ? (
-                        <>
-                          <i className="bi bi-check2-circle"></i> Marquer comme préparée
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-arrow-counterclockwise"></i> Remettre « à préparer »
-                        </>
-                      )}
+                      <i className="bi bi-check2-circle"></i> Commande prête
+                    </button>
+                  </div>
+                )}
+
+                {etape.cle === 'preparee' && (
+                  <div className="resume-prete">
+                    <strong>
+                      Prête{cmd.box ? ` · ${libelleBox(cmd.box, cmd.nb_colis)}` : ''}
+                    </strong>
+                    <small>
+                      {cmd.prete_par_admin
+                        ? 'Marquée prête par 2C. '
+                        : ''}
+                      {cmd.course_prise
+                        ? 'Un livreur a pris la course : plus de modification possible.'
+                        : 'Les livreurs sont prévenus. Tu peux corriger tant qu\'aucun livreur n\'a pris la course.'}
+                    </small>
+                  </div>
+                )}
+
+                {modifiable && modification === cmd.id && (
+                  <div className="bloc-prete">
+                    <ChoixBox
+                      boxes={boxes}
+                      box={choixCmd.box}
+                      nb={choixCmd.nb}
+                      desactive={enCours === cmd.id}
+                      onBox={(box) => changerChoix(cmd, { box })}
+                      onNb={(nb) => changerChoix(cmd, { nb })}
+                    />
+                    <div className="actions-fournisseur">
+                      <button
+                        className="valider"
+                        disabled={enCours === cmd.id || !choixCmd.box}
+                        onClick={() => declarerPrete(cmd)}
+                      >
+                        Enregistrer
+                      </button>
+                      <button className="bouton-secondaire" onClick={() => setModification(null)}>
+                        Fermer
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {modifiable && annulation === cmd.id && (
+                  <div className="bandeau-fournisseur bandeau-info">
+                    La commande ne sera plus visible des livreurs jusqu'à ce que tu cliques à nouveau « Commande prête ».
+                    <div className="actions-fournisseur">
+                      <button className="bouton-secondaire" disabled={enCours === cmd.id} onClick={() => annulerPrete(cmd)}>
+                        Oui, annuler « prête »
+                      </button>
+                      <button className="bouton-secondaire" onClick={() => setAnnulation(null)}>
+                        Non, garder
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="actions-fournisseur">
+                  {modifiable && modification !== cmd.id && (
+                    <button
+                      className="bouton-secondaire"
+                      disabled={enCours === cmd.id}
+                      onClick={() => {
+                        setAnnulation(null)
+                        setChoix((avant) => ({ ...avant, [cmd.id]: { box: cmd.box || null, nb: Number(cmd.nb_colis || 1) } }))
+                        setModification(cmd.id)
+                      }}
+                    >
+                      <i className="bi bi-pencil"></i> {cmd.box ? 'Modifier la taille' : 'Indiquer la taille'}
+                    </button>
+                  )}
+                  {modifiable && annulation !== cmd.id && (
+                    <button
+                      className="bouton-secondaire"
+                      disabled={enCours === cmd.id}
+                      onClick={() => {
+                        setModification(null)
+                        setAnnulation(cmd.id)
+                      }}
+                    >
+                      <i className="bi bi-arrow-counterclockwise"></i> Remettre « à préparer »
                     </button>
                   )}
                   <button className="bouton-secondaire" onClick={() => imprimerBon(cmd, compte.nom_fournisseur)}>
