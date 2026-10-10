@@ -5719,3 +5719,55 @@ a.bouton-secondaire {
   .contenu-marketplace.catalogue .entete-fournisseur { margin: 12px 0 8px; }
 }
 .habituels + .note-fournisseur { margin-top: 14px; }
+
+/* ===== Retouches design ordinateur ===== */
+@media (min-width: 900px) {
+  /* Annonce : une bande fine plutôt qu'un gros bloc orange */
+  .bandeau-multi {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 20px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 14px 22px;
+    margin: 12px 0 0;
+    border-radius: var(--rayon-m);
+  }
+  .bandeau-multi strong { grid-column: 1; font-size: 16px; }
+  .bandeau-multi span { grid-column: 1; font-size: 13.5px; }
+  .bandeau-multi button { grid-column: 2; grid-row: 1 / span 2; min-height: 40px; margin: 0; white-space: nowrap; }
+
+  /* « Accès rapide » répète la grille des fournisseurs juste en dessous */
+  .logos-fournisseurs { display: none; }
+
+  /* Page fournisseur : couverture plus basse, avis d'ajout sur une ligne */
+  .cover-fournisseur { height: 140px; font-size: 52px; }
+  .cover-fournisseur .logo-cover { max-height: 80%; padding: 8px 20px; }
+  .cover-fournisseur .logo-cover img { max-height: 76px; }
+  .contenu-marketplace.catalogue .entete-fournisseur { margin: 16px 0 6px; }
+  .note-fournisseur {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+    padding: 10px 14px 10px 18px;
+  }
+  .note-fournisseur button { flex-shrink: 0; white-space: nowrap; }
+
+  /* Panier et informations : textes plus lisibles sur grand écran */
+  .vue-panier { max-width: 720px; }
+  .vue-panier .groupe-panier { padding: 4px 18px; }
+  .vue-panier .liste-produits li { padding: 14px 0; margin-bottom: 0; border-bottom: 1px solid var(--couleur-bordure); }
+  .vue-panier .liste-produits li:last-child { border-bottom: 0; }
+  .vue-panier .liste-produits li span:first-child { font-size: 15px; font-weight: 600; }
+  .vue-panier .total-panier {
+    margin: 18px 0 14px;
+    padding-top: 16px;
+    border-top: 1px solid var(--couleur-bordure);
+    font-size: 20px;
+  }
+  .vue-panier .souligne { font-size: 14px; }
+  .vue-informations .resume-panier-etape { font-size: 14px; padding: 14px 18px; }
+  .vue-informations .champ-livraison input { min-height: 48px; font-size: 15px; }
+}
