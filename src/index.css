@@ -5323,3 +5323,165 @@ a.bouton-secondaire {
   align-self: center;
   margin-top: -2px;
 }
+
+/* ===== Vos produits habituels : tableau en diaporama ===== */
+.sr-seul {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.habituels {
+  margin: 8px 0 12px;
+}
+
+.habituels-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.habituels-entete .titre-accueil {
+  margin-bottom: 8px;
+}
+
+.habituels-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--couleur-muted);
+}
+
+.habituels-nav button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-blanc);
+  color: var(--couleur-encre);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.habituels-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.habituels-tableau-cadre {
+  background: var(--couleur-blanc);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-l);
+  overflow: hidden;
+}
+
+.habituels-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.habituels-tableau th {
+  padding: 10px 14px;
+  background: var(--couleur-carte);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--couleur-muted);
+}
+
+.habituels-tableau td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--couleur-bordure);
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.habituel-nom {
+  display: block;
+  font-weight: 600;
+}
+
+.habituel-sous {
+  display: none;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--couleur-muted);
+}
+
+.habituel-quand {
+  display: block;
+  font-size: 12px;
+  color: var(--couleur-muted);
+}
+
+.habituels-tableau .col-prix {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.habituels-tableau .col-action {
+  width: 64px;
+  text-align: right;
+}
+
+.habituels-tableau .col-action .bouton-plus {
+  margin-left: auto;
+}
+
+.lien-fournisseur {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--couleur-encre);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.habituels-pastilles {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.habituels-pastilles button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--couleur-bordure);
+  cursor: pointer;
+}
+
+.habituels-pastilles button.actif {
+  width: 22px;
+  border-radius: 999px;
+  background: var(--couleur-accent);
+}
+
+@media (max-width: 699px) {
+  .habituels-tableau .col-fournisseur,
+  .habituels-tableau .col-historique {
+    display: none;
+  }
+  .habituel-sous {
+    display: block;
+  }
+  .habituels-tableau th,
+  .habituels-tableau td {
+    padding: 10px 12px;
+  }
+}

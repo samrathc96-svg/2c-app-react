@@ -11,6 +11,7 @@ import { messageErreur } from './BoxLivraison'
 import { LogoFournisseurImage } from './LogoFournisseur'
 import Logo2C from './Logo2C'
 import LogosFournisseurs from './LogosFournisseurs'
+import ProduitsHabituels from './ProduitsHabituels'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import './App.css'
 
@@ -4771,11 +4772,6 @@ function App() {
   // Habituels affichés sur l'accueil (selon le métier choisi).
   const habitudesAffichees = habitudes.produits.filter((h) => !metierFiltre || h.produit.metier === metierFiltre)
 
-  function detailHabituel(h) {
-    const quand = libelleDernierAchat(h.derniere)
-    return `${h.produit.fournisseur} · commandé ${h.fois} fois${quand ? ` · ${quand}` : ''}`
-  }
-
   function ligneProduit(produit, cle, detail) {
     const demo = estDemo(produit)
     const rupture = !demo && estEnRupture(produit)
@@ -5542,6 +5538,13 @@ function App() {
 
               {rechercheNormalisee === '' && modeAccueil === 'fournisseurs' && (
                 <>
+                  {nombreFournisseursTotal > 1 && (
+                    <div className="bandeau-multi">
+                      <strong>Plusieurs fournisseurs, un seul livreur</strong>
+                      <span>Remplis un seul panier avec les produits de plusieurs fournisseurs.</span>
+                      <button onClick={() => setModeAccueil('carte')}>Voir la carte</button>
+                    </div>
+                  )}
                   <LogosFournisseurs
                     fournisseurs={fournisseursListe.map((f) => ({
                       nom: f.nom,
@@ -5551,23 +5554,13 @@ function App() {
                     logos={logosTous}
                     onOuvrir={ouvrirFournisseur}
                   />
-                  {habitudesAffichees.length > 0 && (
-                    <>
-                      <h3 className="titre-accueil">Vos produits habituels</h3>
-                      <ul className="liste-lignes liste-habituels">
-                        {habitudesAffichees.slice(0, 6).map((h) => (
-                          ligneProduit(h.produit, `habituel-${h.produit.id}`, detailHabituel(h))
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {nombreFournisseursTotal > 1 && (
-                    <div className="bandeau-multi">
-                      <strong>Plusieurs fournisseurs, un seul livreur</strong>
-                      <span>Remplis un seul panier avec les produits de plusieurs fournisseurs.</span>
-                      <button onClick={() => setModeAccueil('carte')}>Voir la carte</button>
-                    </div>
-                  )}
+                  <ProduitsHabituels
+                    titre="Vos produits habituels"
+                    habituels={habitudesAffichees.slice(0, 12)}
+                    onAjouter={ajouterAuPanier}
+                    onOuvrirFournisseur={ouvrirFournisseur}
+                    libelleQuand={libelleDernierAchat}
+                  />
                   <h3 className="titre-accueil">Fournisseurs</h3>
                   {fournisseursListe.length === 0 && (
                     <p className="aucun-resultat">Aucun fournisseur pour ce métier pour le moment.</p>
@@ -5708,16 +5701,15 @@ function App() {
                     <span>Ces produits sont fictifs, pour découvrir le site : ils ne peuvent pas être commandés.</span>
                   </div>
                 )}
-                {habitudesFournisseur.length > 0 && (
-                  <>
-                    <h4 className="titre-categorie">Tes habituels chez {fournisseurActif}</h4>
-                    <ul className="liste-lignes liste-habituels">
-                      {habitudesFournisseur.slice(0, 4).map((h) => (
-                        ligneProduit(h.produit, `habituel-f-${h.produit.id}`, detailHabituel(h))
-                      ))}
-                    </ul>
-                  </>
-                )}
+                <ProduitsHabituels
+                  titre={`Tes habituels chez ${fournisseurActif}`}
+                  habituels={habitudesFournisseur}
+                  onAjouter={ajouterAuPanier}
+                  onOuvrirFournisseur={ouvrirFournisseur}
+                  libelleQuand={libelleDernierAchat}
+                  masquerFournisseur
+                  parPageBureau={3}
+                />
                 {nombreFournisseursTotal > 1 && (
                   <div className="note-fournisseur">
                     <span>Tu peux ajouter des produits d'autres fournisseurs : tout reste dans le même panier.</span>
