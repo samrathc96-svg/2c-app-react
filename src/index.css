@@ -5324,16 +5324,7 @@ a.bouton-secondaire {
   margin-top: -2px;
 }
 
-/* ===== Vos produits habituels : tableau en diaporama ===== */
-.sr-seul {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
+/* ===== Vos produits habituels : une ligne de tableau, en diaporama ===== */
 .habituels {
   margin: 8px 0 12px;
 }
@@ -5382,14 +5373,22 @@ a.bouton-secondaire {
   overflow: hidden;
 }
 
-.habituels-tableau {
-  width: 100%;
-  border-collapse: collapse;
+.habituels-ligne {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) 120px 100px 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
   text-align: left;
 }
 
-.habituels-tableau th {
-  padding: 10px 14px;
+.habituels-ligne.sans-fournisseur {
+  grid-template-columns: minmax(0, 2.4fr) 120px 100px 64px;
+}
+
+.habituels-titres {
+  padding-top: 10px;
+  padding-bottom: 10px;
   background: var(--couleur-carte);
   font-size: 11px;
   font-weight: 600;
@@ -5398,10 +5397,27 @@ a.bouton-secondaire {
   color: var(--couleur-muted);
 }
 
-.habituels-tableau td {
-  padding: 10px 14px;
+.habituels-piste {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   border-top: 1px solid var(--couleur-bordure);
-  vertical-align: middle;
+}
+
+.habituels-piste::-webkit-scrollbar {
+  display: none;
+}
+
+.habituels-diapo {
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  padding-top: 12px;
+  padding-bottom: 12px;
   font-size: 14px;
 }
 
@@ -5423,18 +5439,19 @@ a.bouton-secondaire {
   color: var(--couleur-muted);
 }
 
-.habituels-tableau .col-prix {
+.habituels-ligne .col-prix {
+  text-align: right;
   white-space: nowrap;
   font-weight: 600;
 }
 
-.habituels-tableau .col-action {
-  width: 64px;
-  text-align: right;
+.habituels-titres .col-prix {
+  font-weight: 600;
 }
 
-.habituels-tableau .col-action .bouton-plus {
-  margin-left: auto;
+.habituels-ligne .col-action {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .lien-fournisseur {
@@ -5452,6 +5469,7 @@ a.bouton-secondaire {
 .habituels-pastilles {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
@@ -5473,15 +5491,17 @@ a.bouton-secondaire {
 }
 
 @media (max-width: 699px) {
-  .habituels-tableau .col-fournisseur,
-  .habituels-tableau .col-historique {
+  .habituels-ligne,
+  .habituels-ligne.sans-fournisseur {
+    grid-template-columns: minmax(0, 1fr) 90px 56px;
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .habituels-ligne .col-fournisseur,
+  .habituels-ligne .col-historique {
     display: none;
   }
   .habituel-sous {
     display: block;
-  }
-  .habituels-tableau th,
-  .habituels-tableau td {
-    padding: 10px 12px;
   }
 }

@@ -5708,7 +5708,6 @@ function App() {
                   onOuvrirFournisseur={ouvrirFournisseur}
                   libelleQuand={libelleDernierAchat}
                   masquerFournisseur
-                  parPageBureau={3}
                 />
                 {nombreFournisseursTotal > 1 && (
                   <div className="note-fournisseur">
