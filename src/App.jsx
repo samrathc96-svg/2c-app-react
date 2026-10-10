@@ -6067,8 +6067,25 @@ function App() {
                           month: 'long',
                           hour: '2-digit',
                           minute: '2-digit'
-                        })} — {statutCommande(commande.id)}
+                        })}
                       </span>
+                      {(() => {
+                        const statut = statutCommande(commande.id)
+                        const rang = statut === 'Livrée' ? 3 : statut === 'En cours' ? 2 : statut === 'Annulée' ? 0 : 1
+                        const classe = statut === 'Livrée' ? 'livree' : statut === 'En cours' ? 'en-cours' : statut === 'Annulée' ? 'annulee' : 'a-livrer'
+                        return (
+                          <span className="suivi-liste-commande">
+                            <span className={`pastille-statut statut-${classe}`}>{statut}</span>
+                            {rang > 0 && (
+                              <span className="progression-commande" aria-hidden="true">
+                                <i className={rang >= 1 ? 'fait' : ''}></i>
+                                <i className={rang >= 2 ? 'fait' : ''}></i>
+                                <i className={rang >= 3 ? 'fait' : ''}></i>
+                              </span>
+                            )}
+                          </span>
+                        )
+                      })()}
                       {estCommandeDunAutre(commande) && commande.technicien && (
                         <>
                           <br />

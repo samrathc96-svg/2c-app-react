@@ -5495,7 +5495,8 @@ a.bouton-secondaire {
   .habituels-ligne.sans-fournisseur {
     grid-template-columns: minmax(0, 1fr) 90px 56px;
     gap: 10px;
-    padding: 0 12px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
   .habituels-ligne .col-fournisseur,
   .habituels-ligne .col-historique {
@@ -5660,3 +5661,61 @@ a.bouton-secondaire {
 .bloc-accueil .habituels-nav {
   margin-bottom: 14px;
 }
+
+/* ===== Retouches design : bandeau compact, page fournisseur, suivi des commandes ===== */
+.suivi-liste-commande {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.pastille-statut {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: var(--couleur-accent-clair);
+  color: #B24A00;
+}
+.pastille-statut.statut-en-cours { background: #E3EEFB; color: #1D5FA8; }
+.pastille-statut.statut-livree { background: #E1F3E6; color: #1E7A3A; }
+.pastille-statut.statut-annulee { background: #ECE8E1; color: var(--couleur-muted); }
+.progression-commande { display: inline-flex; gap: 4px; }
+.progression-commande i {
+  display: block;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--couleur-bordure);
+}
+.progression-commande i.fait { background: var(--couleur-accent); }
+
+.entete-fournisseur .souligne { margin: 0; }
+
+@media (max-width: 699px) {
+  /* Bandeau d'annonce : plus bas, pour laisser voir les fournisseurs dès le premier écran */
+  .bandeau-multi {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 12px 14px;
+    margin: 4px 0 0;
+  }
+  .bandeau-multi strong { grid-column: 1 / -1; font-size: 15px; }
+  .bandeau-multi span { font-size: 12.5px; line-height: 1.35; }
+  .bandeau-multi button { min-height: 36px; margin: 0; padding: 0 14px; white-space: nowrap; }
+
+  /* Page fournisseur : couverture plus basse, en-tête resserré */
+  .cover-fournisseur { height: 120px; }
+  .cover-fournisseur .logo-cover { max-height: 78%; padding: 8px 14px; }
+  .cover-fournisseur .logo-cover img { max-height: 70px; }
+  .cover-fournisseur { font-size: 52px; }
+  .contenu-marketplace.catalogue .entete-fournisseur { margin: 12px 0 8px; }
+}
+.habituels + .note-fournisseur { margin-top: 14px; }
