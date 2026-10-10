@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="FrappeK1coup">
+  <rect x="14" y="14" width="172" height="172" rx="32" fill="#22406B"/>
+  <rect x="86" y="34" width="28" height="12" rx="3" fill="#F2A33A"/>
+  <rect x="94" y="46" width="12" height="62" fill="#F2A33A"/>
+  <path d="M94 108h12l-6 16z" fill="#F2A33A"/>
+  <text x="100" y="156" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF">K1coup</text>
+</svg>

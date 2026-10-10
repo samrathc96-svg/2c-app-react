@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="C2B">
+  <rect x="14" y="14" width="172" height="172" rx="32" fill="#1B6FC4"/>
+  <path d="M100 30c22 30 38 50 38 72a38 38 0 0 1-76 0c0-22 16-42 38-72z" fill="#FFFFFF"/>
+  <text x="100" y="116" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#1B6FC4">C2B</text>
+  <rect x="48" y="156" width="104" height="10" rx="5" fill="#9CC8F2"/>
+</svg>

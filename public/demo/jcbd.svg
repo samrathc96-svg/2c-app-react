@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="JCBD">
+  <rect x="14" y="14" width="172" height="172" rx="32" fill="#2A2A2E"/>
+  <path d="M112 28 62 106h32l-10 50 54-82h-34z" fill="#FFC21A"/>
+  <text x="100" y="180" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF">JCBD</text>
+</svg>

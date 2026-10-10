@@ -10,6 +10,8 @@ import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } fro
 import { messageErreur } from './BoxLivraison'
 import { LogoFournisseurImage } from './LogoFournisseur'
 import Logo2C from './Logo2C'
+import LogosFournisseurs from './LogosFournisseurs'
+import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import './App.css'
 
 // =========================================================
@@ -66,6 +68,22 @@ function iconePourMetier(nom) {
   ]
   for (const [mot, icone] of motsCles) if (cible.includes(mot)) return icone
   return 'grid'
+}
+
+// Logos des fournisseurs de démonstration (fichiers dans public/demo).
+const LOGOS_DEMO = {
+  FrappeK1coup: '/demo/frappek1coup.svg',
+  PTV: '/demo/ptv.svg',
+  C2B: '/demo/c2b.svg',
+  JCBD: '/demo/jcbd.svg'
+}
+
+function logosDemoActifs(noms) {
+  const carte = {}
+  noms.forEach((nom) => {
+    if (LOGOS_DEMO[nom]) carte[nom] = LOGOS_DEMO[nom]
+  })
+  return carte
 }
 
 // Nom affiché pour les produits qui n'ont pas (encore) de fournisseur
@@ -1656,6 +1674,10 @@ function App() {
   const [liberationEnCours, setLiberationEnCours] = useState(false)
   const coursesRef = useRef([])
   const [logosFournisseurs, setLogosFournisseurs] = useState({})
+  // Fournisseurs de démonstration (table fournisseurs_demo) : visibles mais
+  // non commandables.
+  const [nomsDemo, setNomsDemo] = useState([])
+  const [historiqueLocal, setHistoriqueLocal] = useState(() => lireHistoriqueLocal())
   const courseSelectionneeRef = useRef(null)
 
   const [mesCommandes, setMesCommandes] = useState([])
@@ -1715,6 +1737,19 @@ function App() {
     .filter((metier) => !metierFiltre || metier.nom === metierFiltre)
     .flatMap((metier) => metier.sousSections)
 
+  // Logos affichés : ceux envoyés par les fournisseurs, et ceux des
+  // fournisseurs de démonstration (images du site).
+  const logosTous = { ...logosDemoActifs(nomsDemo), ...logosFournisseurs }
+
+  // Produits habituels du client : calculés à partir de ses commandes
+  // (compte connecté) ou de l'historique gardé dans ce navigateur (invité).
+  const historiqueHabitudes = session ? historiqueDepuisCommandes(mesCommandes) : historiqueLocal
+  const habitudes = calculerHabitudes(
+    historiqueHabitudes,
+    produitsTous,
+    (produit) => !estDemo(produit) && !estEnRupture(produit)
+  )
+
   // Fournisseurs, avec leurs produits (filtrés par métier si besoin).
   const fournisseursListe = Object.values(
     produitsTous
@@ -1729,7 +1764,12 @@ function App() {
         }
         return acc
       }, {})
-  ).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+  ).sort((a, b) => {
+    // Les fournisseurs chez qui le client commande souvent passent en premier,
+    // les autres restent par ordre alphabétique.
+    const ecart = (habitudes.parFournisseur[b.nom] || 0) - (habitudes.parFournisseur[a.nom] || 0)
+    return ecart !== 0 ? ecart : a.nom.localeCompare(b.nom, 'fr')
+  })
 
   const nombreFournisseursTotal = new Set(produitsTous.map((produit) => produit.fournisseur)).size
 
@@ -1908,6 +1948,11 @@ function App() {
     setConfirmationAnnulation(false)
   }, [commandeSelectionnee])
 
+  // Chaque étape de la commande s'ouvre en haut de la page.
+  useEffect(() => {
+    if (vue === 'panier' || vue === 'informations') window.scrollTo({ top: 0 })
+  }, [vue])
+
   // Pré-remplit le nom et l'email pour un compte connecté (client ou
   // entreprise), pour ne pas avoir à les retaper à chaque commande —
   // reste modifiable si besoin.
@@ -1985,6 +2030,9 @@ function App() {
       ].slice(0, 10)
       window.localStorage.setItem('commandesRecentes2C', JSON.stringify(nouvelle))
       setCommandesRecentesLocales(nouvelle)
+      // Sans compte, les produits commandés servent à retrouver "Vos produits
+      // habituels" sur ce navigateur (rien n'est envoyé ailleurs).
+      if (!session) setHistoriqueLocal(ajouterHistoriqueLocal(commande))
     } catch (e) {
       // stockage indisponible - on ignore silencieusement
     }
@@ -2193,7 +2241,7 @@ function App() {
           }
           setTelephoneClient(sauvegarde.telephoneClient || '')
           setEmailClient(sauvegarde.emailClient || '')
-          setVue('panier')
+          setVue('informations')
         }
       } catch (e) {
         // stockage indisponible - on ignore silencieusement
@@ -2578,8 +2626,17 @@ function App() {
     setLogosFournisseurs(carte)
   }
 
+  // Fournisseurs de démonstration. Si la table n'existe pas encore (script
+  // SQL pas exécuté), on ignore l'erreur : aucun fournisseur n'est en démo.
+  async function chargerDemo() {
+    const { data, error } = await supabase.from('fournisseurs_demo').select('nom')
+    if (error || !Array.isArray(data)) return
+    setNomsDemo(data.map((d) => d.nom).filter(Boolean))
+  }
+
   async function chargerProduits() {
     chargerLogos()
+    chargerDemo()
     let { data, error } = await supabase.from('produits').select('*').eq('statut_validation', 'publie')
     if (error) {
       const secours = await supabase.from('produits').select('*')
@@ -3224,6 +3281,15 @@ function App() {
     setEmailOubli('')
     setMessageOubli('')
     setErreurOubli('')
+    // Efface les informations de la personne qui part : le prochain compte
+    // (ou un invité) ne doit pas voir son nom, son e-mail ni son adresse.
+    setNomClient('')
+    setEmailClient('')
+    setTelephoneClient('')
+    modifierAdresse('', '', '')
+    setTechnicienCommande('')
+    setChantierCommande('')
+    setNomUtilisateur('')
     setEspace('catalogue')
     setVue('accueil')
     setAfficherAuth(false)
@@ -3261,7 +3327,15 @@ function App() {
     else setEspace('suivi')
   }
 
+  function estDemo(produit) {
+    return Boolean(produit) && nomsDemo.includes(produit.fournisseur)
+  }
+
   function ajouterAuPanier(produit) {
+    if (estDemo(produit)) {
+      afficherNotification('Fournisseur de démonstration : les commandes sont désactivées.', 'info')
+      return
+    }
     if (produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 0) {
       afficherNotification('Ce produit est en rupture de stock.')
       return
@@ -3758,6 +3832,25 @@ function App() {
     setChantierCommande('')
     setVue('commande')
     mettreAJourCreneau()
+  }
+
+  // Les trois étapes de la commande : panier, informations, paiement.
+  function rendreEtapesCommande(etape) {
+    const etapes = ['Panier', 'Informations', 'Paiement']
+    return (
+      <ol className="etapes-commande" aria-label="Étapes de la commande">
+        {etapes.map((libelle, index) => (
+          <li
+            key={libelle}
+            className={index + 1 === etape ? 'actif' : index + 1 < etape ? 'fait' : ''}
+            aria-current={index + 1 === etape ? 'step' : undefined}
+          >
+            <span className="pastille-etape">{index + 1 < etape ? <i className="bi bi-check-lg"></i> : index + 1}</span>
+            <span className="libelle-etape">{libelle}</span>
+          </li>
+        ))}
+      </ol>
+    )
   }
 
   function retourAccueil() {
@@ -4675,20 +4768,30 @@ function App() {
   }
 
   // Une ligne de produit : nom, détail, prix, vignette et bouton +.
+  // Habituels affichés sur l'accueil (selon le métier choisi).
+  const habitudesAffichees = habitudes.produits.filter((h) => !metierFiltre || h.produit.metier === metierFiltre)
+
+  function detailHabituel(h) {
+    const quand = libelleDernierAchat(h.derniere)
+    return `${h.produit.fournisseur} · commandé ${h.fois} fois${quand ? ` · ${quand}` : ''}`
+  }
+
   function ligneProduit(produit, cle, detail) {
-    const rupture = estEnRupture(produit)
-    const stockFaible = !rupture && produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3
+    const demo = estDemo(produit)
+    const rupture = !demo && estEnRupture(produit)
+    const stockFaible = !demo && !rupture && produit.quantite_stock !== null && produit.quantite_stock !== undefined && produit.quantite_stock <= 3
     return (
       <li key={cle} className="ligne-produit">
         <div className="texte-ligne-produit">
           <span className="nom-ligne-produit">{produit.nom}</span>
           {detail && <span className="detail-ligne-produit">{detail}</span>}
           <span className="prix-ligne-produit">{produit.prix.toFixed(2)} CHF</span>
+          {demo && <span className="etiquette-demo">Démonstration</span>}
           {rupture && <span className="rupture-stock">Rupture de stock</span>}
           {stockFaible && <span className="stock-faible">Plus que {produit.quantite_stock} en stock</span>}
         </div>
         {produit.image_url && <img src={produit.image_url} alt="" className="vignette-ligne-produit" />}
-        {!rupture && (
+        {!rupture && !demo && (
           <button className="bouton-plus" aria-label={`Ajouter ${produit.nom} au panier`} onClick={() => ajouterAuPanier(produit)}>
             <i className="bi bi-plus-lg"></i>
           </button>
@@ -5139,7 +5242,7 @@ function App() {
                   )}
                   <input
                     type="text"
-                    placeholder={roleChoisi === 'entreprise' || roleChoisi === 'fournisseur' ? 'Votre nom et prénom' : 'Nom'}
+                    placeholder={roleChoisi === 'entreprise' || roleChoisi === 'fournisseur' ? 'Votre nom et prénom' : 'Nom et prénom'}
                     value={nomInscription}
                     onChange={(e) => setNomInscription(e.target.value)}
                   />
@@ -5439,6 +5542,25 @@ function App() {
 
               {rechercheNormalisee === '' && modeAccueil === 'fournisseurs' && (
                 <>
+                  <LogosFournisseurs
+                    fournisseurs={fournisseursListe.map((f) => ({
+                      nom: f.nom,
+                      demo: nomsDemo.includes(f.nom),
+                      habituel: (habitudes.parFournisseur[f.nom] || 0) > 0
+                    }))}
+                    logos={logosTous}
+                    onOuvrir={ouvrirFournisseur}
+                  />
+                  {habitudesAffichees.length > 0 && (
+                    <>
+                      <h3 className="titre-accueil">Vos produits habituels</h3>
+                      <ul className="liste-lignes liste-habituels">
+                        {habitudesAffichees.slice(0, 6).map((h) => (
+                          ligneProduit(h.produit, `habituel-${h.produit.id}`, detailHabituel(h))
+                        ))}
+                      </ul>
+                    </>
+                  )}
                   {nombreFournisseursTotal > 1 && (
                     <div className="bandeau-multi">
                       <strong>Plusieurs fournisseurs, un seul livreur</strong>
@@ -5457,9 +5579,13 @@ function App() {
                         className="carte-fournisseur"
                         onClick={() => ouvrirFournisseur(fournisseur.nom)}
                       >
-                        <span className={`visuel-fournisseur${logosFournisseurs[fournisseur.nom] ? ' avec-logo' : ''}`}><LogoFournisseurImage url={logosFournisseurs[fournisseur.nom]} nom={fournisseur.nom} /></span>
+                        <span className={`visuel-fournisseur${logosTous[fournisseur.nom] ? ' avec-logo' : ''}`}><LogoFournisseurImage url={logosTous[fournisseur.nom]} nom={fournisseur.nom} /></span>
                         <span className="texte-fournisseur">
                           <span className="nom-fournisseur">{fournisseur.nom}</span>
+                          {nomsDemo.includes(fournisseur.nom) && <span className="etiquette-demo">Démonstration</span>}
+                          {!nomsDemo.includes(fournisseur.nom) && (habitudes.parFournisseur[fournisseur.nom] || 0) > 0 && (
+                            <span className="etiquette-habituel"><i className="bi bi-star-fill"></i> Tu y commandes souvent</span>
+                          )}
                           <span className="detail-fournisseur">{fournisseur.categories.slice(0, 3).join(', ')}</span>
                           <span className="detail-fournisseur">{fournisseur.produits.length} produit(s)</span>
                         </span>
@@ -5554,6 +5680,7 @@ function App() {
 
           {vue === 'fournisseur' && fournisseurActif && (() => {
             const categorieCourante = sousSectionsFournisseur.find((ss) => ss.nom === categorieFournisseur) || sousSectionsFournisseur[0]
+            const habitudesFournisseur = habitudes.produits.filter((h) => h.produit.fournisseur === fournisseurActif)
             const nombreProduitsFournisseur = sousSectionsFournisseur.reduce((somme, ss) => somme + ss.produits.length, 0)
             return (
               <>
@@ -5561,9 +5688,9 @@ function App() {
                   <button className="retour-rond" aria-label="Retour" onClick={retourAccueil}>
                     <i className="bi bi-chevron-left"></i>
                   </button>
-                  {logosFournisseurs[fournisseurActif] ? (
+                  {logosTous[fournisseurActif] ? (
                     <span className="logo-cover">
-                      <LogoFournisseurImage url={logosFournisseurs[fournisseurActif]} nom={fournisseurActif} />
+                      <LogoFournisseurImage url={logosTous[fournisseurActif]} nom={fournisseurActif} />
                     </span>
                   ) : (
                     <i className="bi bi-shop"></i>
@@ -5575,6 +5702,22 @@ function App() {
                     {nombreProduitsFournisseur} produit(s) · {sousSectionsFournisseur.length} catégorie(s)
                   </p>
                 </div>
+                {nomsDemo.includes(fournisseurActif) && (
+                  <div className="bandeau-demo">
+                    <strong>Fournisseur de démonstration</strong>
+                    <span>Ces produits sont fictifs, pour découvrir le site : ils ne peuvent pas être commandés.</span>
+                  </div>
+                )}
+                {habitudesFournisseur.length > 0 && (
+                  <>
+                    <h4 className="titre-categorie">Tes habituels chez {fournisseurActif}</h4>
+                    <ul className="liste-lignes liste-habituels">
+                      {habitudesFournisseur.slice(0, 4).map((h) => (
+                        ligneProduit(h.produit, `habituel-f-${h.produit.id}`, detailHabituel(h))
+                      ))}
+                    </ul>
+                  </>
+                )}
                 {nombreFournisseursTotal > 1 && (
                   <div className="note-fournisseur">
                     <span>Tu peux ajouter des produits d'autres fournisseurs : tout reste dans le même panier.</span>
@@ -5648,6 +5791,7 @@ function App() {
             <div className="vue-panier">
               <p className="retour" onClick={retourAccueil}>← Retour</p>
               <h3>Mon panier</h3>
+              {panier.length > 0 && rendreEtapesCommande(1)}
               {groupesPanier.map((groupe) => (
                 <div key={groupe.nom} className="groupe-panier">
                   {groupesPanier.length > 1 && (
@@ -5698,10 +5842,43 @@ function App() {
                   </div>
                 </div>
               )}
+              {panier.length > 0 && (
+                <>
+                  <p className="total-panier">Total des produits : {total.toFixed(2)} CHF</p>
+                  <button className="valider" onClick={() => setVue('informations')}>
+                    Continuer
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {vue === 'informations' && (
+            <div className="vue-panier vue-informations">
+              <p className="retour" onClick={() => setVue('panier')}>← Retour au panier</p>
+              <h3>Mes informations</h3>
+              {rendreEtapesCommande(2)}
+              {panier.length === 0 ? (
+                <div className="panier-vide">
+                  <i className="bi bi-cart3"></i>
+                  <p>Ton panier est vide.</p>
+                  <button className="valider" onClick={retourAccueil}>Voir les fournisseurs</button>
+                </div>
+              ) : (
+                <>
+              <div className="resume-panier-etape">
+                <span>
+                  <i className="bi bi-cart3"></i> {nombreArticles} article(s) · {total.toFixed(2)} CHF
+                </span>
+                <button type="button" className="lien-modifier" onClick={() => setVue('panier')}>Modifier</button>
+              </div>
+              {(role === 'client' || role === 'entreprise') && session && (
+                <p className="souligne">Ton nom et ton e-mail viennent de ton compte. Il ne reste qu'à indiquer le lieu de livraison.</p>
+              )}
               <div className="champ-livraison">
                 <input
                   type="text"
-                  placeholder={role === 'entreprise' ? "Nom de l'entreprise" : 'Nom du client'}
+                  placeholder={role === 'entreprise' ? "Nom de l'entreprise" : 'Nom et prénom'}
                   value={nomClient}
                   onChange={(e) => setNomClient(e.target.value)}
                 />
@@ -5795,6 +5972,8 @@ function App() {
                       ? 'Payer et commander'
                       : 'Valider la commande'}
               </button>
+                </>
+              )}
             </div>
           )}
 
@@ -5826,7 +6005,7 @@ function App() {
             </>
           )}
 
-          {vue !== 'panier' && vue !== 'commande' && nombreArticles > 0 && (
+          {vue !== 'panier' && vue !== 'informations' && vue !== 'commande' && nombreArticles > 0 && (
             <div className="barre-panier au-dessus-onglets" onClick={() => setVue('panier')}>
               <span className="barre-panier-gauche">
                 <span className="barre-panier-compte">{nombreArticles}</span>
@@ -7719,14 +7898,14 @@ function App() {
         ) : (
           <>
             <button
-              className={espace === 'catalogue' && vue !== 'panier' ? 'actif' : ''}
+              className={espace === 'catalogue' && vue !== 'panier' && vue !== 'informations' ? 'actif' : ''}
               onClick={() => { setEspace('catalogue'); retourAccueil(); window.scrollTo({ top: 0 }) }}
             >
               <i className="bi bi-house"></i>
               <span>Accueil</span>
             </button>
             <button
-              className={espace === 'catalogue' && vue === 'panier' ? 'actif' : ''}
+              className={espace === 'catalogue' && (vue === 'panier' || vue === 'informations') ? 'actif' : ''}
               onClick={() => { setEspace('catalogue'); setVue('panier') }}
             >
               <span className="icone-onglet">

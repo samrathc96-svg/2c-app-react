@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="PTV">
+  <circle cx="100" cy="100" r="88" fill="#0E7C86"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round">
+    <path d="M42 70c22 0 30-14 52-14s26 16 40 8"/>
+    <path d="M42 96c22 0 30-14 52-14s34 16 56 6"/>
+    <path d="M42 122c22 0 30-14 52-14s26 16 40 8"/>
+  </g>
+  <text x="100" y="168" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="#FFFFFF">PTV</text>
+</svg>
