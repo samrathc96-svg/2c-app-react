@@ -12,6 +12,7 @@ import { LogoFournisseurImage } from './LogoFournisseur'
 import Logo2C from './Logo2C'
 import LogosFournisseurs from './LogosFournisseurs'
 import ProduitsHabituels from './ProduitsHabituels'
+import DiaporamaAccueil from './DiaporamaAccueil'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import './App.css'
 
@@ -5538,6 +5539,7 @@ function App() {
 
               {rechercheNormalisee === '' && modeAccueil === 'fournisseurs' && (
                 <>
+                  <DiaporamaAccueil />
                   {nombreFournisseursTotal > 1 && (
                     <div className="bandeau-multi">
                       <strong>Plusieurs fournisseurs, un seul livreur</strong>
