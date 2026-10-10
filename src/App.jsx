@@ -5,7 +5,7 @@ import { EspaceFournisseur, AdminComptesFournisseurs } from './EspaceFournisseur
 import { jouerSonnerie } from './alerteSonore'
 import { useAlerteFournisseur } from './useAlerteFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
-import { pushActifLocalement } from './notificationsPush'
+import { pushActifLocalement, oublierCetAppareil } from './notificationsPush'
 import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } from './ColisCourse'
 import { messageErreur } from './BoxLivraison'
 import { LogoFournisseurImage } from './LogoFournisseur'
@@ -3271,6 +3271,9 @@ function App() {
   }
 
   async function deconnexion() {
+    // Cet appareil ne doit plus recevoir les alertes de la personne qui part
+    // (3 secondes maximum : la déconnexion ne doit jamais rester bloquée).
+    await Promise.race([oublierCetAppareil(), new Promise((resolve) => setTimeout(resolve, 3000))])
     await supabase.auth.signOut()
     setEmailConnexion('')
     setMotDePasseConnexion('')

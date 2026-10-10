@@ -148,3 +148,34 @@ export async function envoyerNotificationTest() {
   if (!data.envoyes) return { ok: false, message: "Aucun appareil n'a reçu le test : désactivez puis réactivez les notifications." }
   return { ok: true, message: 'Test envoyé : la notification arrive dans quelques secondes.' }
 }
+
+// À appeler à la déconnexion : retire CET appareil des notifications de la
+// personne qui part. Sans cela, l'appareil resterait abonné à son compte et
+// continuerait à recevoir ses alertes (commande à préparer, course à
+// récupérer...) même une fois déconnecté.
+// À appeler AVANT la fermeture de session (la fonction push_supprimer exige
+// d'être connecté) ; push_oublier_appareil sert de filet de sécurité.
+export async function oublierCetAppareil() {
+  try {
+    if (!('serviceWorker' in navigator)) return
+    const enregistrement = await trouverEnregistrement()
+    const abonnement = enregistrement ? await enregistrement.pushManager.getSubscription() : null
+    if (abonnement) {
+      try {
+        await supabase.rpc('push_supprimer', { p_endpoint: abonnement.endpoint })
+      } catch (e) {
+        // pas connecté / réseau : on tente le filet de sécurité ci-dessous
+      }
+      try {
+        await supabase.rpc('push_oublier_appareil', { p_endpoint: abonnement.endpoint })
+      } catch (e) {
+        // fonction SQL pas encore installée : sans gravité
+      }
+      await abonnement.unsubscribe()
+    }
+  } catch (e) {
+    console.error("Retrait de l'appareil des notifications :", e)
+  } finally {
+    memoriser(false)
+  }
+}
