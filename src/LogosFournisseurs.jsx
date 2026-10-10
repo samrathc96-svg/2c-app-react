@@ -31,7 +31,7 @@ export default function LogosFournisseurs({ fournisseurs, logos, onOuvrir }) {
   if (fournisseurs.length === 0) return null
 
   return (
-    <div className="logos-fournisseurs" role="region" aria-label="Accès rapide aux fournisseurs">
+    <div className="logos-fournisseurs bloc-accueil" role="region" aria-label="Accès rapide aux fournisseurs">
       <h3 className="titre-accueil">Accès rapide</h3>
       <div className="logos-fournisseurs-cadre">
         {peutReculer && (

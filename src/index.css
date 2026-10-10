@@ -5528,7 +5528,7 @@ a.bouton-secondaire {
     position: absolute;
     inset: 0;
     opacity: 0;
-    transition: opacity 1.4s ease-in-out;
+    transition: opacity 1.6s ease-in-out;
     pointer-events: none;
   }
 
@@ -5618,4 +5618,45 @@ a.bouton-secondaire {
   .hero-diapo-slide {
     transition-duration: 0.01s;
   }
+}
+
+/* ===== Séparations entre les blocs de l'accueil (sobres) ===== */
+/* Chaque bloc a un petit titre en capitales, prolongé d'un filet fin. */
+.bloc-accueil {
+  margin: 30px 0 0;
+  padding: 0;
+}
+
+.contenu-marketplace.catalogue .bloc-accueil .titre-accueil {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--couleur-muted);
+}
+
+.contenu-marketplace.catalogue .bloc-accueil .titre-accueil::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--couleur-bordure);
+}
+
+.bloc-accueil .habituels-entete {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.contenu-marketplace.catalogue .bloc-accueil .habituels-entete .titre-accueil {
+  flex: 1;
+  margin: 0 0 14px;
+}
+
+.bloc-accueil .habituels-nav {
+  margin-bottom: 14px;
 }

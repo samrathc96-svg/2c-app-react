@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 
 // Diaporama de l'accueil (ordinateur uniquement) : 3 photos qui s'enchaînent
-// en fondu toutes les 5 secondes, avec un message par image.
-const DUREE_MS = 5000
+// en fondu toutes les 8 secondes, avec un message par image.
+const DUREE_MS = 8000
 
 const DIAPOS = [
   {

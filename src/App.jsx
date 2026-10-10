@@ -5563,6 +5563,7 @@ function App() {
                     onOuvrirFournisseur={ouvrirFournisseur}
                     libelleQuand={libelleDernierAchat}
                   />
+                  <section className="bloc-accueil" aria-label="Fournisseurs">
                   <h3 className="titre-accueil">Fournisseurs</h3>
                   {fournisseursListe.length === 0 && (
                     <p className="aucun-resultat">Aucun fournisseur pour ce métier pour le moment.</p>
@@ -5587,7 +5588,9 @@ function App() {
                       </button>
                     ))}
                   </div>
+                  </section>
 
+                  <section className="bloc-accueil" aria-label="Comment ça marche">
                   <h3 className="titre-accueil">Comment ça marche</h3>
                   <div className="grille-etapes">
                     <div className="etape-accueil">
@@ -5612,6 +5615,7 @@ function App() {
                   <p className="lien-carte" onClick={() => setEspace('apropos')}>
                     En savoir plus sur nous →
                   </p>
+                  </section>
                 </>
               )}
 

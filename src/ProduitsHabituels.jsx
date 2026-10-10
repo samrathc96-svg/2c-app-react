@@ -28,7 +28,7 @@ export default function ProduitsHabituels({ titre, habituels, onAjouter, onOuvri
   }
 
   return (
-    <section className="habituels" aria-label={titre}>
+    <section className="habituels bloc-accueil" aria-label={titre}>
       <header className="habituels-entete">
         <h3 className="titre-accueil">{titre}</h3>
         {total > 1 && (
