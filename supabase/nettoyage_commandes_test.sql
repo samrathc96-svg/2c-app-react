@@ -5,7 +5,9 @@
 -- comptes (clients, livreurs, admin), avis donnés ne concernant pas
 -- les commandes supprimées. Supprime : commandes, courses (livreurs),
 -- codes de livraison, factures enregistrées, avis liés, paiements
--- Stripe en attente.
+-- Stripe en attente, états de préparation fournisseur, rappels,
+-- libérations de courses.
+-- (Mis à jour : couvre aussi les tables ajoutées depuis, voir étape 2.)
 -- =========================================================
 
 
@@ -17,7 +19,11 @@ select 'commandes' as table_, count(*) as lignes, min(created_at) as plus_ancien
 union all select 'courses', count(*), min(created_at), max(created_at) from courses
 union all select 'paiements_en_attente', count(*), min(created_at), max(created_at) from paiements_en_attente
 union all select 'factures', count(*), min(created_at), max(created_at) from factures
-union all select 'avis', count(*), null, null from avis;
+union all select 'avis', count(*), null, null from avis
+union all select 'preparations_fournisseur', count(*), null, null from commande_fournisseur_prepa
+union all select 'rappels_fournisseur', count(*), null, null from commande_fournisseur_rappels
+union all select 'liberations_courses', count(*), min(cree_le), max(cree_le) from course_liberations
+union all select 'mouvements_prepaye (non supprimes)', count(*), min(created_at), max(created_at) from mouvements_prepaye;
 
 
 -- ---------------------------------------------------------
@@ -47,6 +53,11 @@ where created_at < (select t from _limite)
    or commande_id::text in (select commande_id from _commandes_a_supprimer);
 
 delete from avis where course_id::text in (select course_id from _courses_a_supprimer);
+delete from course_liberations
+  where course_id::text in (select course_id from _courses_a_supprimer)
+     or commande_id in (select commande_id from _commandes_a_supprimer);
+delete from commande_fournisseur_prepa where commande_id in (select commande_id from _commandes_a_supprimer);
+delete from commande_fournisseur_rappels where commande_id in (select commande_id from _commandes_a_supprimer);
 delete from codes_livraison where course_id in (select course_id from _courses_a_supprimer);
 delete from factures
   where commande_id::text in (select commande_id from _commandes_a_supprimer)
@@ -63,6 +74,10 @@ commit;
 -- Notes :
 --  * Le stock des produits n'est pas remis à jour par cette suppression :
 --    vérifiez les quantités dans « Gérer le catalogue ».
+--  * Les mouvements de solde prépayé (table mouvements_prepaye) et les
+--    soldes des entreprises ne sont PAS touchés : les recharges et débits
+--    de test restent visibles. Pour remettre un solde de test à zéro :
+--      update entreprises set solde_prepaye = 0 where id = '...';
 --  * Les PDF de factures déjà enregistrés restent dans le stockage
 --    (Storage > factures) : vous pouvez les vider à la main si besoin.
 --  * Les paiements de test restent visibles dans Stripe (mode test) ;

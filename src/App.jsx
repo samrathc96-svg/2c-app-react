@@ -3295,6 +3295,11 @@ function App() {
     setTechnicienCommande('')
     setChantierCommande('')
     setNomUtilisateur('')
+    // Un livreur qui part ne doit pas laisser sa course ouverte au suivant :
+    // la liste change et l'écran resterait blanc.
+    setCourseSelectionnee(null)
+    setFormulaireLivraisonOuvert(false)
+    setErreurCodeLivraison('')
     setEspace('catalogue')
     setVue('accueil')
     setAfficherAuth(false)
@@ -6919,7 +6924,7 @@ function App() {
             </div>
           )}
 
-          {!chargementCourses && courseSelectionnee === null && (
+          {!chargementCourses && (courseSelectionnee === null || !courses[courseSelectionnee]) && (
             <>
               <h3>Mes courses</h3>
               <p className="slogan">{nomUtilisateur || session.user.email}</p>
@@ -6966,7 +6971,7 @@ function App() {
             </>
           )}
 
-          {!chargementCourses && courseSelectionnee !== null && (
+          {!chargementCourses && courseSelectionnee !== null && courses[courseSelectionnee] && (
             <>
               <p className="retour" onClick={() => { setCourseSelectionnee(null); setFormulaireLivraisonOuvert(false); setErreurCodeLivraison('') }}>← Retour</p>
               <h3>{courses[courseSelectionnee].client}</h3>

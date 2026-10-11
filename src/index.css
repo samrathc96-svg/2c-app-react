@@ -5771,3 +5771,9 @@ a.bouton-secondaire {
   .vue-informations .resume-panier-etape { font-size: 14px; padding: 14px 18px; }
   .vue-informations .champ-livraison input { min-height: 48px; font-size: 15px; }
 }
+
+/* Pastille du panier dans la barre du bas : ne pas la rogner */
+.barre-onglets button span.icone-onglet {
+  overflow: visible;
+  max-width: none;
+}
