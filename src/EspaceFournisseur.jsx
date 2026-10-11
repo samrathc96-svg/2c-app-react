@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { confirmer } from './confirmer'
 import { CommandesFournisseur } from './CommandesFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
 import { CarteLogoFournisseur, LogoFournisseurImage } from './LogoFournisseur'
@@ -426,7 +427,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
   }
 
   async function supprimer(p) {
-    if (!window.confirm(`Supprimer « ${p.nom} » de votre catalogue ?`)) return
+    if (!(await confirmer(`Supprimer « ${p.nom} » de votre catalogue ? Cette action est définitive. Pour le retirer temporairement, utilisez « Masquer ».`, { oui: 'Supprimer' }))) return
     const { error } = await supabase.rpc('fournisseur_supprimer_produit', { p_id: String(p.id) })
     if (error) {
       console.error('Erreur de suppression :', error)
@@ -961,7 +962,7 @@ function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, 
   }
 
   async function retirerLogo() {
-    if (!window.confirm(`Retirer le logo de « ${compte.nom_fournisseur} » du site ?`)) return
+    if (!(await confirmer(`Retirer le logo de « ${compte.nom_fournisseur} » du site ?`, { oui: 'Retirer le logo' }))) return
     const { error } = await supabase.rpc('admin_retirer_logo', { p_user: compte.user_id })
     if (error) {
       console.error('Erreur de retrait du logo :', error)

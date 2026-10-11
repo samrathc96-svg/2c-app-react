@@ -15,6 +15,7 @@ import ProduitsHabituels from './ProduitsHabituels'
 import DiaporamaAccueil from './DiaporamaAccueil'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import { rechargerSiMiseAJour } from './rechargerSiMiseAJour'
+import { confirmer } from './confirmer'
 import './App.css'
 
 // Recharge le site tout seul quand une nouvelle version est installée.
@@ -4367,7 +4368,7 @@ function App() {
   }
 
   async function refuserDemandeLivreur(profilId) {
-    if (!window.confirm('Refuser cette demande de compte livreur ? Le compte redevient un compte client normal.')) return
+    if (!(await confirmer('Refuser cette demande de compte livreur ? Le compte redevient un compte client normal.', { oui: 'Refuser la demande' }))) return
     const demandeRefusee = demandesLivreur.find((d) => d.id === profilId)
     const { error } = await supabase.rpc('refuser_demande_livreur', { p_profil_id: profilId })
     if (error) {
@@ -4391,7 +4392,7 @@ function App() {
   }
 
   async function desactiverLivreur(profilId) {
-    if (!window.confirm('Désactiver ce livreur ? Il repassera en compte client normal.')) return
+    if (!(await confirmer('Désactiver ce livreur ? Il repassera en compte client normal.', { oui: 'Désactiver' }))) return
     const { error } = await supabase.rpc('desactiver_livreur', { p_profil_id: profilId })
     if (error) {
       console.error('Erreur de désactivation du livreur :', error)
@@ -4665,7 +4666,7 @@ function App() {
   }
 
   async function supprimerFournisseurCarte(id) {
-    if (!window.confirm('Retirer ce fournisseur de la carte ?')) return
+    if (!(await confirmer('Retirer ce fournisseur de la carte ?', { oui: 'Retirer' }))) return
     const { error } = await supabase.from('fournisseurs').delete().eq('id', id)
     if (error) {
       console.error('Erreur de suppression du fournisseur :', error)
@@ -4677,7 +4678,7 @@ function App() {
   }
 
   async function supprimerProduit(id) {
-    if (!window.confirm('Supprimer définitivement ce produit du catalogue ?')) return
+    if (!(await confirmer('Supprimer définitivement ce produit du catalogue ?', { oui: 'Supprimer' }))) return
 
     const { error } = await supabase.from('produits').delete().eq('id', id)
 

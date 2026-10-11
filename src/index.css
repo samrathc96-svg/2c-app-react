@@ -5814,3 +5814,59 @@ a.bouton-secondaire {
   font-size: 15px;
   font-weight: 500;
 }
+
+/* ---- Fenêtre de confirmation du site (remplace les fenêtres natives, voir confirmer.js) ---- */
+.confirmation-voile {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(30, 27, 23, 0.5);
+}
+
+.confirmation-boite {
+  width: 100%;
+  max-width: 380px;
+  background: #FFFFFF;
+  border-radius: 18px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.confirmation-message {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--couleur-encre);
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirmation-actions button {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--couleur-bordure);
+  background: #FFFFFF;
+  color: var(--couleur-encre);
+}
+
+.confirmation-actions .confirmation-oui {
+  background: var(--couleur-accent);
+  border-color: var(--couleur-accent);
+  color: #FFFFFF;
+}
+
+.confirmation-actions .confirmation-danger {
+  background: #C0392B;
+  border-color: #C0392B;
+}
