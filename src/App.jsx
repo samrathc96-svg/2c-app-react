@@ -14,7 +14,11 @@ import LogosFournisseurs from './LogosFournisseurs'
 import ProduitsHabituels from './ProduitsHabituels'
 import DiaporamaAccueil from './DiaporamaAccueil'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
+import { rechargerSiMiseAJour } from './rechargerSiMiseAJour'
 import './App.css'
+
+// Recharge le site tout seul quand une nouvelle version est installée.
+rechargerSiMiseAJour()
 
 // =========================================================
 // Informations d'entreprise pour la facture PDF
@@ -39,6 +43,10 @@ const INFOS_ENTREPRISE = {
 // continue alors de fonctionner exactement comme avant (commande sans
 // paiement). Passer à true une fois tout en place, puis redéployer.
 const PAIEMENT_EN_LIGNE_ACTIF = true
+
+// Montant minimum accepté par Stripe pour un paiement en ligne (le serveur
+// refuse en dessous de 0,50 CHF). Affiché dès le panier plutôt qu'à la fin.
+const MONTANT_MINIMUM_EN_LIGNE = 0.5
 
 const iconsParMetier = {
   'Maçonnerie & Gros œuvre': 'bricks',
@@ -1942,7 +1950,7 @@ function App() {
 
   useEffect(() => {
     if (!notification) return
-    const minuteur = setTimeout(() => setNotification(null), 3500)
+    const minuteur = setTimeout(() => setNotification(null), 5000)
     return () => clearTimeout(minuteur)
   }, [notification])
 
@@ -3683,6 +3691,15 @@ function App() {
     return (infosPaiement && infosPaiement.mode_paiement) || 'carte'
   }
 
+  // Combien de CHF de produits manquent pour atteindre le minimum du paiement
+  // en ligne (0 si tout est bon). Les comptes entreprise ne paient que la
+  // livraison : pas de minimum sur les produits.
+  function montantManquantPourPayer() {
+    if (!PAIEMENT_EN_LIGNE_ACTIF || compteEntrepriseActif() || panier.length === 0) return 0
+    const manque = Math.round((MONTANT_MINIMUM_EN_LIGNE - total) * 100) / 100
+    return manque > 0 ? manque : 0
+  }
+
   function libelleFraisLivraison() {
     if (!infosPaiement) return '—'
     const forfait = Number(infosPaiement.forfait || 0).toFixed(2)
@@ -3730,6 +3747,11 @@ function App() {
     const blocageEntreprise = messageAccesEntreprise()
     if (blocageEntreprise) {
       afficherNotification(blocageEntreprise)
+      return
+    }
+    if (montantManquantPourPayer() > 0) {
+      afficherNotification(`Le paiement en ligne demande un minimum de ${MONTANT_MINIMUM_EN_LIGNE.toFixed(2)} CHF de produits.`)
+      setVue('panier')
       return
     }
     if (
@@ -5850,7 +5872,20 @@ function App() {
               {panier.length > 0 && (
                 <>
                   <p className="total-panier">Total des produits : {total.toFixed(2)} CHF</p>
-                  <button className="valider" onClick={() => setVue('informations')}>
+                  {(() => {
+                    const manque = montantManquantPourPayer()
+                    return manque > 0 ? (
+                      <p className="erreur-code-livraison" role="alert">
+                        Le paiement en ligne demande un minimum de {MONTANT_MINIMUM_EN_LIGNE.toFixed(2)} CHF.
+                        Ajoute encore {manque.toFixed(2)} CHF de produits pour continuer.
+                      </p>
+                    ) : null
+                  })()}
+                  <button
+                    className="valider"
+                    disabled={montantManquantPourPayer() > 0}
+                    onClick={() => setVue('informations')}
+                  >
                     Continuer
                   </button>
                 </>
@@ -6994,7 +7029,7 @@ function App() {
                           <span className="tournee-pastille tournee-retrait"><i className="bi bi-box-seam"></i></span>
                           <span className="tournee-texte">
                             <strong>Retrait chez {retrait.nom}</strong>
-                            <small>{retrait.adresse || 'Adresse du fournisseur non renseignée'}</small>
+                            <small>{retrait.adresse || "Adresse du fournisseur non renseignée : contacte 2C Delivery avant de partir"}</small>
                           </span>
                           {retrait.adresse && (
                             <a

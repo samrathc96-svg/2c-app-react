@@ -401,6 +401,30 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
     notifier('Stock mis à jour.', 'info')
   }
 
+  // Masque un produit publié (ou le réaffiche) sans le supprimer.
+  async function masquerProduit(p, masquer) {
+    const { error } = await supabase.rpc('fournisseur_masquer_produit', { p_id: String(p.id), p_masquer: masquer })
+    if (error) {
+      console.error('Erreur de masquage :', error)
+      const texte = (error && error.message) || ''
+      notifier(
+        texte.includes('masqué par 2C')
+          ? 'Ce produit a été masqué par 2C Delivery : contactez-nous pour le réafficher.'
+          : "L'action a échoué, réessayez."
+      )
+      return
+    }
+    setProduits((precedent) =>
+      precedent.map((x) =>
+        x.id === p.id
+          ? { ...x, statut_validation: masquer ? 'masque' : 'publie', masque_par_fournisseur: masquer }
+          : x
+      )
+    )
+    if (onCatalogueChange) onCatalogueChange()
+    notifier(masquer ? 'Produit masqué : il n’est plus visible des clients.' : 'Produit de nouveau visible.', 'info')
+  }
+
   async function supprimer(p) {
     if (!window.confirm(`Supprimer « ${p.nom} » de votre catalogue ?`)) return
     const { error } = await supabase.rpc('fournisseur_supprimer_produit', { p_id: String(p.id) })
@@ -784,11 +808,21 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
                     {stockSaisi !== undefined && (
                       <button className="bouton-secondaire" onClick={() => enregistrerStock(p)}>OK</button>
                     )}
-                    <button className="bouton-secondaire" onClick={() => ouvrirEdition(p)} title="Modifier">
-                      <i className="bi bi-pencil"></i>
+                    <button className="bouton-secondaire bouton-action-produit" onClick={() => ouvrirEdition(p)} title="Modifier">
+                      <i className="bi bi-pencil"></i> <span>Modifier</span>
                     </button>
-                    <button className="bouton-secondaire" onClick={() => supprimer(p)} title="Supprimer">
-                      <i className="bi bi-trash"></i>
+                    {p.statut_validation === 'publie' && (
+                      <button className="bouton-secondaire bouton-action-produit" onClick={() => masquerProduit(p, true)} title="Retirer du catalogue sans le supprimer">
+                        <i className="bi bi-eye-slash"></i> <span>Masquer</span>
+                      </button>
+                    )}
+                    {p.statut_validation === 'masque' && p.masque_par_fournisseur && (
+                      <button className="bouton-secondaire bouton-action-produit" onClick={() => masquerProduit(p, false)} title="Remettre dans le catalogue">
+                        <i className="bi bi-eye"></i> <span>Réafficher</span>
+                      </button>
+                    )}
+                    <button className="bouton-secondaire bouton-action-produit" onClick={() => supprimer(p)} title="Supprimer">
+                      <i className="bi bi-trash"></i> <span>Supprimer</span>
                     </button>
                   </div>
                 </li>

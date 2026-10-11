@@ -1685,8 +1685,11 @@ h3 {
 }
 
 .notification {
-  position: absolute;
-  top: 60px;
+  /* En bas de l'écran (au-dessus de la barre de navigation) : en haut, le
+     message cachait l'indicateur d'étapes de la commande. */
+  position: fixed;
+  top: auto;
+  bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -1707,7 +1710,8 @@ h3 {
 }
 
 .notification-info {
-  background: var(--couleur-accent-clair);
+  /* Fond plein : avec une couleur transparente, le texte de la page se voyait à travers. */
+  background: #FFEFE3;
   color: var(--couleur-accent);
   border: 1px solid rgba(255, 106, 19, 0.3);
 }
@@ -1804,7 +1808,8 @@ h3 {
   }
 
   .notification {
-    top: 54px;
+    top: auto;
+    bottom: 92px;
     font-size: 13px;
   }
 
@@ -5776,4 +5781,36 @@ a.bouton-secondaire {
 .barre-onglets button span.icone-onglet {
   overflow: visible;
   max-width: none;
+}
+
+/* ---- Espace fournisseur : boutons d'action des produits, compacts et lisibles ---- */
+.actions-produit-fournisseur .bouton-action-produit,
+.app-marketplace .actions-produit-fournisseur .bouton-action-produit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 12px;
+}
+
+.actions-produit-fournisseur .bouton-action-produit i {
+  margin-right: 0;
+}
+
+.badge-statut-produit.statut-masque {
+  background: rgba(100, 100, 100, 0.14);
+  color: #555;
+}
+
+/* Champ code de livraison : le texte d'aide ne doit pas être coupé sur mobile
+   (l'espacement des lettres sert aux chiffres saisis, pas au texte d'aide). */
+.champ-code-livraison::placeholder {
+  letter-spacing: 0;
+  font-size: 15px;
+  font-weight: 500;
 }

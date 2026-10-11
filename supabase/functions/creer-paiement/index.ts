@@ -55,6 +55,56 @@ async function utilisateurConnecte(req: Request): Promise<string | null> {
   return utilisateur?.id ?? null
 }
 
+// Crée la page de paiement Stripe avec une liste de moyens de paiement fixée
+// ici (et plus seulement dans le tableau de bord Stripe) : carte, et TWINT
+// quand c'est possible. Le TWINT ne permet pas de « réserver puis débiter plus
+// tard » : pour la carte réservée des entreprises, on demande donc la carte
+// seule. Si Stripe refuse une option (TWINT pas encore activé sur le compte,
+// paramètre inconnu), on réessaie sans elle plutôt que de bloquer la commande.
+async function creerSessionStripe(
+  formBase: URLSearchParams,
+  cleIdempotence: string | null,
+  moyens: 'carte' | 'carte_twint'
+): Promise<{ ok: boolean; session: any }> {
+  const essais: { twint: boolean; envoyerAdaptive: boolean }[] =
+    moyens === 'carte_twint'
+      ? [
+          { twint: true, envoyerAdaptive: true },
+          { twint: false, envoyerAdaptive: true },
+          { twint: false, envoyerAdaptive: false }
+        ]
+      : [
+          { twint: false, envoyerAdaptive: true },
+          { twint: false, envoyerAdaptive: false }
+        ]
+
+  let derniere: any = null
+  for (let i = 0; i < essais.length; i++) {
+    const form = new URLSearchParams(formBase)
+    form.set('payment_method_types[0]', 'card')
+    if (essais[i].twint) form.set('payment_method_types[1]', 'twint')
+    // Pas de choix de devise automatique : tous les prix sont en francs suisses.
+    if (essais[i].envoyerAdaptive) form.set('adaptive_pricing[enabled]', 'false')
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${STRIPE_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    if (cleIdempotence) headers['Idempotency-Key'] = `${cleIdempotence}-m${i}`
+
+    const r = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers,
+      body: form
+    })
+    const session = await r.json()
+    if (r.ok && session.url) return { ok: true, session }
+    derniere = session
+    console.error(`Stripe a refusé l'essai ${i + 1} :`, session?.error?.message ?? session)
+  }
+  return { ok: false, session: derniere }
+}
+
 // Lecture simple via l'API REST (clé serveur). Renvoie [] en cas de souci.
 async function lire(chemin: string): Promise<any[]> {
   try {
@@ -218,16 +268,8 @@ async function recharger(req: Request, corps: { montant?: unknown }) {
   form.set('line_items[0][price_data][unit_amount]', String(Math.round(montant * 100)))
   form.set('line_items[0][price_data][product_data][name]', `Recharge du solde prépayé – ${ent.nom}`)
 
-  const rs = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${STRIPE_KEY}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: form
-  })
-  const session = await rs.json()
-  if (!rs.ok || !session.url) {
+  const { ok: rechargeOk, session } = await creerSessionStripe(form, null, 'carte_twint')
+  if (!rechargeOk) {
     console.error('Erreur Stripe (recharge) :', session)
     return reponse({ error: 'La recharge n’a pas pu être lancée, réessayez.' }, 502)
   }
@@ -471,17 +513,9 @@ Deno.serve(async (req) => {
         'Montant réservé sur votre carte, débité uniquement une fois la livraison effectuée.'
       )
 
-      const rsCarte = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${STRIPE_KEY}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Idempotency-Key': attenteCarte.id
-        },
-        body: formCarte
-      })
-      const sessionCarte = await rsCarte.json()
-      if (!rsCarte.ok || !sessionCarte.url) {
+      // Carte seule : le TWINT ne sait pas réserver un montant pour le débiter plus tard.
+      const { ok: carteOk, session: sessionCarte } = await creerSessionStripe(formCarte, attenteCarte.id, 'carte')
+      if (!carteOk) {
         console.error('Erreur Stripe :', sessionCarte)
         return reponse({ error: 'Le paiement n’a pas pu être lancé, réessayez.' }, 502)
       }
@@ -519,8 +553,7 @@ Deno.serve(async (req) => {
     if (!ri.ok) return reponse({ error: 'Impossible de préparer le paiement.' }, 500)
     const attente = (await ri.json())[0]
 
-    // Page de paiement Stripe (les moyens de paiement — carte, TWINT, etc. —
-    // se règlent dans le tableau de bord Stripe, pas ici).
+    // Page de paiement Stripe : carte et TWINT (liste fixée dans creerSessionStripe).
     const form = new URLSearchParams()
     form.set('mode', 'payment')
     form.set('locale', 'fr')
@@ -536,17 +569,8 @@ Deno.serve(async (req) => {
       form.set(`line_items[${i}][price_data][product_data][name]`, l.nom)
     })
 
-    const rs = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${STRIPE_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Idempotency-Key': attente.id
-      },
-      body: form
-    })
-    const session = await rs.json()
-    if (!rs.ok || !session.url) {
+    const { ok: paiementOk, session } = await creerSessionStripe(form, attente.id, 'carte_twint')
+    if (!paiementOk) {
       console.error('Erreur Stripe :', session)
       return reponse({ error: 'Le paiement n’a pas pu être lancé, réessaie.' }, 502)
     }
