@@ -5882,9 +5882,12 @@ function App() {
                       </p>
                     ) : null
                   })()}
+                  {messageAccesEntreprise() && (
+                    <p className="erreur-code-livraison" role="alert">{messageAccesEntreprise()}</p>
+                  )}
                   <button
                     className="valider"
-                    disabled={montantManquantPourPayer() > 0}
+                    disabled={montantManquantPourPayer() > 0 || Boolean(messageAccesEntreprise())}
                     onClick={() => setVue('informations')}
                   >
                     Continuer
