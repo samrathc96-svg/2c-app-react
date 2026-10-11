@@ -5870,3 +5870,57 @@ a.bouton-secondaire {
   background: #C0392B;
   border-color: #C0392B;
 }
+
+/* ---------- Candidature « Devenir livreur / partenaire » ---------- */
+.panneau-candidature {
+  position: relative;
+  background: var(--couleur-carte);
+  border-radius: var(--rayon-l);
+  padding: 22px 20px 18px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 18px 50px rgba(30, 27, 23, 0.25);
+}
+.candidature-formulaire { display: flex; flex-direction: column; gap: 10px; }
+.candidature-entete { display: flex; align-items: center; gap: 10px; padding-right: 28px; }
+.candidature-entete i { font-size: 24px; color: var(--couleur-accent); }
+.candidature-entete h3,
+.candidature-merci h3 { margin: 0; font-size: 21px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--couleur-encre); }
+.candidature-intro { margin: 0 0 4px; font-size: 14px; line-height: 1.5; color: var(--couleur-muted); }
+.panneau-candidature input[type="text"],
+.panneau-candidature input[type="email"],
+.panneau-candidature input[type="tel"],
+.panneau-candidature select,
+.panneau-candidature textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--couleur-bordure, #E2DDD2);
+  border-radius: var(--rayon-m);
+  background: #fff;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
+  color: var(--couleur-encre);
+}
+.panneau-candidature textarea { resize: vertical; min-height: 78px; }
+.panneau-candidature input:focus,
+.panneau-candidature select:focus,
+.panneau-candidature textarea:focus { outline: 2px solid var(--couleur-accent); outline-offset: 1px; }
+.candidature-ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.candidature-case { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; line-height: 1.45; cursor: pointer; }
+.candidature-case input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--couleur-accent); }
+.candidature-erreur { margin: 0; color: #B3261E; font-size: 13.5px; font-weight: 600; }
+.candidature-note { margin: 0; font-size: 12.5px; color: var(--couleur-muted); line-height: 1.45; }
+.candidature-piege { position: absolute !important; left: -9999px !important; width: 1px !important; height: 1px !important; opacity: 0; }
+.candidature-merci { text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 8px 0; }
+.candidature-merci i { font-size: 44px; color: #277A4E; }
+.candidature-merci p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.panneau-candidature .valider { width: 100%; }
+@media (max-width: 520px) {
+  .candidature-ligne { grid-template-columns: 1fr; }
+  .panneau-candidature { max-height: 94vh; padding: 20px 16px 16px; }
+}
+.item-lateral-groupe-partenaires { margin-top: 2px; }

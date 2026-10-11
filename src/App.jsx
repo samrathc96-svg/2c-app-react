@@ -15,6 +15,7 @@ import DiaporamaAccueil from './DiaporamaAccueil'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import { rechargerSiMiseAJour } from './rechargerSiMiseAJour'
 import { confirmer } from './confirmer'
+import Candidature from './Candidature'
 import { construireFacturePDF, construireFactureMensuellePDF, construireBonLivraisonPDF, libellePeriodeFacture } from './documentsPdf'
 import './App.css'
 
@@ -1095,6 +1096,8 @@ function App() {
   // l'accueil), révélé uniquement via un lien contenant ?livreur, partagé
   // directement avec les candidats recrutés en physique.
   const [accesRecrutementLivreur, setAccesRecrutementLivreur] = useState(false)
+  // Candidature « Devenir livreur » / « Devenir partenaire » (formulaire public, envoyé par email à 2C)
+  const [candidature, setCandidature] = useState(null) // null | 'livreur' | 'partenaire'
   // Inscription fournisseur : révélée uniquement par le lien ?fournisseur
   // (partagé avec les fournisseurs partenaires). Le compte reste "en attente"
   // jusqu'à validation par 2C ; il est lié au profil par la table
@@ -4683,11 +4686,12 @@ function App() {
                 <button onClick={() => { setRoleChoisi('entreprise'); setModeAuth('inscription'); setAfficherMenu(false); setAfficherAuth(true) }}>
                   Créez un compte professionnel
                 </button>
-                {accesRecrutementLivreur && (
-                  <button onClick={() => { setRoleChoisi('livreur'); setModeAuth('inscription'); setAfficherMenu(false); setAfficherAuth(true) }}>
-                    Devenez livreur-partenaire
-                  </button>
-                )}
+                <button onClick={() => { setAfficherMenu(false); setCandidature('partenaire') }}>
+                  Devenir partenaire
+                </button>
+                <button onClick={() => { setAfficherMenu(false); setCandidature('livreur') }}>
+                  Devenir livreur
+                </button>
               </nav>
             )}
 
@@ -4763,6 +4767,8 @@ function App() {
           </aside>
         </div>
       )}
+
+      {candidature && <Candidature type={candidature} onFermer={() => setCandidature(null)} />}
 
       {afficherAuth && (
         <div className="overlay-auth" onClick={() => setAfficherAuth(false)}>
@@ -5132,6 +5138,18 @@ function App() {
             <i className="bi bi-building"></i>
             <span>Vous êtes une entreprise ?</span>
           </button>
+          {!session && (
+            <>
+              <button className="item-lateral" onClick={() => setCandidature('partenaire')}>
+                <i className="bi bi-shop"></i>
+                <span>Devenir partenaire</span>
+              </button>
+              <button className="item-lateral" onClick={() => setCandidature('livreur')}>
+                <i className="bi bi-bicycle"></i>
+                <span>Devenir livreur</span>
+              </button>
+            </>
+          )}
         </aside>
       )}
 
