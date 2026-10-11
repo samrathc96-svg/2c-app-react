@@ -7,6 +7,11 @@
 // responsable de l'entreprise), il reçoit la même facture en copie.
 // L'envoi au client n'est jamais bloqué par un échec de la copie.
 //
+// Bon de livraison : si "bonLivraisonBase64" est fourni, il est joint à
+// l'email, à côté de la facture. Avec "bonSeul: true" (entreprises en
+// facturation mensuelle, pas de facture individuelle), l'email ne contient
+// que le bon de livraison.
+//
 // Secret requis : RESEND_API_KEY (déjà en place).
 
 const corsHeaders = {
@@ -35,7 +40,7 @@ async function envoyerEmail(
   destinataire: string,
   sujet: string,
   html: string,
-  piece: { filename: string; content: string }
+  pieces: { filename: string; content: string }[]
 ) {
   const reponse = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -49,7 +54,7 @@ async function envoyerEmail(
       to: [destinataire],
       subject: sujet,
       html,
-      attachments: [piece]
+      attachments: pieces
     })
   })
   const resultat = await reponse.json()
@@ -149,16 +154,72 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, nomClient, numeroFacture, pdfBase64, copieEmail, mensuelle, periode, aUnCompte } = await req.json()
+    const {
+      email, nomClient, numeroFacture, pdfBase64, copieEmail, mensuelle, periode, aUnCompte,
+      bonLivraisonBase64, numeroSuivi, bonSeul
+    } = await req.json()
 
-    if (!email || !pdfBase64) {
+    if (!email || (!pdfBase64 && !bonLivraisonBase64)) {
       return reponseJson({ error: 'Champs manquants' }, 400)
     }
 
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    const piece = {
-      filename: `Facture_${String(numeroFacture ?? '').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`,
-      content: pdfBase64
+    const pieces: { filename: string; content: string }[] = []
+    if (pdfBase64) {
+      pieces.push({
+        filename: `Facture_${String(numeroFacture ?? '').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`,
+        content: pdfBase64
+      })
+    }
+    // Bon de livraison (facultatif) : joint à côté de la facture
+    const avecBon = Boolean(bonLivraisonBase64)
+    if (avecBon) {
+      pieces.push({
+        filename: `Bon_de_livraison_${String(numeroSuivi ?? '').replace(/[^a-zA-Z0-9_-]/g, '')}.pdf`,
+        content: bonLivraisonBase64
+      })
+    }
+    const piecesJointes = avecBon ? 'Votre facture et votre bon de livraison sont en pièces jointes (PDF).' : 'Votre facture est en pièce jointe (PDF).'
+    const piecesJointesCopie = avecBon ? 'La facture et le bon de livraison sont en pièces jointes (PDF).' : 'La facture est en pièce jointe (PDF).'
+
+    // Entreprise en facturation mensuelle : pas de facture individuelle, seulement le bon de livraison.
+    if (bonSeul === true) {
+      const htmlBon = gabarit({
+        titre: 'Commande livrée !',
+        intro: `<p style="margin:0;">Merci ${echapper(nomClient)}, votre commande vient d'être livrée. Votre bon de livraison est en pièce jointe (PDF).</p>`,
+        lignes: [ligneTableau('N° de commande', `<strong>${echapper(numeroSuivi)}</strong>`)],
+        note: 'Les frais de livraison sont regroupés dans votre facture mensuelle.',
+        aUnCompte: aUnCompte !== false
+      })
+      const envoiBon = await envoyerEmail(
+        resendApiKey,
+        email,
+        `Votre bon de livraison 2C – ${echapper(numeroSuivi)}`,
+        htmlBon,
+        pieces
+      )
+      if (!envoiBon.ok) {
+        return reponseJson({ error: envoiBon.resultat }, envoiBon.status)
+      }
+      let copieBonEnvoyee = false
+      const copieBon = copieEmail ? String(copieEmail).trim() : ''
+      if (copieBon && copieBon.toLowerCase() !== String(email).trim().toLowerCase()) {
+        const htmlCopieBon = gabarit({
+          titre: 'Commande livrée',
+          intro: `<p style="margin:0;">La commande passée au nom de votre entreprise par ${echapper(nomClient)} vient d'être livrée. Le bon de livraison est en pièce jointe (PDF).</p>`,
+          lignes: [ligneTableau('N° de commande', `<strong>${echapper(numeroSuivi)}</strong>`)]
+        })
+        const envoiCopieBon = await envoyerEmail(
+          resendApiKey,
+          copieBon,
+          `Bon de livraison 2C – ${echapper(numeroSuivi)} (copie)`,
+          htmlCopieBon,
+          pieces
+        )
+        copieBonEnvoyee = envoiCopieBon.ok
+        if (!envoiCopieBon.ok) console.error('Copie du bon de livraison non envoyée :', envoiCopieBon.resultat)
+      }
+      return reponseJson({ success: true, copieEnvoyee: copieBonEnvoyee })
     }
 
     // Facture mensuelle (envoyée au responsable d'une entreprise)
@@ -179,7 +240,7 @@ Deno.serve(async (req) => {
         email,
         `Facture mensuelle 2C – ${echapper(numeroFacture)}${periode ? ' – ' + echapper(periode) : ''}`,
         htmlMensuelle,
-        piece
+        pieces
       )
       if (!envoiMensuelle.ok) {
         return reponseJson({ error: envoiMensuelle.resultat }, envoiMensuelle.status)
@@ -190,7 +251,7 @@ Deno.serve(async (req) => {
     // 1) Facture au client (la personne qui a commandé)
     const htmlClient = gabarit({
       titre: 'Commande livrée !',
-      intro: `<p style="margin:0;">Merci ${echapper(nomClient)}, votre commande vient d'être livrée. Votre facture est en pièce jointe (PDF).</p>`,
+      intro: `<p style="margin:0;">Merci ${echapper(nomClient)}, votre commande vient d'être livrée. ${piecesJointes}</p>`,
       lignes: [ligneTableau('N° de facture', `<strong>${echapper(numeroFacture)}</strong>`)],
       aUnCompte: aUnCompte !== false
     })
@@ -199,7 +260,7 @@ Deno.serve(async (req) => {
       email,
       `Votre facture 2C – ${echapper(numeroFacture)}`,
       htmlClient,
-      piece
+      pieces
     )
     if (!envoiClient.ok) {
       return reponseJson({ error: envoiClient.resultat }, envoiClient.status)
@@ -211,7 +272,7 @@ Deno.serve(async (req) => {
     if (copie && copie.toLowerCase() !== String(email).trim().toLowerCase()) {
       const htmlCopie = gabarit({
         titre: 'Commande livrée',
-        intro: `<p style="margin:0;">La commande passée au nom de votre entreprise par ${echapper(nomClient)} vient d'être livrée. La facture est en pièce jointe (PDF).</p>`,
+        intro: `<p style="margin:0;">La commande passée au nom de votre entreprise par ${echapper(nomClient)} vient d'être livrée. ${piecesJointesCopie}</p>`,
         lignes: [ligneTableau('N° de facture', `<strong>${echapper(numeroFacture)}</strong>`)]
       })
       const envoiCopie = await envoyerEmail(
@@ -219,7 +280,7 @@ Deno.serve(async (req) => {
         copie,
         `Facture 2C – ${echapper(numeroFacture)} (copie)`,
         htmlCopie,
-        piece
+        pieces
       )
       copieEnvoyee = envoiCopie.ok
       if (!envoiCopie.ok) {

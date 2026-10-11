@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
 import { EspaceFournisseur, AdminComptesFournisseurs } from './EspaceFournisseur'
 import { jouerSonnerie } from './alerteSonore'
@@ -16,28 +15,11 @@ import DiaporamaAccueil from './DiaporamaAccueil'
 import { historiqueDepuisCommandes, lireHistoriqueLocal, ajouterHistoriqueLocal, calculerHabitudes, libelleDernierAchat } from './habitudes'
 import { rechargerSiMiseAJour } from './rechargerSiMiseAJour'
 import { confirmer } from './confirmer'
+import { construireFacturePDF, construireFactureMensuellePDF, construireBonLivraisonPDF, libellePeriodeFacture } from './documentsPdf'
 import './App.css'
 
 // Recharge le site tout seul quand une nouvelle version est installée.
 rechargerSiMiseAJour()
-
-// =========================================================
-// Informations d'entreprise pour la facture PDF
-// =========================================================
-// "nom" est déjà le vrai nom à afficher. Le reste (adresse, contact, TVA)
-// est en attente : "donneesTest" à true fait apparaître un petit
-// avertissement en bas de facture tant que ce n'est pas finalisé. Une
-// fois les vraies infos en main, il suffit de compléter les champs
-// ci-dessous et de repasser "donneesTest" à false.
-const INFOS_ENTREPRISE = {
-  nom: '2C',
-  adresse: "Adresse de l'entreprise — à compléter",
-  contact: 'contact@2cdelivery.ch • Téléphone à compléter',
-  tvaNumero: null, // ex: 'CHE-123.456.789 TVA'
-  tvaTaux: null,   // ex: 8.1 (en %), une fois le statut TVA connu
-  iban: null,      // ex: 'CH00 0000 0000 0000 0000 0' : affiché sur les factures mensuelles
-  donneesTest: true
-}
 
 // Paiement en ligne (Stripe). Laisser à false tant que les fonctions
 // serveur Stripe ne sont pas déployées dans Supabase : l'application
@@ -392,440 +374,6 @@ function estimerCreneauLivraison(nombreEnAttente) {
     min: Math.min(base, 90),
     max: Math.min(base + 15, 105)
   }
-}
-
-// Construit le document PDF de la facture, sans l'envoyer : utilisé par
-// l'envoi automatique par email une fois la commande livrée
-// (envoyerFactureAutomatique).
-function construireFacturePDF(commande) {
-  const doc = new jsPDF()
-  const accent = [255, 106, 19]
-  const encre = [30, 27, 23]
-  const muted = [121, 112, 95]
-
-  // Compte entreprise : 2C ne facture que la livraison (les produits sont
-  // facturés par le fournisseur).
-  const livraisonSeule = Boolean(commande.livraison_seule)
-  const montantFacture = livraisonSeule ? Number(commande.frais_livraison || 0) : commande.total
-
-  const numeroFacture = `2C-${String(commande.id).padStart(5, '0')}`
-  const dateFacture = new Date(commande.created_at).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: 'numeric'
-  })
-
-  let y = 20
-
-  // En-tête : entreprise à gauche, "FACTURE" + références à droite
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  doc.setTextColor(...encre)
-  doc.text(INFOS_ENTREPRISE.nom, 15, y)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...muted)
-  doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
-  doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
-  if (INFOS_ENTREPRISE.tvaNumero) {
-    doc.text(`N° TVA : ${INFOS_ENTREPRISE.tvaNumero}`, 15, y + 16)
-  }
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(...accent)
-  doc.text('FACTURE', 195, y, { align: 'right' })
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...encre)
-  doc.text(`N° ${numeroFacture}`, 195, y + 7, { align: 'right' })
-  doc.text(`Date : ${dateFacture}`, 195, y + 13, { align: 'right' })
-  if (commande.numero_suivi) {
-    doc.text(`Suivi : ${commande.numero_suivi}`, 195, y + 19, { align: 'right' })
-  }
-
-  y += 30
-  doc.setDrawColor(...accent)
-  doc.setLineWidth(0.6)
-  doc.line(15, y, 195, y)
-  y += 10
-
-  // Coordonnées du client
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(...encre)
-  doc.text('Facturé à', 15, y)
-  y += 6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text(commande.nom_client || '—', 15, y)
-  y += 5
-  if (livraisonSeule && commande.chantier) { doc.text(`Chantier : ${commande.chantier}`, 15, y); y += 5 }
-  if (livraisonSeule && commande.technicien) { doc.text(`Commandé par : ${commande.technicien}`, 15, y); y += 5 }
-  if (commande.adresse) { doc.text(commande.adresse, 15, y); y += 5 }
-  if (commande.telephone) { doc.text(commande.telephone, 15, y); y += 5 }
-  if (commande.email) { doc.text(commande.email, 15, y); y += 5 }
-
-  y += 8
-
-  // Tableau des produits
-  const colProduit = 17
-  const colPrix = 122
-  const colQte = 150
-  const colTotal = 168
-
-  doc.setFillColor(...accent)
-  doc.rect(15, y - 5, 180, 8, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(255, 255, 255)
-  doc.text(livraisonSeule ? 'Prestation' : 'Produit', colProduit, y)
-  doc.text('Prix', colPrix, y)
-  doc.text('Qté', colQte, y)
-  doc.text('Sous-total', colTotal, y)
-  y += 8
-
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...encre)
-
-  // Les commandes passées avant l'ajout du détail ligne par ligne n'ont
-  // pas "produits_detail" : on retombe alors sur le texte résumé, sans
-  // détail de prix par article.
-  const lignes = livraisonSeule
-    ? [{
-        nom: `Livraison 2C Delivery — commande ${commande.numero_suivi || commande.id}`,
-        prix: montantFacture,
-        quantite: 1
-      }]
-    : commande.produits_detail && commande.produits_detail.length > 0
-      ? commande.produits_detail
-      : [{ nom: commande.produits, prix: null, quantite: null }]
-
-  lignes.forEach((ligne, index) => {
-    const nomAffiche = doc.splitTextToSize(ligne.nom, 100)
-    const hauteurLigne = Math.max(7, nomAffiche.length * 5)
-
-    if (index % 2 === 1) {
-      doc.setFillColor(245, 242, 235)
-      doc.rect(15, y - 5, 180, hauteurLigne, 'F')
-    }
-
-    doc.text(nomAffiche, colProduit, y)
-    if (ligne.prix !== null) {
-      doc.text(`${ligne.prix.toFixed(2)} CHF`, colPrix, y)
-      doc.text(String(ligne.quantite), colQte, y)
-      doc.text(`${(ligne.prix * ligne.quantite).toFixed(2)} CHF`, colTotal, y)
-    }
-    y += hauteurLigne
-  })
-
-  y += 5
-  doc.setDrawColor(...muted)
-  doc.setLineWidth(0.2)
-  doc.line(15, y, 195, y)
-  y += 8
-
-  // Totaux : TVA affichée seulement si un taux a été renseigné
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...encre)
-  if (INFOS_ENTREPRISE.tvaTaux) {
-    const sousTotal = montantFacture / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
-    const montantTVA = montantFacture - sousTotal
-    doc.text('Sous-total HT', 140, y)
-    doc.text(`${sousTotal.toFixed(2)} CHF`, 195, y, { align: 'right' })
-    y += 6
-    doc.text(`TVA (${INFOS_ENTREPRISE.tvaTaux}%)`, 140, y)
-    doc.text(`${montantTVA.toFixed(2)} CHF`, 195, y, { align: 'right' })
-    y += 6
-  } else {
-    doc.setFontSize(8)
-    doc.setTextColor(...muted)
-    doc.text('TVA non applicable', 140, y)
-    doc.setFontSize(10)
-    doc.setTextColor(...encre)
-    y += 6
-  }
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text(commande.deja_regle ? 'Total' : 'Total à payer', 140, y)
-  doc.text(`${montantFacture.toFixed(2)} CHF`, 195, y, { align: 'right' })
-
-  if (livraisonSeule) {
-    // Contenu de la commande : sert de preuve en cas de litige de livraison
-    // (à comparer avec ce que le fournisseur a remis au livreur).
-    y += 14
-    if (y > 240) {
-      doc.addPage()
-      y = 20
-    }
-    doc.setFillColor(...accent)
-    doc.rect(15, y - 5, 180, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(255, 255, 255)
-    doc.text('Contenu de la commande remis au livreur', 17, y)
-    doc.text('Qté', 190, y, { align: 'right' })
-    y += 8
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...encre)
-    const contenu = commande.produits_detail && commande.produits_detail.length > 0
-      ? commande.produits_detail
-      : [{ nom: commande.produits, quantite: null }]
-    contenu.forEach((ligne, index) => {
-      const nomLignes = doc.splitTextToSize(String(ligne.nom || ''), 150)
-      const hauteur = Math.max(7, nomLignes.length * 5)
-      if (y + hauteur > 270) {
-        doc.addPage()
-        y = 20
-      }
-      if (index % 2 === 1) {
-        doc.setFillColor(245, 242, 235)
-        doc.rect(15, y - 5, 180, hauteur, 'F')
-      }
-      doc.setFontSize(9)
-      doc.text(nomLignes, 17, y)
-      if (ligne.quantite !== null && ligne.quantite !== undefined) {
-        doc.text(String(ligne.quantite), 190, y, { align: 'right' })
-      }
-      y += hauteur
-    })
-    y += 8
-    if (y > 270) {
-      doc.addPage()
-      y = 20
-    }
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(...muted)
-    if (commande.mention_paiement) {
-      doc.text(commande.mention_paiement, 15, y)
-      y += 5
-    }
-    doc.text(
-      `Valeur de la commande fournisseur : ${Number(commande.total).toFixed(2)} CHF — facturée séparément par le fournisseur.`,
-      15, y
-    )
-  }
-
-  ajouterQrCompte(doc, y)
-
-  if (INFOS_ENTREPRISE.donneesTest) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...muted)
-    doc.text(
-      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
-      15, 285
-    )
-  }
-
-  return { doc, numeroFacture }
-}
-
-// QR code d'accès au compte (lien : https://2cdelivery.ch/?compte=1), dessiné
-// en vectoriel dans les PDF. "1" = module noir.
-const QR_COMPTE = ["1111111010001000001111111", "1000001000100110001000001", "1011101001000110101011101", "1011101001101110001011101", "1011101001100110101011101", "1000001000111110001000001", "1111111010101010101111111", "0000000010100110100000000", "1101101001100011101000001", "0101100001110011000111110", "0110001010111111011001001", "0000010011111011000001111", "1010101101010001001000001", "1001100100010011100110010", "1111111110100101011011111", "1000100100000010101101101", "1111111111101110111110110", "0000000011000100100010110", "1111111001010000101010001", "1000001000110101100010010", "1011101010111001111110010", "1011101010110100111000011", "1011101001010100110011111", "1000001010101010001110111", "1111111010111000101001001"]
-
-function ajouterQrCompte(doc, yContenu) {
-  if (yContenu > 228) doc.addPage()
-  const taille = 28
-  const module = taille / QR_COMPTE.length
-  const x0 = 195 - taille
-  const y0 = 245
-  doc.setFillColor(0, 0, 0)
-  QR_COMPTE.forEach((ligne, r) => {
-    for (let k = 0; k < ligne.length; k += 1) {
-      if (ligne[k] === '1') doc.rect(x0 + k * module, y0 + r * module, module + 0.02, module + 0.02, 'F')
-    }
-  })
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(30, 27, 23)
-  doc.text('Votre espace 2C', 15, y0 + 6)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(121, 112, 95)
-  doc.text('Retrouvez vos commandes et vos factures depuis votre compte :', 15, y0 + 12)
-  doc.text('2cdelivery.ch  (ou scannez le QR code)', 15, y0 + 17)
-}
-
-// Libellé de la période d'une facture mensuelle : "octobre 2026" si elle couvre
-// un mois entier, sinon "du 01.10.2026 au 15.10.2026".
-function libellePeriodeFacture(d) {
-  const debut = new Date(d.periode_debut)
-  const fin = new Date(d.periode_fin)
-  const memeMois = debut.getFullYear() === fin.getFullYear() && debut.getMonth() === fin.getMonth()
-  const jourFin = new Date(fin.getFullYear(), fin.getMonth() + 1, 0).getDate()
-  if (memeMois && debut.getDate() === 1 && fin.getDate() === jourFin) {
-    return debut.toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })
-  }
-  const f = (v) => v.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  return `du ${f(debut)} au ${f(fin)}`
-}
-
-// Facture mensuelle des frais de livraison d'une entreprise (mode "mensuel").
-// `d` = données renvoyées par la base (admin_creer_facture_mensuelle).
-function construireFactureMensuellePDF(d) {
-  const doc = new jsPDF()
-  const accent = [255, 106, 19]
-  const encre = [30, 27, 23]
-  const muted = [121, 112, 95]
-  const dateCH = (v) => new Date(v).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const montant = Number(d.montant_total || 0)
-
-  let y = 20
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  doc.setTextColor(...encre)
-  doc.text(INFOS_ENTREPRISE.nom, 15, y)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...muted)
-  doc.text(INFOS_ENTREPRISE.adresse, 15, y + 6)
-  doc.text(INFOS_ENTREPRISE.contact, 15, y + 11)
-  if (INFOS_ENTREPRISE.tvaNumero) doc.text(`N° TVA : ${INFOS_ENTREPRISE.tvaNumero}`, 15, y + 16)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(...accent)
-  doc.text('FACTURE MENSUELLE', 195, y, { align: 'right' })
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...encre)
-  doc.text(`N° ${d.numero}`, 195, y + 7, { align: 'right' })
-  doc.text(`Date : ${dateCH(d.emise_le)}`, 195, y + 13, { align: 'right' })
-  doc.text(`Période : ${dateCH(d.periode_debut)} au ${dateCH(d.periode_fin)}`, 195, y + 19, { align: 'right' })
-  doc.setFontSize(9)
-  doc.setTextColor(...muted)
-  doc.text(
-    `Récapitulatif mensuel : ${(d.lignes || []).length} livraison${(d.lignes || []).length > 1 ? 's' : ''} — ${libellePeriodeFacture(d)}`,
-    195, y + 25, { align: 'right' }
-  )
-  doc.setFontSize(10)
-  doc.setTextColor(...encre)
-
-  y += 34
-  doc.setDrawColor(...accent)
-  doc.setLineWidth(0.6)
-  doc.line(15, y, 195, y)
-  y += 10
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text('Facturé à', 15, y)
-  y += 6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text(d.entreprise_nom || '—', 15, y)
-  y += 5
-  if (d.responsable_nom) { doc.text(d.responsable_nom, 15, y); y += 5 }
-  if (d.responsable_email) { doc.text(d.responsable_email, 15, y); y += 5 }
-  y += 8
-
-  const entete = () => {
-    doc.setFillColor(...accent)
-    doc.rect(15, y - 5, 180, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(255, 255, 255)
-    doc.text('Date', 17, y)
-    doc.text('Suivi', 40, y)
-    doc.text('Chantier / commandé par', 72, y)
-    doc.text('Livraison', 193, y, { align: 'right' })
-    y += 8
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...encre)
-  }
-  entete()
-
-  ;(d.lignes || []).forEach((ligne, index) => {
-    const detail = [ligne.chantier, ligne.technicien].filter(Boolean).join(' — ') || '—'
-    const detailLignes = doc.splitTextToSize(detail, 95)
-    // Produits de la livraison (preuve en cas de litige), en petit sous la ligne.
-    const produitsTexte = Array.isArray(ligne.produits_detail) && ligne.produits_detail.length > 0
-      ? ligne.produits_detail.map((p) => `${p.quantite} x ${p.nom}`).join(' ; ')
-      : ligne.produits_texte || ''
-    const produitsLignes = produitsTexte ? doc.splitTextToSize(`Contenu : ${produitsTexte}`, 170) : []
-    const hauteur = Math.max(7, detailLignes.length * 5) + produitsLignes.length * 4
-    if (y + hauteur > 262) {
-      doc.addPage()
-      y = 20
-      entete()
-    }
-    if (index % 2 === 1) {
-      doc.setFillColor(245, 242, 235)
-      doc.rect(15, y - 5, 180, hauteur, 'F')
-    }
-    doc.setFontSize(9)
-    doc.text(dateCH(ligne.date), 17, y)
-    doc.text(String(ligne.numero_suivi || '—'), 40, y)
-    doc.text(detailLignes, 72, y)
-    doc.text(`${Number(ligne.frais || 0).toFixed(2)} CHF`, 193, y, { align: 'right' })
-    if (produitsLignes.length > 0) {
-      doc.setFontSize(8)
-      doc.setTextColor(...muted)
-      doc.text(produitsLignes, 17, y + Math.max(7, detailLignes.length * 5) - 1)
-      doc.setTextColor(...encre)
-    }
-    y += hauteur
-  })
-
-  if (y > 235) {
-    doc.addPage()
-    y = 20
-  }
-  y += 5
-  doc.setDrawColor(...muted)
-  doc.setLineWidth(0.2)
-  doc.line(15, y, 195, y)
-  y += 8
-  doc.setFontSize(10)
-  if (INFOS_ENTREPRISE.tvaTaux) {
-    const sousTotal = montant / (1 + INFOS_ENTREPRISE.tvaTaux / 100)
-    doc.text('Sous-total HT', 140, y)
-    doc.text(`${sousTotal.toFixed(2)} CHF`, 195, y, { align: 'right' })
-    y += 6
-    doc.text(`TVA (${INFOS_ENTREPRISE.tvaTaux}%)`, 140, y)
-    doc.text(`${(montant - sousTotal).toFixed(2)} CHF`, 195, y, { align: 'right' })
-    y += 6
-  } else {
-    doc.setFontSize(8)
-    doc.setTextColor(...muted)
-    doc.text('TVA non applicable', 140, y)
-    doc.setFontSize(10)
-    doc.setTextColor(...encre)
-    y += 6
-  }
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
-  doc.text('Total à payer', 140, y)
-  doc.text(`${montant.toFixed(2)} CHF`, 195, y, { align: 'right' })
-
-  y += 14
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...muted)
-  doc.text(`Frais de livraison 2C Delivery uniquement : les produits sont facturés séparément par le fournisseur.`, 15, y)
-  y += 5
-  doc.text(`À régler avant le ${dateCH(d.echeance)} (${d.delai_jours} jours), par virement.`, 15, y)
-  if (INFOS_ENTREPRISE.iban) {
-    y += 5
-    doc.text(`IBAN : ${INFOS_ENTREPRISE.iban} — référence : ${d.numero}`, 15, y)
-  }
-
-  ajouterQrCompte(doc, y)
-
-  if (INFOS_ENTREPRISE.donneesTest) {
-    doc.setFontSize(8)
-    doc.text(
-      "Informations d'entreprise provisoires (test) — à compléter avant tout envoi officiel.",
-      15, 285
-    )
-  }
-  return doc
 }
 
 function retirerAccents(texte) {
@@ -3960,6 +3508,46 @@ function App() {
     }
   }
 
+  // Fabrique le bon de livraison PDF d'une commande qui vient d'être livrée :
+  // fournisseurs, destinataire, contenu et confirmation de remise (code validé).
+  async function construireBonLivraison(data, commandeId, infosFrais) {
+    // Qui a reçu la commande, et quand (saisi par le livreur à la validation du code)
+    let remise = null
+    try {
+      const { data: r } = await supabase.rpc('obtenir_code_livraison', {
+        p_numero: data.numero_suivi,
+        p_nom: data.nom_client
+      })
+      remise = Array.isArray(r) ? r[0] : r
+    } catch (e) {
+      console.error('Détails de remise indisponibles :', e)
+    }
+    // Fournisseurs et colis de la course (si les infos sont chargées)
+    const course = courses.find((c) => String(c.commande_id) === String(commandeId))
+    const colis = (course && colisCourses[course.id] && colisCourses[course.id].colis) || []
+    const fournisseurs = [...new Set(colis.map((c) => c.fournisseur).filter(Boolean))]
+    const nbColis = colis.reduce((somme, c) => somme + Number(c.nb || 0), 0)
+    const boxes = [...new Set(colis.map((c) => c.box).filter(Boolean))]
+
+    return construireBonLivraisonPDF({
+      numero_suivi: data.numero_suivi,
+      created_at: data.created_at,
+      livre_le: (remise && remise.valide_le) || new Date().toISOString(),
+      entreprise: infosFrais && infosFrais.entreprise_nom,
+      nom_client: data.nom_client,
+      chantier: (infosFrais && infosFrais.chantier) || data.chantier,
+      technicien: (infosFrais && infosFrais.technicien) || data.technicien,
+      adresse: data.adresse,
+      telephone: data.telephone,
+      fournisseurs: fournisseurs.length ? fournisseurs : ['2C Delivery'],
+      nb_colis: nbColis || null,
+      box: boxes.join(' + ') || null,
+      recu_par: remise && remise.recu_par,
+      produits_detail: data.produits_detail,
+      produits: data.produits
+    })
+  }
+
   async function envoyerFactureAutomatique(commandeId) {
     const { data, error } = await supabase
       .rpc('obtenir_commande_facture', { p_commande_id: commandeId })
@@ -3989,8 +3577,49 @@ function App() {
       ? infosFrais.mode_paiement
       : null
 
+    // Copie au responsable de l'entreprise (comptes entreprise). Si la
+    // fonction n'existe pas encore ou échoue, l'email part quand même au
+    // client, sans copie.
+    let copieEmail = null
+    try {
+      const { data: emailResponsable, error: erreurCopie } = await supabase.rpc('email_responsable_commande', {
+        p_commande_id: String(commandeId)
+      })
+      if (!erreurCopie && emailResponsable) copieEmail = emailResponsable
+    } catch (e) {
+      console.error('Copie responsable indisponible :', e)
+    }
+
+    // Bon de livraison : joint à l'email de livraison (avec la facture, ou
+    // seul pour les entreprises en facturation mensuelle).
+    let bonLivraisonBase64 = null
+    try {
+      const bon = await construireBonLivraison(data, commandeId, infosFrais)
+      bonLivraisonBase64 = bon.output('datauristring').split(',')[1]
+    } catch (e) {
+      console.error('Erreur de fabrication du bon de livraison :', e)
+    }
+
     if (modeEntreprise === 'mensuel') {
-      // Facturée dans la facture mensuelle (pas de facture individuelle).
+      // Facturée dans la facture mensuelle (pas de facture individuelle) :
+      // le client reçoit seulement le bon de livraison.
+      if (bonLivraisonBase64) {
+        supabase.functions
+          .invoke('envoyer-facture-email', {
+            body: {
+              email: data.email,
+              nomClient: data.nom_client,
+              numeroSuivi: data.numero_suivi,
+              bonLivraisonBase64,
+              bonSeul: true,
+              copieEmail,
+              aUnCompte: Boolean(data.user_id)
+            }
+          })
+          .catch((erreurEmail) => {
+            console.error("Erreur d'envoi du bon de livraison :", erreurEmail)
+          })
+      }
       return
     }
     if (modeEntreprise === 'carte_entreprise') {
@@ -4017,27 +3646,27 @@ function App() {
         modeEntreprise === 'prepaye'
           ? 'Réglé par prélèvement sur le solde prépayé.'
           : 'Réglé par carte bancaire.'
+    } else if (infosFrais && infosFrais.paiement_statut === 'paye') {
+      // Particulier ou invité : la commande a été payée en ligne avant la livraison.
+      data.deja_regle = true
+      data.mention_paiement = 'Payée en ligne.'
     }
 
     const { doc, numeroFacture } = construireFacturePDF(data)
     const pdfBase64 = doc.output('datauristring').split(',')[1]
 
-    // Compte entreprise : le responsable reçoit la facture en copie. Si la
-    // fonction n'existe pas encore ou échoue, la facture part quand même
-    // au client, sans copie.
-    let copieEmail = null
-    try {
-      const { data: emailResponsable, error: erreurCopie } = await supabase.rpc('email_responsable_commande', {
-        p_commande_id: String(commandeId)
-      })
-      if (!erreurCopie && emailResponsable) copieEmail = emailResponsable
-    } catch (e) {
-      console.error('Copie responsable indisponible :', e)
-    }
-
     supabase.functions
       .invoke('envoyer-facture-email', {
-        body: { email: data.email, nomClient: data.nom_client, numeroFacture, pdfBase64, copieEmail, aUnCompte: Boolean(data.user_id) }
+        body: {
+          email: data.email,
+          nomClient: data.nom_client,
+          numeroFacture,
+          pdfBase64,
+          bonLivraisonBase64,
+          numeroSuivi: data.numero_suivi,
+          copieEmail,
+          aUnCompte: Boolean(data.user_id)
+        }
       })
       .catch((erreurEmail) => {
         console.error("Erreur d'envoi automatique de la facture :", erreurEmail)

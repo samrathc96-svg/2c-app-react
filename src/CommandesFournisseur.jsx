@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { ChoixBox, annoncerCommandePrete, libelleBox, messageErreur, useBoxes } from './BoxLivraison'
+import { LOGO_2C_PNG } from './logo2cPdf'
 
 // =========================================================
 // Commandes reçues par un fournisseur (onglet "Commandes")
@@ -22,6 +23,12 @@ function echapperHtml(texte) {
 
 function chf(n) {
   return `${(Math.round(Number(n || 0) * 100) / 100).toFixed(2)} CHF`
+}
+
+// Montant avec séparateur de milliers suisse : 1'234.50 (sans l'unité)
+function montant(n) {
+  const [entier, decimales] = (Math.round(Number(n || 0) * 100) / 100).toFixed(2).split('.')
+  return `${entier.replace(/\B(?=(\d{3})+(?!\d))/g, "'")}.${decimales}`
 }
 
 function formaterDate(iso) {
@@ -50,51 +57,87 @@ export function etapeCommande(commande) {
 
 // Ouvre la fenêtre d'impression avec le bon de commande (sans quitter le site)
 export function imprimerBon(commande, nomFournisseur) {
-  const lignes = (commande.lignes || [])
-    .map(
-      (l) => `<tr>
-        <td>${echapperHtml(l.reference || '')}</td>
-        <td>${echapperHtml(l.nom)}</td>
-        <td class="c">${echapperHtml(l.quantite)}</td>
-        <td class="d">${chf(l.prix)}</td>
-        <td class="d">${chf(Number(l.quantite) * Number(l.prix))}</td>
-      </tr>`
-    )
-    .join('')
-  const info = (libelle, valeur) =>
-    valeur
-      ? `<tr><th>${libelle}</th><td>${echapperHtml(valeur)}</td></tr>`
-      : ''
+  const lignes = (commande.lignes || []).map((l) => `<tr>
+      <td class="ref">${echapperHtml(l.reference || '')}</td>
+      <td>${echapperHtml(l.nom)}</td>
+      <td class="d qte">${echapperHtml(l.quantite)}</td>
+      <td class="d">${montant(l.prix)}</td>
+      <td class="d fort">${montant(Number(l.quantite) * Number(l.prix))}</td>
+      <td class="coche"><span class="case"></span></td>
+    </tr>`).join('')
+  const livraison = [
+    commande.entreprise || commande.nom_client,
+    commande.entreprise && commande.nom_client ? commande.nom_client : '',
+    commande.chantier ? `Chantier : ${commande.chantier}` : '',
+    commande.technicien ? `Commandé par : ${commande.technicien}` : '',
+    commande.adresse
+  ].filter(Boolean)
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
 <title>Bon de commande ${echapperHtml(commande.numero_suivi)}</title>
 <style>
-  body{font-family:Arial,Helvetica,sans-serif;color:#1E1B17;margin:24px;font-size:14px}
-  h1{font-size:22px;margin:0 0 2px} .sous{color:#79705F;margin:0 0 18px}
-  table{border-collapse:collapse;width:100%;margin-bottom:18px}
-  .infos th{text-align:left;width:150px;color:#79705F;font-weight:normal;padding:6px 8px;border-bottom:1px solid #ddd;vertical-align:top}
-  .infos td{padding:6px 8px;border-bottom:1px solid #ddd}
-  .produits th{background:#F6F3EC;text-align:left;font-size:12px;text-transform:uppercase;padding:8px}
-  .produits td{padding:8px;border-bottom:1px solid #ddd}
-  .c{text-align:center} .d{text-align:right;white-space:nowrap}
-  .total td{font-weight:bold;border-bottom:none}
-  .pied{color:#79705F;font-size:12px;margin-top:24px}
-  .case{display:inline-block;width:14px;height:14px;border:1.5px solid #1E1B17;margin-right:6px;vertical-align:middle}
+  @page{size:A4;margin:16mm 18mm}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1E1B17;margin:0;font-size:13px;line-height:1.4}
+  .entete{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:1px solid #E2DDD2;position:relative}
+  .entete:after{content:'';position:absolute;left:0;bottom:-1px;width:28mm;height:3px;background:#FF6A13}
+  .marque{display:flex;align-items:center;gap:12px}
+  .marque img{width:50px;height:auto}
+  .marque b{display:block;font-size:13px;letter-spacing:.2em}
+  .marque b i{font-style:normal;color:#FF6A13}
+  .marque span{display:block;font-size:10px;color:#79705F;margin-top:3px}
+  .titre{text-align:right}
+  .titre h1{margin:0;font-size:22px;letter-spacing:.14em}
+  .titre p{margin:4px 0 0;color:#FF6A13;font-weight:bold;font-size:14px}
+  .etiquette{font-size:9px;font-weight:bold;letter-spacing:.14em;text-transform:uppercase;color:#79705F;margin:0 0 5px}
+  .parties{display:flex;gap:28px;margin:22px 0 16px}
+  .parties>div{flex:1}
+  .parties strong{display:block;font-size:14px}
+  .parties p{margin:0}
+  .bandeau{display:flex;background:#F8F6F1;border-radius:6px;padding:11px 16px;margin-bottom:22px}
+  .bandeau>div{flex:1}
+  .bandeau b{font-size:13px}
+  table{border-collapse:collapse;width:100%}
+  .produits th{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#79705F;text-align:left;padding:0 6px 8px;border-bottom:1.5px solid #1E1B17}
+  .produits td{padding:9px 6px;border-bottom:1px solid #E2DDD2;vertical-align:top}
+  .d{text-align:right;white-space:nowrap} th.d{text-align:right}
+  .ref{color:#79705F;font-size:11px;white-space:nowrap}
+  .fort{font-weight:bold}
+  .coche{width:34px;text-align:center} th.coche{text-align:center}
+  .case{display:inline-block;width:14px;height:14px;border:1.5px solid #79705F;border-radius:2px}
+  .total{display:flex;justify-content:flex-end;margin:14px 0 24px}
+  .total div{background:#F8F6F1;border-radius:6px;padding:9px 16px;display:flex;gap:40px;align-items:baseline}
+  .total span{font-weight:bold}
+  .total b{font-size:17px;color:#FF6A13}
+  .controle{border:1px solid #E2DDD2;border-radius:6px;padding:14px 16px;margin-bottom:22px}
+  .controle p{margin:7px 0 0}
+  .controle .case{margin-right:9px;vertical-align:-3px}
+  .colis{display:inline-block;width:46px;border-bottom:1px solid #79705F;margin:0 4px}
+  .pied{color:#79705F;font-size:11px;border-top:1px solid #E2DDD2;padding-top:10px}
 </style></head><body>
-<h1>Bon de commande – ${echapperHtml(commande.numero_suivi)}</h1>
-<p class="sous">2C Delivery pour ${echapperHtml(nomFournisseur)} · passée le ${echapperHtml(formaterDate(commande.created_at))}</p>
-<table class="infos">
-  ${info('Client', commande.nom_client)}
-  ${info('Entreprise', commande.entreprise)}
-  ${info('Chantier', commande.chantier)}
-  ${info('Commandé par', commande.technicien)}
-  ${info('Livraison à', commande.adresse)}
-</table>
+<div class="entete">
+  <div class="marque"><img src="${LOGO_2C_PNG}" alt="2C">
+    <div><b><i>DELI</i>VERY</b><span>Du rayon au chantier, en un clic.</span></div></div>
+  <div class="titre"><h1>BON DE COMMANDE</h1><p>N° ${echapperHtml(commande.numero_suivi)}</p></div>
+</div>
+<div class="parties">
+  <div><p class="etiquette">Fournisseur</p><strong>${echapperHtml(nomFournisseur)}</strong></div>
+  <div><p class="etiquette">Livraison</p>${livraison.map((l, i) => i === 0 ? `<strong>${echapperHtml(l)}</strong>` : `<p>${echapperHtml(l)}</p>`).join('')}</div>
+</div>
+<div class="bandeau">
+  <div><p class="etiquette">Commande passée le</p><b>${echapperHtml(formaterDate(commande.created_at))}</b></div>
+  <div><p class="etiquette">Enlèvement</p><b>Par un livreur 2C</b></div>
+  <div><p class="etiquette">Total de vos produits</p><b>${montant(totalCommande(commande))} CHF</b></div>
+</div>
 <table class="produits">
-  <tr><th>Réf.</th><th>Produit</th><th class="c">Qté</th><th class="d">Prix</th><th class="d">Total</th></tr>
+  <tr><th>Réf.</th><th>Produit</th><th class="d">Qté</th><th class="d">Prix</th><th class="d">Total</th><th class="coche">Prêt</th></tr>
   ${lignes}
-  <tr class="total"><td colspan="4" class="d">Total de vos produits</td><td class="d">${chf(totalCommande(commande))}</td></tr>
 </table>
-<p><span class="case"></span>Commande préparée et étiquetée avec le n° ${echapperHtml(commande.numero_suivi)}</p>
+<div class="total"><div><span>Total de vos produits</span><b>${montant(totalCommande(commande))} CHF</b></div></div>
+<div class="controle">
+  <p class="etiquette">À remplir avant l'arrivée du livreur</p>
+  <p><span class="case"></span>Commande préparée et étiquetée avec le n° <b>${echapperHtml(commande.numero_suivi)}</b></p>
+  <p><span class="case"></span>Nombre de colis : <span class="colis"></span> &nbsp; Taille de la box : <span class="colis"></span></p>
+</div>
 <p class="pied">Un livreur 2C passera récupérer cette commande. Pour toute question : contact@2cdelivery.ch</p>
 </body></html>`
 
