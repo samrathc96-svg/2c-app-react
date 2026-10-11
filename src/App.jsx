@@ -1638,7 +1638,32 @@ function App() {
   const [nouveauMetierFournisseur, setNouveauMetierFournisseur] = useState('')
   const [erreurFournisseurAdmin, setErreurFournisseurAdmin] = useState('')
   const [envoiFournisseurEnCours, setEnvoiFournisseurEnCours] = useState(false)
-  const [panier, setPanier] = useState([])
+  // Le panier est gardé dans ce navigateur (24 h) : un rechargement de la page
+  // ou une mise à jour du site ne le vide plus. Le prix est de toute façon
+  // recalculé par le serveur au moment de payer.
+  const [panier, setPanier] = useState(() => {
+    try {
+      const brut = window.localStorage.getItem('panierBrouillon2C')
+      if (!brut) return []
+      const sauvegarde = JSON.parse(brut)
+      if (!sauvegarde || !Array.isArray(sauvegarde.panier)) return []
+      if (Date.now() - Number(sauvegarde.date || 0) > 24 * 3600 * 1000) return []
+      return sauvegarde.panier.filter(
+        (p) => p && p.id !== undefined && p.nom && Number.isFinite(Number(p.prix)) && Number(p.quantite) > 0
+      )
+    } catch (e) {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    try {
+      if (panier.length === 0) window.localStorage.removeItem('panierBrouillon2C')
+      else window.localStorage.setItem('panierBrouillon2C', JSON.stringify({ date: Date.now(), panier }))
+    } catch (e) {
+      // stockage indisponible - le panier reste simplement en mémoire
+    }
+  }, [panier])
   const [configFormeEntree, setConfigFormeEntree] = useState('rond')
   const [configTailleEntree, setConfigTailleEntree] = useState(DIAMETRES_RONDS[0])
   const [configFormeSortie, setConfigFormeSortie] = useState('carre')
