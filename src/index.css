@@ -1141,7 +1141,7 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
   z-index: 20;
   animation: apparition-fond 0.18s ease;
 }
@@ -2634,8 +2634,11 @@ body.marketplace {
   grid-template-columns: 44px 1fr auto;
   align-items: center;
   gap: 4px;
-  min-height: 56px;
-  padding: 0 12px;
+  /* iPhone (application installée) : la barre d'état (heure, batterie) et
+     l'encoche passent par-dessus la page ; on décale l'en-tête dessous pour
+     que le menu et le panier restent touchables. Vaut 0 ailleurs. */
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 12px 0;
   background: #FFFFFF;
   border-bottom: 1px solid var(--couleur-bordure);
 }
@@ -3993,7 +3996,7 @@ body.marketplace {
   width: min(320px, 88vw);
   display: flex;
   flex-direction: column;
-  padding: 16px 24px 20px;
+  padding: calc(16px + env(safe-area-inset-top)) 24px calc(20px + env(safe-area-inset-bottom));
   background: #FFFFFF;
   overflow-y: auto;
   box-shadow: 8px 0 32px rgba(30, 27, 23, 0.18);
