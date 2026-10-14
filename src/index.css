@@ -3272,7 +3272,7 @@ body.marketplace {
 
   .titre-menu-lateral {
     padding: 0 12px 6px;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -3282,30 +3282,47 @@ body.marketplace {
   .item-lateral {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-height: 44px;
-    padding: 0 12px;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 8px;
     border: 0;
     border-radius: var(--rayon-m);
     background: transparent;
-    color: var(--couleur-encre);
+    color: #3A342B;
     font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 13.5px;
+    font-weight: 500;
     text-align: left;
     cursor: pointer;
   }
 
+  /* Icône dans une petite pastille arrondie */
   .item-lateral i {
-    font-size: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(30, 27, 23, 0.05);
+    color: var(--couleur-encre);
+    font-size: 15px;
   }
 
   .item-lateral:hover {
-    background: rgba(30, 27, 23, 0.05);
+    background: rgba(30, 27, 23, 0.04);
   }
 
   .item-lateral.actif {
-    background: var(--couleur-accent-clair);
+    background: transparent;
+    font-weight: 600;
+    color: var(--couleur-encre);
+  }
+
+  .item-lateral.actif i {
+    background: var(--couleur-accent);
+    color: #FFFFFF;
   }
 
   .item-lateral.a-venir {
