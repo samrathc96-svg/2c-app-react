@@ -2658,7 +2658,7 @@ function App() {
       return 'Cet email est déjà associé à un compte. Essaie de te connecter, ou utilise "Mot de passe oublié ?" si besoin.'
     }
     if (code === 'weak_password' || message.includes('Password')) {
-      return 'Le mot de passe est trop court ou trop simple (6 caractères minimum, évite les mots de passe trop courants).'
+      return 'Le mot de passe est trop court ou trop simple (8 caractères minimum, évite les mots de passe trop courants).'
     }
     if (code === 'email_address_invalid' || message.toLowerCase().includes('invalid') && message.toLowerCase().includes('email')) {
       return "Cette adresse email n'est pas valide."
@@ -3765,7 +3765,7 @@ function App() {
       .eq('id', course.id)
 
     if (error) {
-      console.error('Erreur de mise a jour du statut :', error)
+      console.error('Erreur de mise à jour du statut :', error)
       afficherNotification(messageErreur(error, 'Impossible de démarrer la livraison, réessaie.'))
       chargerColis()
       return
@@ -3991,7 +3991,7 @@ function App() {
       .eq('id', course.id)
 
     if (error) {
-      console.error('Erreur de liberation :', error)
+      console.error('Erreur de libération :', error)
       afficherNotification('Impossible de libérer cette course, réessaie.')
       return
     }
@@ -4007,7 +4007,7 @@ function App() {
       .eq('id', courseId)
 
     if (error) {
-      console.error('Erreur de mise a jour du statut :', error)
+      console.error('Erreur de mise à jour du statut :', error)
       afficherNotification('Le changement de statut a échoué, réessaie.')
       return
     }
@@ -5058,8 +5058,8 @@ function App() {
                   )}
                   {roleChoisi === 'livreur' && (
                     <p className="souligne-configurateur">
-                      Ton inscription sera examinée avant validation. Conditions requises : pièce
-                      d'identité valide, casier judiciaire vierge, et disposer d'un moyen de livraison
+                      Ton inscription sera examinée avant validation. Conditions requises : une pièce
+                      d'identité valide, un casier judiciaire vierge et un moyen de livraison
                       (scooter, moto, vélo cargo ou petit utilitaire).
                     </p>
                   )}
@@ -5671,7 +5671,7 @@ function App() {
                 <button type="button" className="lien-modifier" onClick={() => setVue('panier')}>Modifier</button>
               </div>
               {(role === 'client' || role === 'entreprise') && session && (
-                <p className="souligne">Ton nom et ton e-mail viennent de ton compte. Il ne reste qu'à indiquer le lieu de livraison.</p>
+                <p className="souligne">Ton nom et ton email viennent de ton compte. Il ne reste qu'à indiquer le lieu de livraison.</p>
               )}
               <div className="champ-livraison">
                 <input
@@ -7422,7 +7422,7 @@ function App() {
             <h3>Ajouter un fournisseur</h3>
             <input
               type="text"
-              placeholder="Nom du fournisseur (ex: Ventilation Léman)"
+              placeholder="Nom du fournisseur (ex : Ventilation Léman)"
               value={nouveauNomFournisseur}
               onChange={(e) => setNouveauNomFournisseur(e.target.value)}
             />
@@ -7435,7 +7435,7 @@ function App() {
             <input
               type="text"
               list="liste-metiers-admin"
-              placeholder="Métier (ex: Ventilation, Plomberie)"
+              placeholder="Métier (ex : Ventilation, Plomberie)"
               value={nouveauMetierFournisseur}
               onChange={(e) => setNouveauMetierFournisseur(e.target.value)}
             />
@@ -7494,14 +7494,14 @@ function App() {
             <h3>Ajouter un produit</h3>
             <input
               type="text"
-              placeholder="Fournisseur (facultatif, ex: Ventilation Léman)"
+              placeholder="Fournisseur (facultatif, ex : Ventilation Léman)"
               value={nouveauFournisseur}
               onChange={(e) => setNouveauFournisseur(e.target.value)}
             />
             <input
               type="text"
               list="liste-metiers-admin"
-              placeholder="Métier (ex: Ventilation, Plomberie, Électricité)"
+              placeholder="Métier (ex : Ventilation, Plomberie, Électricité)"
               value={nouveauMetierProduit}
               onChange={(e) => setNouveauMetierProduit(e.target.value)}
             />
@@ -7512,7 +7512,7 @@ function App() {
             </datalist>
             <input
               type="text"
-              placeholder="Sous-section (ex: Supportage)"
+              placeholder="Sous-section (ex : Supportage)"
               value={nouveauSousSection}
               onChange={(e) => setNouveauSousSection(e.target.value)}
             />

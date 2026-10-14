@@ -637,7 +637,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
               <input
                 type="text"
                 list="liste-sous-sections-fournisseur"
-                placeholder="Sous-section (ex: Gaines, Colliers)"
+                placeholder="Sous-section (ex : Gaines, Colliers)"
                 value={formulaire.sous_section}
                 onChange={(e) => setFormulaire({ ...formulaire, sous_section: e.target.value })}
               />
@@ -1067,7 +1067,7 @@ function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, 
         </div>
         <input
           type="text"
-          placeholder="Autre métier (ex: Chauffage)"
+          placeholder="Autre métier (ex : Chauffage)"
           value={nouveauMetier}
           onChange={(e) => setNouveauMetier(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') ajouterMetier() }}
