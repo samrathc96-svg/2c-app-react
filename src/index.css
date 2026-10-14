@@ -3262,6 +3262,12 @@ body.marketplace {
     flex-shrink: 0;
     position: sticky;
     top: 92px;
+    box-sizing: border-box;
+    padding: 16px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--couleur-bordure);
+    border-radius: var(--rayon-l, 18px);
+    box-shadow: 0 1px 3px rgba(30, 27, 23, 0.06);
   }
 
   .titre-menu-lateral {
