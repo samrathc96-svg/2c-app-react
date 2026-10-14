@@ -5927,3 +5927,30 @@ a.bouton-secondaire {
   .panneau-candidature { max-height: 94vh; padding: 20px 16px 16px; }
 }
 .item-lateral-groupe-partenaires { margin-top: 2px; }
+
+/* ===== Code de retrait : le livreur montre son code, le fournisseur le saisit ===== */
+.retrait-code {
+  flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--couleur-accent-clair); border: 1px dashed var(--couleur-accent); border-radius: var(--rayon-m);
+  padding: 8px 12px; margin-top: 4px;
+}
+.retrait-code small { font-size: 0.78rem; font-weight: 600; color: #B24400; }
+.retrait-code b { font-size: 1.7rem; letter-spacing: 8px; font-variant-numeric: tabular-nums; color: var(--couleur-encre); }
+.retrait-fait { flex: 1 0 100%; font-size: 0.82rem; font-weight: 700; color: #1f7a3d; display: flex; align-items: center; gap: 6px; }
+.note-box.retrait-ok { color: #1f7a3d; font-weight: 600; }
+
+.bloc-remise {
+  background: var(--couleur-accent-clair); border: 1px solid var(--couleur-accent); border-radius: var(--rayon-m);
+  padding: 12px 13px; margin: 10px 0;
+}
+.bloc-remise .titre-choix-box { margin: 0 0 4px; }
+.bloc-remise .aide-remise { font-size: 0.84rem; color: var(--couleur-muted); margin: 0 0 10px; }
+.bloc-remise .champ-code-livraison { width: 100%; margin-bottom: 8px; }
+.bloc-remise .valider { width: 100%; }
+.remise-confirmee {
+  display: flex; align-items: center; gap: 10px; background: rgba(40, 140, 70, 0.12);
+  border: 1px solid rgba(40, 140, 70, 0.3); color: #1f5a23; border-radius: var(--rayon-m); padding: 10px 12px; margin: 10px 0;
+}
+.remise-confirmee i { font-size: 1.3rem; color: #1f7a3d; }
+.remise-confirmee small { display: block; color: #3d7a41; margin-top: 2px; }
+.bloc-remise .champ-code-livraison { border: 1px solid var(--couleur-bordure); background: var(--couleur-blanc); border-radius: var(--rayon-m); padding: 10px; }

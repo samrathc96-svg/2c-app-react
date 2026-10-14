@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { confirmer } from './confirmer'
 
 // =========================================================
 // Logo du fournisseur
@@ -43,6 +44,13 @@ export function CarteLogoFournisseur({ compte, notifier, onChange }) {
       notifier('Image trop lourde (2 Mo maximum).')
       return
     }
+    if (!(await confirmer(
+      logo ? 'Remplacer votre logo par cette image ? Il changera sur tout le site.' : 'Utiliser cette image comme logo ? Il apparaîtra sur le site.',
+      { oui: logo ? 'Remplacer' : 'Utiliser', danger: false }
+    ))) {
+      if (champ.current) champ.current.value = ''
+      return
+    }
     setEnvoi(true)
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -63,6 +71,7 @@ export function CarteLogoFournisseur({ compte, notifier, onChange }) {
   }
 
   async function retirer() {
+    if (!(await confirmer('Retirer votre logo ? L\'icône de boutique sera affichée à la place.', { oui: 'Retirer le logo' }))) return
     setEnvoi(true)
     try {
       await enregistrer(null)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { confirmer } from './confirmer'
 
 // =========================================================
 // Candidature « Devenir livreur » / « Devenir partenaire »
@@ -85,6 +86,10 @@ export default function Candidature({ type, onFermer }) {
       return
     }
     setErreur('')
+    if (!(await confirmer(
+      type === 'livreur' ? 'Envoyer ta candidature de livreur à 2C Delivery ?' : 'Envoyer votre candidature de partenaire à 2C Delivery ?',
+      { oui: 'Envoyer', danger: false }
+    ))) return
     setEnvoi('envoi')
     const { data, error } = await supabase.functions.invoke('envoyer-candidature', {
       body: { type, ...champs, piege, duree_ms: Date.now() - ouvertA.current }

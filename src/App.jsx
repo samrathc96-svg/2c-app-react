@@ -5,7 +5,7 @@ import { jouerSonnerie } from './alerteSonore'
 import { useAlerteFournisseur } from './useAlerteFournisseur'
 import { ActivationNotifications } from './ActivationNotifications'
 import { pushActifLocalement, oublierCetAppareil } from './notificationsPush'
-import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin } from './ColisCourse'
+import { PucesColis, CarteColisLivreur, FeuilleLiberation, AlertesBoxAdmin, retraitConfirme } from './ColisCourse'
 import { messageErreur } from './BoxLivraison'
 import { LogoFournisseurImage } from './LogoFournisseur'
 import Logo2C from './Logo2C'
@@ -617,6 +617,13 @@ function PageEquipe({ entreprise, onRetour, afficherNotification }) {
   }
 
   async function changerAcces(membre, actif) {
+    const qui = membre.nom || membre.email || 'cet employé'
+    if (!(await confirmer(
+      actif
+        ? `Réactiver l'accès de ${qui} ?`
+        : `Désactiver l'accès de ${qui} ? Il ne pourra plus commander au nom de l'entreprise.`,
+      { oui: actif ? 'Réactiver' : 'Désactiver', danger: !actif }
+    ))) return
     const { error } = await supabase.rpc('changer_acces_employe', {
       p_user_id: membre.user_id,
       p_actif: actif
@@ -817,6 +824,7 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   }
 
   async function creerFacture() {
+    if (!(await confirmer("Créer la facture mensuelle et l'envoyer au responsable de l'entreprise ?", { oui: 'Créer et envoyer', danger: false }))) return
     setEnCours(true)
     let ok = false
     try {
@@ -836,6 +844,10 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   async function crediter() {
     const montant = Number(montantCredit.replace(',', '.'))
     if (!Number.isFinite(montant) || montant === 0) return
+    if (!(await confirmer(
+      `${montant > 0 ? 'Créditer' : 'Débiter'} ${Math.abs(montant).toFixed(2)} CHF sur le compte de ${entreprise.nom || 'cette entreprise'} ?`,
+      { oui: montant > 0 ? 'Créditer' : 'Débiter', danger: montant < 0 }
+    ))) return
     setEnCours(true)
     const ok = await onCrediter(entreprise.id, montant, noteCredit)
     setEnCours(false)
@@ -852,6 +864,7 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
   }
 
   async function enregistrer() {
+    if (!(await confirmer(`Enregistrer les réglages de ${entreprise.nom || 'cette entreprise'} (statut, paiement, plafond, fournisseurs) ?`, { oui: 'Enregistrer', danger: false }))) return
     setEnCours(true)
     await onEnregistrer(entreprise.id, {
       statut,
@@ -979,7 +992,9 @@ function CarteEntrepriseAdmin({ entreprise, fournisseursDisponibles, onEnregistr
                   <span>
                     {f.numero} — {new Date(f.periode_debut).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })} — {Number(f.montant).toFixed(2)} CHF
                   </span>
-                  <button className="bouton-secondaire" disabled={enCours} onClick={() => onRenvoyerFacture(f.facture_id)}>
+                  <button className="bouton-secondaire" disabled={enCours} onClick={async () => {
+                    if (await confirmer('Renvoyer cette facture au responsable de l\'entreprise ?', { oui: 'Renvoyer', danger: false })) onRenvoyerFacture(f.facture_id)
+                  }}>
                     Renvoyer
                   </button>
                 </li>
@@ -1581,6 +1596,12 @@ function App() {
   }
 
   async function changerDisponibilite(nouvelleValeur) {
+    if (!(await confirmer(
+      nouvelleValeur
+        ? 'Te mettre disponible ? Tu pourras de nouveau recevoir des courses.'
+        : 'Te mettre indisponible ? Tu ne seras plus proposé pour de nouvelles courses.',
+      { oui: nouvelleValeur ? 'Oui, disponible' : 'Oui, indisponible', danger: false }
+    ))) return
     setChangementDisponibiliteEnCours(true)
     const { error } = await supabase.rpc('changer_disponibilite', { p_disponible: nouvelleValeur })
     setChangementDisponibiliteEnCours(false)
@@ -2080,6 +2101,7 @@ function App() {
       afficherNotification('Tarif invalide : forfait d\'au moins 0.50 CHF, autres valeurs positives.')
       return
     }
+    if (!(await confirmer(`Enregistrer ce tarif de livraison (forfait ${forfait.toFixed(2)} CHF) ? Il s'appliquera aux nouvelles commandes.`, { oui: 'Enregistrer le tarif', danger: false }))) return
     const { error } = await supabase.rpc('admin_modifier_tarif', {
       p_forfait: forfait,
       p_km_inclus: kmInclus,
@@ -2318,6 +2340,25 @@ function App() {
       document.removeEventListener('visibilitychange', actualiser)
     }
   }, [session, role])
+
+  // Course ouverte et pas encore remise par le(s) fournisseur(s) : on relit les colis toutes les 5 s,
+  // pour que le bouton « démarrer la livraison » s'active dès que le fournisseur a saisi le code de retrait.
+  const courseOuverte = courseSelectionnee !== null ? courses[courseSelectionnee] : null
+  const attenteRemise =
+    role === 'livreur' &&
+    Boolean(session) &&
+    Boolean(courseOuverte) &&
+    courseOuverte.livreur_id === session.user.id &&
+    courseOuverte.statut === 'À livrer' &&
+    !retraitConfirme(colisCourses[courseOuverte.id]).complet
+
+  useEffect(() => {
+    if (!attenteRemise) return undefined
+    const minuteur = setInterval(() => {
+      if (document.visibilityState !== 'hidden') chargerColis()
+    }, 5000)
+    return () => clearInterval(minuteur)
+  }, [attenteRemise])
 
   useEffect(() => {
     // Même logique pour le direct : inutile de s'abonner sans compte,
@@ -2677,6 +2718,8 @@ function App() {
       return
     }
 
+    if (!(await confirmer('Enregistrer ce nouveau mot de passe ? Il remplacera l\'ancien.', { oui: 'Enregistrer', danger: false }))) return
+
     const { error } = await supabase.auth.updateUser({ password: nouveauMotDePasse })
 
     if (error) {
@@ -2803,6 +2846,7 @@ function App() {
       setErreurCandidature('La pièce d\'identité et le justificatif de casier judiciaire sont tous les deux requis.')
       return
     }
+    if (!(await confirmer('Envoyer ta demande de compte livreur ? Elle sera examinée par 2C Delivery.', { oui: 'Envoyer ma demande', danger: false }))) return
     setEnvoiCandidatureEnCours(true)
     try {
       const uid = session.user.id
@@ -3020,6 +3064,7 @@ function App() {
 
   async function envoyerAvis(courseId) {
     if (noteChoisie < 1) return
+    if (!(await confirmer(`Envoyer ton avis (${noteChoisie} étoile${noteChoisie > 1 ? 's' : ''}) ?`, { oui: 'Envoyer mon avis', danger: false }))) return
     setEnvoiAvisEnCours(true)
     const { error } = await supabase.rpc('laisser_avis', {
       p_course_id: courseId,
@@ -3239,6 +3284,7 @@ function App() {
       afficherNotification('Choisissez un montant entre 20 et 5000 CHF.')
       return
     }
+    if (!(await confirmer(`Recharger votre compte de ${montant.toFixed(2)} CHF par carte ? Vous serez redirigé vers la page de paiement sécurisée.`, { oui: 'Recharger', danger: false }))) return
     setRechargeEnCours(true)
     const { data, error } = await supabase.functions.invoke('creer-paiement', {
       body: { action: 'recharge', montant }
@@ -3354,6 +3400,11 @@ function App() {
       afficherNotification("Merci de renseigner le nom du chantier et le nom de l'employé qui commande.")
       return
     }
+
+    if (!(await confirmer(
+      `Confirmer votre commande (${total.toFixed(2)} CHF de produits, livraison en plus) ? ${PAIEMENT_EN_LIGNE_ACTIF ? 'Vous serez ensuite redirigé vers la page de paiement sécurisée.' : 'Elle sera transmise aux fournisseurs.'}`,
+      { oui: 'Oui, commander', non: 'Revoir', danger: false }
+    ))) return
 
     // Tous les clients (particuliers, invités, entreprises) paient en ligne.
     if (PAIEMENT_EN_LIGNE_ACTIF) {
@@ -3703,6 +3754,11 @@ function App() {
       return
     }
 
+    if (nouveauStatut === 'En cours' && !(await confirmer(
+      'Confirmer que toute la commande t\'a été remise et que tu pars livrer ?',
+      { oui: 'Oui, je pars livrer', non: 'Pas encore', danger: false }
+    ))) return
+
     const { error } = await supabase
       .from('courses')
       .update({ statut: nouveauStatut })
@@ -3710,6 +3766,8 @@ function App() {
 
     if (error) {
       console.error('Erreur de mise a jour du statut :', error)
+      afficherNotification(messageErreur(error, 'Impossible de démarrer la livraison, réessaie.'))
+      chargerColis()
       return
     }
 
@@ -3776,6 +3834,10 @@ function App() {
       return
     }
     setErreurCodeLivraison('')
+    if (!(await confirmer(
+      `Confirmer que la commande a été remise${recuParSaisi.trim() ? ` à ${recuParSaisi.trim()}` : ' au client'} ? La livraison sera terminée.`,
+      { oui: 'Oui, livraison terminée', non: 'Pas encore', danger: false }
+    ))) return
     setValidationLivraisonEnCours(true)
     const { data, error } = await supabase.rpc('valider_livraison', {
       p_course_id: String(course.id),
@@ -3922,6 +3984,7 @@ function App() {
 
   async function libererCourse(index) {
     const course = courses[index]
+    if (!(await confirmer('Libérer cette course ? Elle sera proposée aux autres livreurs.', { oui: 'Oui, libérer' }))) return
     const { error } = await supabase
       .from('courses')
       .update({ livreur_id: null })
@@ -3987,6 +4050,8 @@ function App() {
   // bien admin — le client ne peut pas modifier le rôle d'un autre
   // compte directement.
   async function approuverLivreur(profilId) {
+    const candidat = demandesLivreur.find((d) => d.id === profilId)
+    if (!(await confirmer(`Valider le compte livreur de ${(candidat && (candidat.nom || candidat.email)) || 'ce candidat'} ? Il pourra prendre des courses.`, { oui: 'Valider le livreur', danger: false }))) return
     const { error } = await supabase.rpc('approuver_livreur', { p_profil_id: profilId })
     if (error) {
       console.error("Erreur de validation du livreur :", error)
@@ -4076,6 +4141,19 @@ function App() {
   async function validerModificationsAdmin(course) {
     const modif = modifsAdminEnAttente[course.id]
     if (!modif || !aModificationEnAttente(course)) return
+
+    const changements = []
+    if (modif.statut !== undefined && modif.statut !== course.statut) {
+      changements.push(`statut « ${course.statut} » → « ${modif.statut} »`)
+    }
+    if (modif.livreurId !== undefined && modif.livreurId !== (course.livreur_id || '')) {
+      const livreurChoisi = livreurs.find((l) => l.id === modif.livreurId)
+      changements.push(modif.livreurId ? `livreur : ${(livreurChoisi && livreurChoisi.nom) || 'Sans nom'}` : 'livreur retiré')
+    }
+    if (!(await confirmer(
+      `Valider les modifications de la course de ${course.client || 'ce client'} (${changements.join(', ')}) ?${modif.statut === 'Annulée' ? ' La commande sera annulée et remboursée.' : ''}`,
+      { oui: 'Valider', danger: modif.statut === 'Annulée' }
+    ))) return
 
     setValidationEnCoursId(course.id)
 
@@ -4174,6 +4252,7 @@ function App() {
     }
 
     setErreurProduit('')
+    if (!(await confirmer(`Ajouter « ${nouveauNomProduit.trim()} » au catalogue ?`, { oui: 'Ajouter', danger: false }))) return
 
     const { data, error } = await supabase
       .from('produits')
@@ -4237,6 +4316,8 @@ function App() {
       return
     }
 
+    if (!(await confirmer(`Enregistrer les modifications de « ${editionNomProduit.trim()} » ?`, { oui: 'Enregistrer', danger: false }))) return
+
     const { error } = await supabase
       .from('produits')
       .update({
@@ -4285,6 +4366,7 @@ function App() {
       return
     }
     setErreurFournisseurAdmin('')
+    if (!(await confirmer(`Ajouter « ${nom} » à la carte ?`, { oui: 'Ajouter', danger: false }))) return
     setEnvoiFournisseurEnCours(true)
     try {
       // On transforme l'adresse en coordonnées avec le service gratuit OpenStreetMap.
@@ -6806,15 +6888,28 @@ function App() {
               )}
 
               {courses[courseSelectionnee].livreur_id === session.user.id &&
-                courses[courseSelectionnee].statut !== 'En cours' && (
-                  <button
-                    className="valider"
-                    disabled={courses[courseSelectionnee].statut === 'Livrée'}
-                    onClick={() => avancerStatut(courseSelectionnee)}
-                  >
-                    {courses[courseSelectionnee].statut === 'Livrée' ? 'Course livrée' : 'Commande récupérée : démarrer la livraison'}
-                  </button>
-                )}
+                courses[courseSelectionnee].statut !== 'En cours' && (() => {
+                  const course = courses[courseSelectionnee]
+                  const retrait = retraitConfirme(colisCourses[course.id])
+                  const attendRemise = course.statut === 'À livrer' && !retrait.complet
+                  return (
+                    <>
+                      <button
+                        className="valider"
+                        disabled={course.statut === 'Livrée' || attendRemise}
+                        onClick={() => avancerStatut(courseSelectionnee)}
+                      >
+                        {course.statut === 'Livrée' ? 'Course livrée' : 'Commande récupérée : démarrer la livraison'}
+                      </button>
+                      {attendRemise && (
+                        <p className="note-livreur">
+                          En attente du fournisseur : il doit saisir ton code de retrait ({retrait.remis}/{retrait.total}{' '}
+                          remis).
+                        </p>
+                      )}
+                    </>
+                  )
+                })()}
 
               {courses[courseSelectionnee].livreur_id === session.user.id &&
                 courses[courseSelectionnee].statut === 'En cours' && (

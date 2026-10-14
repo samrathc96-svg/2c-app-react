@@ -51,12 +51,29 @@ export function PucesColis({ course, infos, admin }) {
   )
 }
 
+// Le code de retrait n'existe qu'avec le SQL « code_retrait » : sans lui, les colis n'ont pas la clé « remis_le »
+export function retraitConfirme(infos) {
+  const colis = infos && Array.isArray(infos.colis) ? infos.colis : []
+  const avecCodes = colis.some((c) => Object.prototype.hasOwnProperty.call(c, 'remis_le'))
+  if (!avecCodes) return { actif: false, remis: 0, total: colis.length, complet: true }
+  const remis = colis.filter((c) => c.remis_le).length
+  return { actif: true, remis, total: colis.length, complet: remis === colis.length }
+}
+
+function heureRemise(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })
+}
+
 // Carte « Colis à récupérer » dans le détail d'une course (livreur)
 export function CarteColisLivreur({ course, infos }) {
   const colis = infos && Array.isArray(infos.colis) ? infos.colis : []
   if (colis.length === 0) return null
   const total = Number(infos.total || colis.length)
   const pretes = colis.filter((c) => c.prete).length
+  const retrait = retraitConfirme(infos)
+  const codeVisible = colis.some((c) => c.code)
   return (
     <div className="carte-colis">
       <h4>{course.livreur_id ? 'Colis à récupérer' : 'Commande à récupérer'}</h4>
@@ -74,9 +91,30 @@ export function CarteColisLivreur({ course, infos }) {
                 <span className="puce-colis attente">En préparation</span>
               )}
             </span>
+            {c.remis_le ? (
+              <span className="retrait-fait">
+                <i className="bi bi-check-circle-fill"></i> Remis · {heureRemise(c.remis_le)}
+              </span>
+            ) : (
+              c.code && (
+                <span className="retrait-code">
+                  <small>Code de retrait</small>
+                  <b>{c.code}</b>
+                </span>
+              )
+            )}
           </li>
         ))}
       </ul>
+      {codeVisible && (
+        <p className="note-box">
+          Montre ce code au fournisseur à l'enlèvement : il le saisit pour te remettre la commande. Ne le donne à personne
+          d'autre.
+        </p>
+      )}
+      {retrait.actif && course.livreur_id && course.statut === 'À livrer' && retrait.complet && (
+        <p className="note-box retrait-ok">Toute la commande t'a été remise : tu peux démarrer la livraison.</p>
+      )}
       {pretes < total && (
         <p className="note-box">
           {pretes === 0

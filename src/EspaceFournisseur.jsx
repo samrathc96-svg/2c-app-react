@@ -350,6 +350,10 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
       notifier('Le stock doit être un nombre entier positif (ou vide si illimité).')
       return
     }
+    if (!(await confirmer(
+      formulaire.id ? `Enregistrer les modifications de « ${formulaire.nom.trim()} » ?` : `Ajouter « ${formulaire.nom.trim()} » à votre catalogue ?`,
+      { oui: formulaire.id ? 'Enregistrer' : 'Ajouter', danger: false }
+    ))) return
     setEnregistrement(true)
     const { error } = await supabase.rpc('fournisseur_enregistrer_produit', {
       p_id: formulaire.id || null,
@@ -386,6 +390,12 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
       notifier('Le stock doit être un nombre entier positif (ou vide si illimité).')
       return
     }
+    if (!(await confirmer(
+      stock === null
+        ? `Enregistrer « ${p.nom} » en stock illimité ?`
+        : `Enregistrer le stock de « ${p.nom} » : ${stock} unité(s) ?`,
+      { oui: 'Enregistrer le stock', danger: false }
+    ))) return
     const { error } = await supabase.rpc('fournisseur_modifier_stock', { p_id: String(p.id), p_stock: stock })
     if (error) {
       console.error('Erreur de mise à jour du stock :', error)
@@ -404,6 +414,12 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
 
   // Masque un produit publié (ou le réaffiche) sans le supprimer.
   async function masquerProduit(p, masquer) {
+    if (!(await confirmer(
+      masquer
+        ? `Masquer « ${p.nom} » ? Il ne sera plus visible par les clients (vous pourrez le remettre).`
+        : `Remettre « ${p.nom} » dans le catalogue ? Les clients pourront de nouveau le commander.`,
+      { oui: masquer ? 'Masquer' : 'Remettre', danger: false }
+    ))) return
     const { error } = await supabase.rpc('fournisseur_masquer_produit', { p_id: String(p.id), p_masquer: masquer })
     if (error) {
       console.error('Erreur de masquage :', error)
@@ -485,6 +501,7 @@ export function EspaceFournisseur({ compte, onRetour, notifier, onCatalogueChang
   async function lancerImport() {
     const valides = apercuImport.lignes.filter((l) => !l.erreur)
     if (valides.length === 0) return
+    if (!(await confirmer(`Importer ${valides.length} produit${valides.length > 1 ? 's' : ''} dans votre catalogue ? Les produits qui existent déjà seront mis à jour.`, { oui: 'Importer', danger: false }))) return
     setImportEnCours(true)
     const total = { crees: 0, modifies: 0, erreurs: [] }
     for (let debut = 0; debut < valides.length; debut += 500) {
@@ -927,6 +944,7 @@ function CarteCompteFournisseur({ compte, metiersConnus, pointsCarte, notifier, 
   }
 
   async function enregistrer() {
+    if (!(await confirmer(`Enregistrer les modifications du compte « ${nom} » (statut : ${statut}) ?`, { oui: 'Enregistrer', danger: statut === 'suspendu' }))) return
     setEnCours(true)
     const { error } = await supabase.rpc('admin_modifier_compte_fournisseur', {
       p_user: compte.user_id,
@@ -1118,6 +1136,13 @@ export function AdminComptesFournisseurs({ notifier, onCatalogueChange, onCarteC
 
   async function decider(decision) {
     if (selection.length === 0) return
+    const n = selection.length
+    if (!(await confirmer(
+      decision === 'publie'
+        ? `Publier ${n} produit${n > 1 ? 's' : ''} sur le site ?`
+        : `Refuser ${n} produit${n > 1 ? 's' : ''} ? Le fournisseur ne les verra pas publiés.`,
+      { oui: decision === 'publie' ? 'Publier' : 'Refuser', danger: decision !== 'publie' }
+    ))) return
     setEnCours(true)
     const { error } = await supabase.rpc('admin_decider_produits', {
       p_ids: selection.map(String),

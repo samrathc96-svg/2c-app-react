@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { ChoixBox, annoncerCommandePrete, libelleBox, messageErreur, useBoxes } from './BoxLivraison'
 import { LOGO_2C_PNG } from './logo2cPdf'
+import { confirmer } from './confirmer'
 
 // =========================================================
 // Commandes reçues par un fournisseur (onglet "Commandes")
@@ -137,6 +138,7 @@ export function imprimerBon(commande, nomFournisseur) {
   <p class="etiquette">À remplir avant l'arrivée du livreur</p>
   <p><span class="case"></span>Commande préparée et étiquetée avec le n° <b>${echapperHtml(commande.numero_suivi)}</b></p>
   <p><span class="case"></span>Nombre de colis : <span class="colis"></span> &nbsp; Taille de la box : <span class="colis"></span></p>
+  <p><span class="case"></span>À la remise : demander au livreur son <b>code de retrait</b> (4 chiffres), le saisir dans votre espace 2C (Commandes &gt; Confirmer la remise) et vérifier son nom</p>
 </div>
 <p class="pied">Un livreur 2C passera récupérer cette commande. Pour toute question : contact@2cdelivery.ch</p>
 </body></html>`
@@ -169,6 +171,9 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
   const [choix, setChoix] = useState({})
   const [modification, setModification] = useState(null)
   const [annulation, setAnnulation] = useState(null)
+  // Code de retrait saisi par commande : { [id]: '1234' } ; erreurs de saisie : { [id]: 'message' }
+  const [codes, setCodes] = useState({})
+  const [erreursCode, setErreursCode] = useState({})
 
   async function charger() {
     const { data, error } = await supabase.rpc('fournisseur_mes_commandes')
@@ -186,8 +191,54 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
     charger()
     // Nouvelle commande détectée par l'alerte : la liste se met à jour toute seule.
     window.addEventListener('commandes-fournisseur-maj', charger)
-    return () => window.removeEventListener('commandes-fournisseur-maj', charger)
+    // Un livreur prend la course : on affiche son nom sans attendre (relevé toutes les 30 s, page visible)
+    const releve = setInterval(() => {
+      if (document.visibilityState !== 'hidden') charger()
+    }, 30000)
+    return () => {
+      window.removeEventListener('commandes-fournisseur-maj', charger)
+      clearInterval(releve)
+    }
   }, [])
+
+  // Le livreur montre son code de retrait : le fournisseur le saisit pour confirmer la remise
+  async function confirmerRemise(commande) {
+    const code = (codes[commande.id] || '').trim()
+    if (code.length !== 4) {
+      setErreursCode((avant) => ({ ...avant, [commande.id]: 'Saisissez le code à 4 chiffres du livreur.' }))
+      return
+    }
+    if (!(await confirmer(
+      `Remettre la commande ${commande.numero_suivi} à ${commande.livreur_nom || 'ce livreur'} ? Le code de retrait est correct seulement si le livreur vous l'a montré.`,
+      { oui: 'Oui, remettre la commande', danger: false }
+    ))) return
+    setEnCours(commande.id)
+    setErreursCode((avant) => ({ ...avant, [commande.id]: '' }))
+    try {
+      const { data, error } = await supabase.rpc('fournisseur_confirmer_remise', {
+        p_commande: commande.id,
+        p_code: code
+      })
+      if (error) {
+        console.error('Erreur de confirmation de remise :', error)
+        notifier(messageErreur(error, 'La remise n\'a pas pu être confirmée, réessayez.'))
+        return
+      }
+      if (!data || !data.ok) {
+        setErreursCode((avant) => ({
+          ...avant,
+          [commande.id]: (data && data.message) || 'Code incorrect.'
+        }))
+        return
+      }
+      setCodes((avant) => ({ ...avant, [commande.id]: '' }))
+      notifier('Remise confirmée : le livreur peut partir.')
+      await charger()
+      if (onChangement) onChangement()
+    } finally {
+      setEnCours(null)
+    }
+  }
 
   function choixDe(commande) {
     return choix[commande.id] || { box: commande.box || null, nb: Number(commande.nb_colis || 1) }
@@ -205,6 +256,12 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
       return
     }
     const dejaPrete = Boolean(commande.prepare_le)
+    if (!(await confirmer(
+      dejaPrete
+        ? `Enregistrer la nouvelle taille de la commande ${commande.numero_suivi} ?`
+        : `Confirmer : la commande ${commande.numero_suivi} est prête (${libelleBox(box, nb)}) ? Les livreurs seront prévenus.`,
+      { oui: dejaPrete ? 'Enregistrer' : 'Oui, commande prête', danger: false }
+    ))) return
     setEnCours(commande.id)
     try {
       const { error } = await supabase.rpc('fournisseur_marquer_prete', {
@@ -404,6 +461,51 @@ export function CommandesFournisseur({ compte, notifier, onChangement }) {
                         : 'Les livreurs sont prévenus. Tu peux corriger tant qu\'aucun livreur n\'a pris la course.'}
                     </small>
                   </div>
+                )}
+
+                {etape.cle === 'preparee' && cmd.course_prise && (
+                  cmd.remis_le ? (
+                    <div className="remise-confirmee">
+                      <i className="bi bi-check-circle-fill"></i>
+                      <div>
+                        <strong>Remise confirmée{cmd.livreur_nom ? ` à ${cmd.livreur_nom}` : ''}</strong>
+                        <small>{formaterDate(cmd.remis_le)}</small>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bloc-remise">
+                      <p className="titre-choix-box">
+                        <i className="bi bi-person-badge"></i>{' '}
+                        {cmd.livreur_nom ? <strong>{cmd.livreur_nom}</strong> : 'Un livreur'} vient récupérer cette commande
+                      </p>
+                      <p className="aide-remise">
+                        Avant de lui remettre le colis, demandez-lui son <strong>code de retrait</strong> (4 chiffres,
+                        affiché dans son application) et saisissez-le ici.
+                      </p>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={4}
+                        className="champ-code-livraison"
+                        placeholder="Code à 4 chiffres"
+                        value={codes[cmd.id] || ''}
+                        onChange={(e) => {
+                          const valeur = e.target.value.replace(/\D/g, '').slice(0, 4)
+                          setCodes((avant) => ({ ...avant, [cmd.id]: valeur }))
+                          setErreursCode((avant) => ({ ...avant, [cmd.id]: '' }))
+                        }}
+                      />
+                      {erreursCode[cmd.id] && <p className="erreur-code-livraison">{erreursCode[cmd.id]}</p>}
+                      <button
+                        className="valider"
+                        disabled={enCours === cmd.id || (codes[cmd.id] || '').length !== 4}
+                        onClick={() => confirmerRemise(cmd)}
+                      >
+                        <i className="bi bi-box-arrow-up-right"></i> Confirmer la remise
+                      </button>
+                    </div>
+                  )
                 )}
 
                 {modifiable && modification === cmd.id && (
